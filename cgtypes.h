@@ -11,7 +11,7 @@ typedef struct label {
 	WORD		label_flags;
 	WORD		label_a_stack_size;
 	WORD		label_b_stack_size;
-#if defined (G_POWER) || defined (_WINDOWS_) || defined (ELF)
+#ifdef FUNCTION_LEVEL_LINKING
 	union {
 	ULONG *							u_vector;
 # define		label_vector		label_u.u_vector
@@ -21,16 +21,12 @@ typedef struct label {
 #else
 	ULONG *		label_vector;
 #endif
-#if defined (G_POWER) || defined (I486) || defined (sparc)
 	union {
 		ULONG						u0_small_vector;
 # define		label_small_vector	label_u0.u0_small_vector
 		ULONG						u0_offset;
 # define		label_offset		label_u0.u0_offset
 	}			label_u0;
-#else
-	ULONG		label_small_vector;
-#endif
 	WORD		label_id;
 	WORD		label_arity;
 	struct label *label_descriptor;
