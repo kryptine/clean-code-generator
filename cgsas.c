@@ -12,6 +12,7 @@
 #include <elf.h>
 
 #define ELF
+#undef ALIGN_REAL_ARRAYS
 
 #include "cgport.h"
 #include "cgrconst.h"
@@ -20,6 +21,12 @@
 #include "cgiconst.h"
 #include "cgcode.h"
 #include "cgswas.h"
+
+#ifdef ALIGN_REAL_ARRAYS
+# define LOAD_STORE_ALIGNED_REAL 4
+#endif
+
+#define FUNCTION_LEVEL_LINKING
 
 #define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
 
@@ -556,7 +563,7 @@ static unsigned char real_reg_num [32] =
 #define as_i_abd3(ra,rb,rd,op) store_instruction(0xc0000000|((op)<<19)|(reg_num(rd)<<25)|(reg_num(ra)<<14)|reg_num(rb))
 #define as_i_aod3(ra,o,rd,op) store_instruction(0xc0000000|((op)<<19)|(reg_num(rd)<<25)|(reg_num(ra)<<14)|0x2000|((o)&0x1fff))
 #define as_i_foa3(fa,o,ra,op) store_instruction(0xc0000000|((op)<<19)|((fa)<<25)|((reg_num(ra))<<14)|0x2000|((o)&0x1fff))
-#define as_i_fab3(fa,ra,rb,op) store_instruction(0xc0000000|((op)<<19)|((fa)<<25)|((reg_num(ra))<<14)|(rb))
+#define as_i_fab3(fa,ra,rb,op) store_instruction(0xc0000000|((op)<<19)|((fa)<<25)|((reg_num(ra))<<14)|(reg_num(rb)))
 
 #define LD_OP 0
 #define LDUB_OP 1
@@ -570,6 +577,7 @@ static unsigned char real_reg_num [32] =
 #define LDF_OP 0x20
 #define LDDF_OP 0x23
 #define	STF_OP 0x24
+#define STDF_OP 0x27
 
 #define AND_OP 1
 #define OR_OP 2
@@ -617,6 +625,7 @@ static unsigned char real_reg_num [32] =
 #define as_jmpli(i,ra,rd) as_i_aid2(ra,i,rd,0x38)
 #define as_ld(o,ra,rd) as_i_aod3(ra,o,rd,LD_OP)
 #define as_lddf(o,ra,fd) as_i_foa3(fd,o,ra,LDDF_OP)
+#define as_lddf_x(ra,rb,fd) as_i_fab3(fd,ra,rb,LDDF_OP)
 #define as_ldf(o,ra,fd) as_i_foa3(fd,o,ra,LDF_OP)
 #define as_ldf_x(ra,rb,fd) as_i_fab3(fd,ra,rb,LDF_OP)
 #define as_ldsh(o,ra,rd) as_i_aod3(ra,o,rd,LDSH_OP)
@@ -624,11 +633,14 @@ static unsigned char real_reg_num [32] =
 #define as_ld_x(ra,rb,rd) as_i_abd3(ra,rb,rd,LD_OP)
 #define as_fmovs(fa,fd) as_i_ff2(fa,fd,0x34,1);
 #define as_fnegs(fa,fd) as_i_ff2(fa,fd,0x34,5);
+#define as_fabss(fa,fd) as_i_ff2(fa,fd,0x34,9);
 #define as_or(ra,rb,rd) as_i_abd2(ra,rb,rd,OR_OP)
 #define as_orcc(ra,rb,rd) as_i_abd2(ra,rb,rd,0x12)
 #define as_ori(ra,i,rd) as_i_aid2(ra,i,rd,OR_OP)
 #define as_sethi(i,rd) as_i_id0(i,rd)
 #define as_slli(ra,i,rd) as_i_aid2(ra,i,rd,SLL_OP)
+#define as_stdf(fa,o,rd) as_i_foa3(fa,o,rd,STDF_OP)
+#define as_stdf_x(fa,ra,rb) as_i_fab3(fa,ra,rb,STDF_OP)
 #define as_stf(fa,o,rd) as_i_foa3(fa,o,rd,STF_OP)
 #define as_sub(ra,rb,rd) as_i_abd2(ra,rb,rd,4)
 #define as_subcc(ra,rb,rd) as_i_abd2(ra,rb,rd,0x14)
@@ -1294,6 +1306,11 @@ static void w_as_mul_or_div_instruction (struct instruction *instruction,struct 
 	as_mov (REGISTER_O0,instruction->instruction_parameters[1].parameter_data.reg.r);
 }
 
+static void as_neg_instruction (struct instruction *instruction)
+{
+	as_sub (REGISTER_G0,instruction->instruction_parameters[0].parameter_data.reg.r,instruction->instruction_parameters[0].parameter_data.reg.r);
+}
+
 #ifndef FUNCTION_LEVEL_LINKING
 static int data_section_alignment_mask;
 #endif
@@ -1335,62 +1352,131 @@ static void as_load_float_immediate (double float_value,int fp_reg)
 	as_hi_or_lo_label (new_label,0,LO12_RELOCATION);
 }
 
-static struct parameter as_float_parameter (struct parameter parameter)
+static void as_load_float_indirect (struct parameter *parameter_p,int f_reg)
+{
+#ifdef ALIGN_REAL_ARRAYS
+	if (parameter_p->parameter_flags & LOAD_STORE_ALIGNED_REAL)
+		as_lddf (parameter_p->parameter_offset,parameter_p->parameter_data.reg.r,f_reg<<1);						
+	else {
+#endif
+	as_ldf (parameter_p->parameter_offset,parameter_p->parameter_data.reg.r,f_reg<<1);
+	as_ldf (parameter_p->parameter_offset+4,parameter_p->parameter_data.reg.r,(f_reg<<1)+1);
+#ifdef ALIGN_REAL_ARRAYS
+	}
+#endif
+}
+
+static void as_load_float_indexed (struct parameter *parameter_p,int f_reg)
+{
+	int offset;
+	
+	offset=parameter_p->parameter_offset>>2;
+	
+#ifdef ALIGN_REAL_ARRAYS
+	if (parameter_p->parameter_flags & LOAD_STORE_ALIGNED_REAL){
+		if (offset==0)
+			as_lddf_x (parameter_p->parameter_data.ir->a_reg.r,parameter_p->parameter_data.ir->d_reg.r,f_reg<<1);
+		else {
+			as_add (parameter_p->parameter_data.ir->a_reg.r,parameter_p->parameter_data.ir->d_reg.r,REGISTER_O0);
+			as_lddf (offset,REGISTER_O0,f_reg<<1);
+		}
+	} else {
+#endif
+	as_add (parameter_p->parameter_data.ir->a_reg.r,parameter_p->parameter_data.ir->d_reg.r,REGISTER_O0);
+	as_ldf (offset,REGISTER_O0,f_reg<<1);
+	as_ldf (offset+4,REGISTER_O0,(f_reg<<1)+1);
+#ifdef ALIGN_REAL_ARRAYS
+	}
+#endif
+}
+
+static int as_float_parameter (struct parameter parameter)
 {
 	switch (parameter.parameter_type){
 		case P_F_IMMEDIATE:
 			as_load_float_immediate (*parameter.parameter_data.r,15);
-
-			parameter.parameter_type=P_F_REGISTER;
-			parameter.parameter_data.reg.r=15;
-			break;
+			return 15;
 		case P_INDIRECT:
+#ifdef ALIGN_REAL_ARRAYS
+			if (parameter.parameter_flags & LOAD_STORE_ALIGNED_REAL)
+				as_lddf (parameter.parameter_offset,parameter.parameter_data.reg.r,30);
+			else {
+#endif
 			as_ldf (parameter.parameter_offset,parameter.parameter_data.reg.r,30);
 			as_ldf (parameter.parameter_offset+4,parameter.parameter_data.reg.r,31);
-
-			parameter.parameter_type=P_F_REGISTER;
-			parameter.parameter_data.reg.r=15;
-			break;
+#ifdef ALIGN_REAL_ARRAYS
+			}
+#endif
+			return 15;
 		case P_INDEXED:
+		{
+			int offset;
+			
+			offset=parameter.parameter_offset>>2;
+			
+#ifdef ALIGN_REAL_ARRAYS
+			if (parameter.parameter_flags & LOAD_STORE_ALIGNED_REAL){
+				if (offset==0)
+					as_lddf_x (parameter.parameter_data.ir->a_reg.r,parameter.parameter_data.ir->d_reg.r,30);
+				else {
+					as_add (parameter.parameter_data.ir->a_reg.r,parameter.parameter_data.ir->d_reg.r,REGISTER_O0);
+
+					as_lddf (offset,REGISTER_O0,30);
+				}
+			} else {
+#endif
 			as_add (parameter.parameter_data.ir->a_reg.r,parameter.parameter_data.ir->d_reg.r,REGISTER_O0);
 
-			as_ldf (parameter.parameter_offset>>2,REGISTER_O0,30);
-			as_ldf ((parameter.parameter_offset>>2)+4,REGISTER_O0,31);
-
-			parameter.parameter_type=P_F_REGISTER;
-			parameter.parameter_data.reg.r=15;
-			break;
+			as_ldf (offset,REGISTER_O0,30);
+			as_ldf (offset+4,REGISTER_O0,31);
+#ifdef ALIGN_REAL_ARRAYS
+			}
+#endif
+			return 15;
+		}
+		case P_F_REGISTER:
+			return parameter.parameter_data.reg.r;
 	}
-	return parameter;
+	internal_error_in_function ("as_float_parameter");
+	return 0;
 }
 
 static void as_compare_float_instruction (struct instruction *instruction)
 {
-	struct parameter parameter_0;
+	int f_reg;
 
-	parameter_0=as_float_parameter (instruction->instruction_parameters[0]);
+	f_reg=as_float_parameter (instruction->instruction_parameters[0]);
 
-	as_fcmpd (instruction->instruction_parameters[1].parameter_data.reg.r<<1,parameter_0.parameter_data.reg.r<<1);
+	as_fcmpd (instruction->instruction_parameters[1].parameter_data.reg.r<<1,f_reg<<1);
 }
 
 static void as_sqrt_float_instruction (struct instruction *instruction)
 {
-	struct parameter parameter_0;
+	int f_reg;
 
-	parameter_0=as_float_parameter (instruction->instruction_parameters[0]);
+	f_reg=as_float_parameter (instruction->instruction_parameters[0]);
 
-	as_fsqrtd (parameter_0.parameter_data.reg.r<<1,instruction->instruction_parameters[1].parameter_data.reg.r<<1);
+	as_fsqrtd (f_reg<<1,instruction->instruction_parameters[1].parameter_data.reg.r<<1);
 }
 
 static void as_neg_float_instruction (struct instruction *instruction)
 {
-	struct parameter parameter_0;
 	int freg1,freg2;
 
-	parameter_0=as_float_parameter (instruction->instruction_parameters[0]);
-
-	freg1=parameter_0.parameter_data.reg.r;
 	freg2=instruction->instruction_parameters[1].parameter_data.reg.r;
+	
+	switch (instruction->instruction_parameters[0].parameter_type){
+		case P_INDIRECT:
+			as_load_float_indirect (&instruction->instruction_parameters[0],freg2);
+			freg1=freg2;
+			break;
+		case P_INDEXED:
+			as_load_float_indexed (&instruction->instruction_parameters[0],freg2);
+			freg1=freg2;
+			break;
+		default:
+			freg1=as_float_parameter (instruction->instruction_parameters[0]);
+	}
 
 	as_fnegs (freg1<<1,freg2<<1);
 
@@ -1398,14 +1484,38 @@ static void as_neg_float_instruction (struct instruction *instruction)
 		as_fmovs ((freg1<<1)+1,(freg2<<1)+1);
 }
 
+static void as_abs_float_instruction (struct instruction *instruction)
+{
+	int freg1,freg2;
+
+	freg2=instruction->instruction_parameters[1].parameter_data.reg.r;
+	
+	switch (instruction->instruction_parameters[0].parameter_type){
+		case P_INDIRECT:
+			as_load_float_indirect (&instruction->instruction_parameters[0],freg2);
+			freg1=freg2;
+			break;
+		case P_INDEXED:
+			as_load_float_indexed (&instruction->instruction_parameters[0],freg2);
+			freg1=freg2;
+			break;
+		default:
+			freg1=as_float_parameter (instruction->instruction_parameters[0]);
+	}
+
+	as_fabss (freg1<<1,freg2<<1);
+
+	if (freg1!=freg2)
+		as_fmovs ((freg1<<1)+1,(freg2<<1)+1);
+}
+
 static void as_tryadic_float_instruction (struct instruction *instruction,int opcode)
 {
-	struct parameter parameter_0;
+	int f_reg;
 
-	parameter_0=as_float_parameter (instruction->instruction_parameters[0]);
+	f_reg=as_float_parameter (instruction->instruction_parameters[0]);
 
-	as_i_fff2 (instruction->instruction_parameters[1].parameter_data.reg.r<<1,
-			   parameter_0.parameter_data.reg.r<<1,
+	as_i_fff2 (instruction->instruction_parameters[1].parameter_data.reg.r<<1,f_reg<<1,
 			   instruction->instruction_parameters[1].parameter_data.reg.r<<1,
 			   0x34,opcode);
 }
@@ -1429,12 +1539,10 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 							case IFADD: case IFSUB: case IFMUL: case IFDIV:
 								if (next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1)
 								{
-									struct parameter parameter_0;
 									int reg_s;
 
-									parameter_0=as_float_parameter (next_instruction->instruction_parameters[0]);
+									reg_s=as_float_parameter (next_instruction->instruction_parameters[0]);
 
-									reg_s=parameter_0.parameter_data.reg.r;
 									if (reg_s==reg1)
 										reg_s=reg0;
 									
@@ -1463,25 +1571,10 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 					return instruction;
 				}
 				case P_INDIRECT:
-					as_ldf (instruction->instruction_parameters[0].parameter_offset,
-							instruction->instruction_parameters[0].parameter_data.reg.r,
-							instruction->instruction_parameters[1].parameter_data.reg.r<<1);
-
-					as_ldf (instruction->instruction_parameters[0].parameter_offset+4,
-							instruction->instruction_parameters[0].parameter_data.reg.r,
-							(instruction->instruction_parameters[1].parameter_data.reg.r<<1)+1);
-
+					as_load_float_indirect (&instruction->instruction_parameters[0],instruction->instruction_parameters[1].parameter_data.reg.r);
 					return instruction;
 				case P_INDEXED:
-					as_add (instruction->instruction_parameters[0].parameter_data.ir->a_reg.r,
-							instruction->instruction_parameters[0].parameter_data.ir->d_reg.r,REGISTER_O0);
-
-					as_ldf (instruction->instruction_parameters[0].parameter_offset>>2,REGISTER_O0,
-							instruction->instruction_parameters[1].parameter_data.reg.r<<1);
-					
-					as_ldf ((instruction->instruction_parameters[0].parameter_offset>>2)+4,REGISTER_O0,
-							(instruction->instruction_parameters[1].parameter_data.reg.r<<1)+1);
-
+					as_load_float_indexed (&instruction->instruction_parameters[0],instruction->instruction_parameters[1].parameter_data.reg.r);
 					return instruction;
 				case P_F_IMMEDIATE:
 					as_load_float_immediate (*instruction->instruction_parameters[0].parameter_data.r,instruction->instruction_parameters[1].parameter_data.reg.r);
@@ -1490,6 +1583,13 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 			break;
 		case P_INDIRECT:
 			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+#ifdef ALIGN_REAL_ARRAYS
+				if (instruction->instruction_parameters[1].parameter_flags & LOAD_STORE_ALIGNED_REAL){
+					as_stdf (instruction->instruction_parameters[0].parameter_data.reg.r<<1,
+							 instruction->instruction_parameters[1].parameter_offset,
+							 instruction->instruction_parameters[1].parameter_data.reg.r);
+				} else {
+#endif
 				as_stf (instruction->instruction_parameters[0].parameter_data.reg.r<<1,
 						instruction->instruction_parameters[1].parameter_offset,
 						instruction->instruction_parameters[1].parameter_data.reg.r);
@@ -1497,21 +1597,39 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 				as_stf ((instruction->instruction_parameters[0].parameter_data.reg.r<<1)+1,
 						instruction->instruction_parameters[1].parameter_offset+4,
 						instruction->instruction_parameters[1].parameter_data.reg.r);
-
+#ifdef ALIGN_REAL_ARRAYS
+				}
+#endif
 				return instruction;
 			}
 			break;
 		case P_INDEXED:
 			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+				int offset;
+				
+				offset=instruction->instruction_parameters[1].parameter_offset>>2;
+#ifdef ALIGN_REAL_ARRAYS
+				if (instruction->instruction_parameters[1].parameter_flags & LOAD_STORE_ALIGNED_REAL){
+					if (offset==0)
+						as_stdf_x (instruction->instruction_parameters[0].parameter_data.reg.r<<1,
+								   instruction->instruction_parameters[1].parameter_data.ir->a_reg.r,
+								   instruction->instruction_parameters[1].parameter_data.ir->d_reg.r);	
+					else {
+						as_add (instruction->instruction_parameters[1].parameter_data.ir->a_reg.r,
+								instruction->instruction_parameters[1].parameter_data.ir->d_reg.r,REGISTER_O0);
+
+						as_stdf (instruction->instruction_parameters[0].parameter_data.reg.r<<1,offset,REGISTER_O0);			
+					}
+				} else {
+#endif
 				as_add (instruction->instruction_parameters[1].parameter_data.ir->a_reg.r,
 						instruction->instruction_parameters[1].parameter_data.ir->d_reg.r,REGISTER_O0);
 
-				as_stf (instruction->instruction_parameters[0].parameter_data.reg.r<<1,
-						instruction->instruction_parameters[1].parameter_offset>>2,REGISTER_O0);
-
-				as_stf ((instruction->instruction_parameters[0].parameter_data.reg.r<<1)+1,
-						(instruction->instruction_parameters[1].parameter_offset>>2)+4,REGISTER_O0);
-
+				as_stf (instruction->instruction_parameters[0].parameter_data.reg.r<<1,offset,REGISTER_O0);
+				as_stf ((instruction->instruction_parameters[0].parameter_data.reg.r<<1)+1,offset+4,REGISTER_O0);
+#ifdef ALIGN_REAL_ARRAYS
+				}
+#endif
 				return instruction;
 			}
 	}
@@ -1711,6 +1829,9 @@ static void as_instructions (register struct instruction *instruction)
 			case IMOVEB:
 				as_move_instruction (instruction,SIZE_BYTE);
 				break;
+			case INEG:
+				as_neg_instruction (instruction);
+				break;
 			case IFMOVE:
 				instruction=as_fmove_instruction (instruction);
 				break;
@@ -1759,6 +1880,9 @@ static void as_instructions (register struct instruction *instruction)
 				break;
 			case IFNEG:
 				as_neg_float_instruction (instruction);
+				break;
+			case IFABS:
+				as_abs_float_instruction (instruction);
 				break;
 			case IFSEQ:
 				as_set_float_condition_instruction (instruction,FE_COND);

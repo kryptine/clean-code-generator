@@ -22,6 +22,12 @@
 
 #define SP_G5
 
+#undef ALIGN_REAL_ARRAYS
+
+#ifdef ALIGN_REAL_ARRAYS
+# define LOAD_STORE_ALIGNED_REAL 4
+#endif
+
 static FILE *assembly_file;
 
 static void w_as_newline (VOID)
@@ -415,6 +421,11 @@ static void w_as_scratch_register (void)
 static void w_as_fp_register (int fp_reg)
 {
 	fprintf (assembly_file,"%%f%d",fp_reg);
+}
+
+static void w_as_fp_register_newline (int fp_reg)
+{
+	fprintf (assembly_file,"%%f%d\n",fp_reg);
 }
 
 static void w_as_opcode_descriptor (char *opcode,char *label_name,int arity)
@@ -1367,7 +1378,96 @@ static void w_as_word_instruction (struct instruction *instruction)
 			(int)instruction->instruction_parameters[0].parameter_data.i);
 }
 
-static struct parameter w_as_float_parameter (struct parameter parameter)
+static void w_as_neg_instruction (struct instruction *instruction)
+{
+	w_as_opcode ("sub");
+	w_as_register_comma (REGISTER_G0);
+    w_as_register_comma (instruction->instruction_parameters[0].parameter_data.reg.r);
+    w_as_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+	w_as_newline();
+}
+
+static void w_as_load_float_indirect (struct parameter *parameter_p,int f_reg)
+{
+#ifdef ALIGN_REAL_ARRAYS
+	if (parameter_p->parameter_flags & LOAD_STORE_ALIGNED_REAL){
+		w_as_opcode ("ldd");
+		w_as_indirect (parameter_p->parameter_offset,parameter_p->parameter_data.reg.r);
+		w_as_comma();
+		w_as_fp_register (f_reg<<1);
+		w_as_newline();
+	} else {
+#endif
+
+	w_as_opcode ("ld");
+	w_as_indirect (parameter_p->parameter_offset,parameter_p->parameter_data.reg.r);
+	w_as_comma();
+	w_as_fp_register (f_reg<<1);
+	w_as_newline();
+
+	w_as_opcode ("ld");
+	w_as_indirect (parameter_p->parameter_offset+4,parameter_p->parameter_data.reg.r);
+	w_as_comma();
+	w_as_fp_register ((f_reg<<1)+1);
+	w_as_newline();
+
+#ifdef ALIGN_REAL_ARRAYS
+	}
+#endif
+}
+
+static void w_as_load_float_indexed (struct parameter *parameter_p,int f_reg)
+{
+	int offset;
+	
+	offset=parameter_p->parameter_offset>>2;
+
+#ifdef ALIGN_REAL_ARRAYS
+	if (parameter_p->parameter_flags & LOAD_STORE_ALIGNED_REAL){
+		if (offset==0){
+			w_as_opcode ("ldd");
+			w_as_indexed (offset,parameter_p->parameter_data.ir);
+			w_as_comma();
+			w_as_fp_register (f_reg<<1);
+			w_as_newline();
+		} else {
+			w_as_opcode ("add");
+			w_as_register_comma (parameter_p->parameter_data.ir->a_reg.r);
+			w_as_register_comma (parameter_p->parameter_data.ir->d_reg.r);
+			w_as_register_newline (REGISTER_O0);
+
+			w_as_opcode ("ldd");
+			w_as_indirect (offset,REGISTER_O0);
+			w_as_comma();
+			w_as_fp_register (f_reg<<1);
+			w_as_newline();
+		}
+	} else {
+#endif
+
+	w_as_opcode ("add");
+	w_as_register_comma (parameter_p->parameter_data.ir->a_reg.r);
+	w_as_register_comma (parameter_p->parameter_data.ir->d_reg.r);
+	w_as_register_newline (REGISTER_O0);
+
+	w_as_opcode ("ld");
+	w_as_indirect (offset,REGISTER_O0);
+	w_as_comma();
+	w_as_fp_register (f_reg<<1);
+	w_as_newline();
+
+	w_as_opcode ("ld");
+	w_as_indirect (offset+4,REGISTER_O0);
+	w_as_comma();
+	w_as_fp_register ((f_reg<<1)+1);
+	w_as_newline();
+
+#ifdef ALIGN_REAL_ARRAYS
+	}
+#endif
+}
+
+static int w_as_float_parameter (struct parameter parameter)
 {
 	switch (parameter.parameter_type){
 		case P_F_IMMEDIATE:
@@ -1406,11 +1506,18 @@ static struct parameter w_as_float_parameter (struct parameter parameter)
 			w_as_fp_register (30);
 			w_as_newline();
 
-			parameter.parameter_type=P_F_REGISTER;
-			parameter.parameter_data.reg.r=15;
-			break;
+			return 15;
 		}
 		case P_INDIRECT:
+#ifdef ALIGN_REAL_ARRAYS
+			if (parameter.parameter_flags & LOAD_STORE_ALIGNED_REAL){
+				w_as_opcode ("ldd");
+				w_as_indirect (parameter.parameter_offset,parameter.parameter_data.reg.r);
+				w_as_comma();
+				w_as_fp_register (30);
+				w_as_newline();
+			} else {
+#endif
 			w_as_opcode ("ld");
 			w_as_indirect (parameter.parameter_offset,parameter.parameter_data.reg.r);
 			w_as_comma();
@@ -1422,102 +1529,138 @@ static struct parameter w_as_float_parameter (struct parameter parameter)
 			w_as_comma();
 			w_as_fp_register (31);
 			w_as_newline();
-
-			parameter.parameter_type=P_F_REGISTER;
-			parameter.parameter_data.reg.r=15;
-			break;
+#ifdef ALIGN_REAL_ARRAYS
+			}
+#endif
+			return 15;
 		case P_INDEXED:
+		{
+			int offset;
+			
+			offset=parameter.parameter_offset>>2;
+
+#ifdef ALIGN_REAL_ARRAYS
+			if (parameter.parameter_flags & LOAD_STORE_ALIGNED_REAL){
+				if (offset==0){
+					w_as_opcode ("ldd");
+					w_as_indexed (offset,parameter.parameter_data.ir);
+					w_as_comma();
+					w_as_fp_register (30);
+					w_as_newline();
+				} else {
+					w_as_opcode ("add");
+					w_as_register_comma (parameter.parameter_data.ir->a_reg.r);
+					w_as_register_comma (parameter.parameter_data.ir->d_reg.r);
+					w_as_register_newline (REGISTER_O0);
+
+					w_as_opcode ("ldd");
+					w_as_indirect (offset,REGISTER_O0);
+					w_as_comma();
+					w_as_fp_register (30);
+					w_as_newline();
+				}
+			} else {
+#endif
 			w_as_opcode ("add");
-			w_as_register (parameter.parameter_data.ir->a_reg.r);
-			w_as_comma();
-			w_as_register (parameter.parameter_data.ir->d_reg.r);
-			w_as_comma();
-			w_as_register (REGISTER_O0);
-			w_as_newline();
+			w_as_register_comma (parameter.parameter_data.ir->a_reg.r);
+			w_as_register_comma (parameter.parameter_data.ir->d_reg.r);
+			w_as_register_newline (REGISTER_O0);
 
 			w_as_opcode ("ld");
-			w_as_indirect (parameter.parameter_offset>>2,REGISTER_O0);
+			w_as_indirect (offset,REGISTER_O0);
 			w_as_comma();
 			w_as_fp_register (30);
 			w_as_newline();
 
 			w_as_opcode ("ld");
-			w_as_indirect ((parameter.parameter_offset>>2)+4,REGISTER_O0);
+			w_as_indirect (offset+4,REGISTER_O0);
 			w_as_comma();
 			w_as_fp_register (31);
 			w_as_newline();
-
-			parameter.parameter_type=P_F_REGISTER;
-			parameter.parameter_data.reg.r=15;
-			break;
+#ifdef ALIGN_REAL_ARRAYS
+			}
+#endif
+			return 15;
+		case P_F_REGISTER:
+			return parameter.parameter_data.reg.r;
+		}
 	}
-	return parameter;
+	
+	internal_error_in_function ("w_as_float_parameter");
+	return 0;
 }
 
 static void w_as_compare_float_instruction (struct instruction *instruction)
 {
-	struct parameter parameter_0;
+	int f_reg;
 
-	parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
+	f_reg=w_as_float_parameter (instruction->instruction_parameters[0]);
 
 	w_as_opcode_and_d ("fcmp");
 	
 	w_as_parameter (&instruction->instruction_parameters[1]);
 	w_as_comma();
-	w_as_parameter (&parameter_0);
+	w_as_fp_register (f_reg<<1);
 	w_as_newline();
 }
 
 static void w_as_sqrt_float_instruction (struct instruction *instruction)
 {
-	struct parameter parameter_0;
+	int f_reg;
 
-	parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
+	f_reg=w_as_float_parameter (instruction->instruction_parameters[0]);
 
 	w_as_opcode_and_d ("fsqrt");
 	
-	w_as_parameter (&parameter_0);
+	w_as_fp_register (f_reg<<1);
 	w_as_comma();
 	w_as_parameter (&instruction->instruction_parameters[1]);
 	w_as_newline();
 }
 
-static void w_as_neg_float_instruction (struct instruction *instruction)
+static void w_as_neg_or_abs_float_instruction (struct instruction *instruction,char *opcode)
 {
-	struct parameter parameter_0;
 	int freg1,freg2;
 
-	parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
-
-	freg1=parameter_0.parameter_data.reg.r;
 	freg2=instruction->instruction_parameters[1].parameter_data.reg.r;
 
-	w_as_opcode ("fnegs");
+	switch (instruction->instruction_parameters[0].parameter_type){
+		case P_INDIRECT:
+			w_as_load_float_indirect (&instruction->instruction_parameters[0],freg2);
+			freg1=freg2;
+			break;
+		case P_INDEXED:
+			w_as_load_float_indexed (&instruction->instruction_parameters[0],freg2);
+			freg1=freg2;
+			break;
+		default:
+			freg1=w_as_float_parameter (instruction->instruction_parameters[0]);
+	}
+
+	w_as_opcode (opcode);
 	w_as_fp_register (freg1<<1);
 	w_as_comma();
-	w_as_fp_register (freg2<<1);
-	w_as_newline();
+	w_as_fp_register_newline (freg2<<1);
 
 	if (freg1!=freg2){
 		w_as_opcode ("fmovs");
 		w_as_fp_register ((freg1<<1)+1);
 		w_as_comma();
-		w_as_fp_register ((freg2<<1)+1);
-		w_as_newline();
+		w_as_fp_register_newline ((freg2<<1)+1);
 	}
 }
 
 static void w_as_tryadic_float_instruction (struct instruction *instruction,char *opcode)
 {
-	struct parameter parameter_0;
+	int freg;
 
-	parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
+	freg=w_as_float_parameter (instruction->instruction_parameters[0]);
 
 	w_as_opcode_and_d (opcode);
 
 	w_as_parameter (&instruction->instruction_parameters[1]);
 	w_as_comma();
-	w_as_parameter (&parameter_0);
+	w_as_fp_register (freg<<1);
 	w_as_comma();
 	w_as_parameter (&instruction->instruction_parameters[1]);
 	w_as_newline();
@@ -1542,12 +1685,10 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 							case IFADD: case IFSUB: case IFMUL: case IFDIV: case IFREM:
 								if (next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1)
 								{
-									struct parameter parameter_0;
 									int reg_s;
 
-									parameter_0=w_as_float_parameter (next_instruction->instruction_parameters[0]);
+									reg_s=w_as_float_parameter (next_instruction->instruction_parameters[0]);
 
-									reg_s=parameter_0.parameter_data.reg.r;
 									if (reg_s==reg1)
 										reg_s=reg0;
 									
@@ -1593,42 +1734,12 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 					return instruction;
 				}
 				case P_INDIRECT:
-					w_as_opcode ("ld");
-					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,
-								   instruction->instruction_parameters[0].parameter_data.reg.r);
-					w_as_comma();
-					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r<<1);
-					w_as_newline();
-
-					w_as_opcode ("ld");
-					w_as_indirect (instruction->instruction_parameters[0].parameter_offset+4,
-								   instruction->instruction_parameters[0].parameter_data.reg.r);
-					w_as_comma();
-					w_as_fp_register ((instruction->instruction_parameters[1].parameter_data.reg.r<<1)+1);
-					w_as_newline();
-
+					w_as_load_float_indirect (&instruction->instruction_parameters[0],
+											  instruction->instruction_parameters[1].parameter_data.reg.r);
 					return instruction;
 				case P_INDEXED:
-					w_as_opcode ("add");
-					w_as_register (instruction->instruction_parameters[0].parameter_data.ir->a_reg.r);
-					w_as_comma();
-					w_as_register (instruction->instruction_parameters[0].parameter_data.ir->d_reg.r);
-					w_as_comma();
-					w_as_register (REGISTER_O0);
-					w_as_newline();
-
-					w_as_opcode ("ld");
-					w_as_indirect (instruction->instruction_parameters[0].parameter_offset>>2,REGISTER_O0);
-					w_as_comma();
-					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r<<1);
-					w_as_newline();
-		
-					w_as_opcode ("ld");
-					w_as_indirect ((instruction->instruction_parameters[0].parameter_offset>>2)+4,REGISTER_O0);
-					w_as_comma();
-					w_as_fp_register ((instruction->instruction_parameters[1].parameter_data.reg.r<<1)+1);
-					w_as_newline();
-
+					w_as_load_float_indexed (&instruction->instruction_parameters[0],
+											 instruction->instruction_parameters[1].parameter_data.reg.r);
 					return instruction;
 				case P_F_IMMEDIATE:
 				{
@@ -1671,6 +1782,18 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 			break;
 		case P_INDIRECT:
 			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+#ifdef ALIGN_REAL_ARRAYS
+				if (instruction->instruction_parameters[1].parameter_flags & LOAD_STORE_ALIGNED_REAL){
+					w_as_opcode ("std");
+					w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r<<1);
+					w_as_comma();
+					w_as_indirect (instruction->instruction_parameters[1].parameter_offset,
+								   instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_newline();
+
+					return instruction;
+				}
+#endif
 				w_as_opcode ("st");
 				w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r<<1);
 				w_as_comma();
@@ -1688,29 +1811,55 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 			}
 			break;
 		case P_INDEXED:
+		{
+			int offset;
+			
+			offset=instruction->instruction_parameters[1].parameter_offset>>2;
+			
+#ifdef ALIGN_REAL_ARRAYS
+			if (instruction->instruction_parameters[1].parameter_flags & LOAD_STORE_ALIGNED_REAL){
+				if (offset==0){
+					w_as_opcode ("std");
+					w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r<<1);
+					w_as_comma();
+					w_as_indexed (offset,instruction->instruction_parameters[1].parameter_data.ir);
+					w_as_newline();					
+				} else {
+					w_as_opcode ("add");
+					w_as_register_comma (instruction->instruction_parameters[1].parameter_data.ir->a_reg.r);
+					w_as_register_comma (instruction->instruction_parameters[1].parameter_data.ir->d_reg.r);
+					w_as_register_newline (REGISTER_O0);
+
+					w_as_opcode ("std");
+					w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r<<1);
+					w_as_comma();
+					w_as_indirect (offset,REGISTER_O0);
+					w_as_newline();
+				}
+				return instruction;
+			}
+#endif
 			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
 				w_as_opcode ("add");
-				w_as_register (instruction->instruction_parameters[1].parameter_data.ir->a_reg.r);
-				w_as_comma();
-				w_as_register (instruction->instruction_parameters[1].parameter_data.ir->d_reg.r);
-				w_as_comma();
-				w_as_register (REGISTER_O0);
-				w_as_newline();
+				w_as_register_comma (instruction->instruction_parameters[1].parameter_data.ir->a_reg.r);
+				w_as_register_comma (instruction->instruction_parameters[1].parameter_data.ir->d_reg.r);
+				w_as_register_newline (REGISTER_O0);
 
 				w_as_opcode ("st");
 				w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r<<1);
 				w_as_comma();
-				w_as_indirect (instruction->instruction_parameters[1].parameter_offset>>2,REGISTER_O0);
+				w_as_indirect (offset,REGISTER_O0);
 				w_as_newline();
 
 				w_as_opcode ("st");
 				w_as_fp_register ((instruction->instruction_parameters[0].parameter_data.reg.r<<1)+1);
 				w_as_comma();
-				w_as_indirect ((instruction->instruction_parameters[1].parameter_offset>>2)+4,REGISTER_O0);
+				w_as_indirect (offset+4,REGISTER_O0);
 				w_as_newline();
 
 				return instruction;
 			}
+		}
 	}
 	internal_error_in_function ("w_as_fmove_instruction");
 	return instruction;
@@ -1949,6 +2098,9 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IMOVEB:
 				w_as_move_instruction (instruction,SIZE_BYTE);
 				break;
+			case INEG:
+				w_as_neg_instruction (instruction);
+				break;
 			case IFMOVE:
 				instruction=w_as_fmove_instruction (instruction);
 				break;
@@ -1999,7 +2151,10 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_sqrt_float_instruction (instruction);
 				break;
 			case IFNEG:
-				w_as_neg_float_instruction (instruction);
+				w_as_neg_or_abs_float_instruction (instruction,"fnegs");
+				break;
+			case IFABS:
+				w_as_neg_or_abs_float_instruction (instruction,"fabss");
 				break;
 			case IFSEQ:
 				w_as_set_float_condition_instruction (instruction,"fbe,a");

@@ -1349,14 +1349,15 @@ static int parse_directive_desc (InstructionP instruction)
 	STRING a1,a2,a3,s;
 	int l;
 	LONG n;
-	int f;
+	LONG f;
 
 	parse_label (a1);
 	parse_label (a2);
 	parse_label (a3);
-	if (!parse_unsigned_integer (&n) || !parse_0_or_1 (&f) || !parse_descriptor_string (s,&l))
+
+	if (!parse_unsigned_integer (&n) || !parse_unsigned_integer (&f) || !parse_descriptor_string (s,&l))
 		return 0;
-	instruction->instruction_code_function (a1,a2,a3,(int)n,f,s,l);
+	instruction->instruction_code_function (a1,a2,a3,(int)n,(int)f,s,l);
 	return 1;
 }
 
@@ -1717,9 +1718,7 @@ static void put_instruction_name
 
 static void put_instructions_in_table (void)
 {
-#if defined (I486) || defined (G_POWER)
 	put_instruction_name ("absR",			parse_instruction,			code_absR );
-#endif
 	put_instruction_name ("acosR",			parse_instruction,			code_acosR );
 	put_instruction_name ("add_args",		parse_instruction_n_n_n,	code_add_args );
 	put_instruction_name ("addI",			parse_instruction,			code_addI );
@@ -1812,6 +1811,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("fill_r",			parse_instruction_a_n_n_n_n_n, code_fill_r );
 	put_instruction_name ("getWL",			parse_instruction_n,		code_dummy );
 	put_instruction_name ("get_desc_arity",	parse_instruction_n,		code_get_desc_arity );
+	put_instruction_name ("get_desc_flags_b",	parse_instruction,		code_get_desc_flags_b );	
 	put_instruction_name ("get_node_arity",	parse_instruction_n,		code_get_node_arity );
 	put_instruction_name ("gtC",			parse_instruction,			code_gtC );
 	put_instruction_name ("gtI",			parse_instruction,			code_gtI );
@@ -1849,9 +1849,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("modI",			parse_instruction,			code_remI );
 	put_instruction_name ("mulI",			parse_instruction,			code_mulI );
 	put_instruction_name ("mulR",			parse_instruction,			code_mulR );
-#if defined (I486) || defined (G_POWER)
 	put_instruction_name ("negI",			parse_instruction,			code_negI );
-#endif
 	put_instruction_name ("negR",			parse_instruction,			code_negR );
 	put_instruction_name ("new_ext_reducer",parse_instruction_a_n,		code_new_ext_reducer );
 	put_instruction_name ("new_int_reducer",parse_instruction_a_n,		code_new_int_reducer );

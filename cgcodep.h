@@ -15,9 +15,7 @@
 #	define ULONG unsigned long
 #endif
 
-#if defined (I486) || defined (G_POWER)
 void code_absR (void);
-#endif
 void code_acosR (VOID);
 void code_add_args (int source_offset,int n_arguments,int destination_offset);
 void code_addI (VOID);
@@ -115,6 +113,7 @@ void code_fillR_b (int b_offset,int a_offset);
 void code_fill_a (int from_offset,int to_offset);
 void code_get_desc_arity (int a_offset);
 void code_get_node_arity (int a_offset);
+void code_get_desc_flags_b (void);
 void code_gtC (VOID);
 void code_gtI (VOID);
 void code_gtR (VOID);
@@ -153,9 +152,7 @@ void code_mulI (VOID);
 void code_mulIo (VOID);
 #endif
 void code_mulR (VOID);
-#if defined (I486) || defined (G_POWER)
 void code_negI (void);
-#endif
 void code_negR (VOID);
 void code_new_ext_reducer (char descriptor_name[],int a_offset);
 void code_new_int_reducer (char label_name[],int a_offset);

@@ -27,6 +27,14 @@
 # define IF_G_POWER(a)
 #endif
 
+#define LOAD_X_TO_ADDRESS 1
+#define LOAD_X_TO_REGISTER 2
+
+#ifdef sparc
+# undef ALIGN_REAL_ARRAYS
+# undef LOAD_STORE_ALIGNED_REAL 4
+#endif
+
 /* from cgcode.c : */
 
 extern struct basic_block *first_block,*last_block;
@@ -396,7 +404,7 @@ void i_fmove_fr_fr (int register_1,int register_2)
 
 void i_fmove_fr_id (int register_1,int offset,int register_2)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction2 (IFMOVE);
 	
@@ -405,7 +413,26 @@ void i_fmove_fr_id (int register_1,int offset,int register_2)
 	instruction->instruction_parameters[1].parameter_type=P_INDIRECT;
 	instruction->instruction_parameters[1].parameter_offset=offset;
 	instruction->instruction_parameters[1].parameter_data.i=register_2;
+#ifdef ALIGN_REAL_ARRAYS
+	instruction->instruction_parameters[1].parameter_flags=0;
+#endif
 }
+
+#ifdef ALIGN_REAL_ARRAYS
+void i_fmove_fr_id_f (int register_1,int offset,int register_2,int flags)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction2 (IFMOVE);
+	
+	set_float_register_parameter (instruction->instruction_parameters[0],register_1);
+	
+	instruction->instruction_parameters[1].parameter_type=P_INDIRECT;
+	instruction->instruction_parameters[1].parameter_offset=offset;
+	instruction->instruction_parameters[1].parameter_data.i=register_2;
+	instruction->instruction_parameters[1].parameter_flags=flags;
+}
+#endif
 
 #ifdef M68000
 void i_fmove_fr_pd (int register_1,int register_2)
@@ -433,7 +460,11 @@ void i_fmove_fr_pi (int register_1,int register_2)
 }
 #endif
 
+#ifdef ALIGN_REAL_ARRAYS
+static void i_fmove_fr_x (int register_1,int offset,int register_2,int register_3,int flags)
+#else
 static void i_fmove_fr_x (int register_1,int offset,int register_2,int register_3)
+#endif
 {
 	struct instruction *instruction;
 	struct index_registers *index_registers;
@@ -444,6 +475,9 @@ static void i_fmove_fr_x (int register_1,int offset,int register_2,int register_
 	set_float_register_parameter (instruction->instruction_parameters[0],register_1);
 
 	S3(instruction->instruction_parameters[1],parameter_type=P_INDEXED,parameter_offset=offset,parameter_data.ir=index_registers);
+#ifdef ALIGN_REAL_ARRAYS
+	instruction->instruction_parameters[1].parameter_flags=flags;
+#endif
 	
 	index_registers->a_reg.r=register_2;
 	index_registers->d_reg.r=register_3;
@@ -458,9 +492,28 @@ void i_fmove_id_fr (int offset,int register_2,int register_1)
 	instruction->instruction_parameters[0].parameter_type=P_INDIRECT;
 	instruction->instruction_parameters[0].parameter_offset=offset;
 	instruction->instruction_parameters[0].parameter_data.i=register_2;
+#ifdef ALIGN_REAL_ARRAYS
+	instruction->instruction_parameters[0].parameter_flags=0;
+#endif
 
 	set_float_register_parameter (instruction->instruction_parameters[1],register_1);
 }
+
+#ifdef ALIGN_REAL_ARRAYS
+void i_fmove_id_fr_f (int offset,int register_2,int register_1,int flags)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction2 (IFMOVE);
+		
+	instruction->instruction_parameters[0].parameter_type=P_INDIRECT;
+	instruction->instruction_parameters[0].parameter_offset=offset;
+	instruction->instruction_parameters[0].parameter_data.i=register_2;
+	instruction->instruction_parameters[0].parameter_flags=flags;
+
+	set_float_register_parameter (instruction->instruction_parameters[1],register_1);
+}
+#endif
 
 #ifdef M68000
 void i_fmove_pd_fr (int register_1,int register_2)
@@ -515,7 +568,11 @@ static void i_fmovel_fr_r (int register_1,int register_2)
 												parameter_data.i=register_2);
 }
 
+#ifdef ALIGN_REAL_ARRAYS
+static void i_fmove_x_fr (int offset,int register_1,int register_2,int register_3,int flags)
+#else
 static void i_fmove_x_fr (int offset,int register_1,int register_2,int register_3)
+#endif
 {
 	struct instruction *instruction;
 	struct index_registers *index_registers;
@@ -526,7 +583,9 @@ static void i_fmove_x_fr (int offset,int register_1,int register_2,int register_
 	instruction->instruction_parameters[0].parameter_type=P_INDEXED;
 	instruction->instruction_parameters[0].parameter_offset=offset;
 	instruction->instruction_parameters[0].parameter_data.ir=index_registers;
-	
+#ifdef ALIGN_REAL_ARRAYS
+	instruction->instruction_parameters[0].parameter_flags=flags;
+#endif	
 	index_registers->a_reg.r=register_1;
 	index_registers->d_reg.r=register_2;
 	
@@ -2011,9 +2070,8 @@ static void ad_to_parameter (ADDRESS *ad_p,struct parameter *parameter_p)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
-
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 				if (i_ad_p->ad_mode==P_INDEXED){
 					index_registers=(struct index_registers*)fast_memory_allocate (sizeof (struct index_registers));
 			
@@ -2072,6 +2130,9 @@ static int fad_to_parameter (ADDRESS *ad_p,struct parameter *parameter_p)
 			parameter_p->parameter_type=P_INDIRECT;
 			parameter_p->parameter_offset=ad_p->ad_offset;
 			parameter_p->parameter_data.i=ad_p->ad_register;
+#ifdef ALIGN_REAL_ARRAYS
+			parameter_p->parameter_flags=0;
+#endif
 			if (--*ad_p->ad_count_p==0)
 				free_aregister (ad_p->ad_register);
 			break;
@@ -2089,9 +2150,8 @@ static int fad_to_parameter (ADDRESS *ad_p,struct parameter *parameter_p)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
-
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 				if (i_ad_p->ad_mode==P_INDEXED){
 					index_registers=(struct index_registers*)fast_memory_allocate (sizeof (struct index_registers));
 			
@@ -2114,6 +2174,9 @@ static int fad_to_parameter (ADDRESS *ad_p,struct parameter *parameter_p)
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_register);
 				}
+#ifdef ALIGN_REAL_ARRAYS
+				parameter_p->parameter_flags = load_x_graph->inode_arity & LOAD_STORE_ALIGNED_REAL;
+#endif
 			} else {
 				U2(parameter_p,parameter_type=P_REGISTER,parameter_data.i=i_ad_p->ad_register);
 
@@ -2350,8 +2413,8 @@ static void in_register (register ADDRESS *ad_p)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 				if (i_ad_p->ad_mode==P_INDEXED){
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_areg);
@@ -2418,8 +2481,8 @@ static void in_data_register (register ADDRESS *ad_p)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 				if (i_ad_p->ad_mode==P_INDEXED){
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_areg);
@@ -2500,8 +2563,8 @@ static void in_alterable_data_register (register ADDRESS *ad_p)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 				if (i_ad_p->ad_mode==P_INDEXED){
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_areg);
@@ -2587,8 +2650,8 @@ static void in_address_register (register ADDRESS *ad_p)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 				if (i_ad_p->ad_mode==P_INDEXED){
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_areg);
@@ -2669,8 +2732,8 @@ static void in_alterable_address_register (register ADDRESS *ad_p)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 				if (i_ad_p->ad_mode==P_INDEXED){
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_areg);
@@ -3380,7 +3443,6 @@ static void linearize_dyadic_non_commutative_data_operator (int i_instruction_co
 		register_node (graph,reg_1);
 }
 
-#if defined (I486) || defined (G_POWER)
 static void linearize_monadic_data_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	INSTRUCTION_GRAPH graph_1;
@@ -3411,7 +3473,6 @@ static void linearize_monadic_data_operator (int i_instruction_code,INSTRUCTION_
 	if (*ad_p->ad_count_p>1)
 		register_node (graph,reg_1);
 }
-#endif
 
 #if defined (I486) || defined (G_POWER)
 static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
@@ -3860,8 +3921,8 @@ static void move_float_ad_pi (ADDRESS *ad_p,int areg)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 
 				if (i_ad_p->ad_mode==P_INDEXED){
 					i_move_x_pi (i_ad_p->ad_offset,i_ad_p->ad_areg,i_ad_p->ad_dreg,areg);
@@ -3949,8 +4010,8 @@ static void move_float_ad_id (ADDRESS *ad_p,int offset,int areg)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 
 				if (i_ad_p->ad_mode==P_INDEXED){
 #ifdef sparc
@@ -4525,11 +4586,19 @@ static void linearize_fill_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 	memory_free (ad_a);
 }
 
+#ifdef ALIGN_REAL_ARRAYS
+static void move_float_ad_x (ADDRESS *ad_p,int offset,int areg,int dreg,int flags)
+#else
 static void move_float_ad_x (ADDRESS *ad_p,int offset,int areg,int dreg)
+#endif
 {
 	switch (ad_p->ad_mode){
 		case P_F_REGISTER:
+#ifdef ALIGN_REAL_ARRAYS
+			i_fmove_fr_x (ad_p->ad_register,offset,areg,dreg,flags);
+#else
 			i_fmove_fr_x (ad_p->ad_register,offset,areg,dreg);
+#endif
 			if (--*ad_p->ad_count_p==0){
 #ifdef FP_STACK_OPTIMIZATIONS
 				last_instruction->instruction_parameters[0].parameter_flags |= FP_REG_LAST_USE;
@@ -4569,8 +4638,8 @@ static void move_float_ad_x (ADDRESS *ad_p,int offset,int areg,int dreg)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 
 				if (i_ad_p->ad_mode==P_INDEXED){
 					i_move_x_x (i_ad_p->ad_offset,i_ad_p->ad_areg,i_ad_p->ad_dreg,offset,areg,dreg);
@@ -5026,8 +5095,8 @@ static void in_alterable_float_register (ADDRESS *ad_p)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 
 				if (i_ad_p->ad_mode==P_INDEXED){
 					if (--*i_ad_p->ad_count_p==0)
@@ -5035,12 +5104,20 @@ static void in_alterable_float_register (ADDRESS *ad_p)
 					if (--*i_ad_p->ad_count_p2==0)
 						free_dregister (i_ad_p->ad_dreg);
 					freg=get_fregister();
+#ifdef ALIGN_REAL_ARRAYS
+					i_fmove_x_fr (i_ad_p->ad_offset,i_ad_p->ad_areg,i_ad_p->ad_dreg,freg,load_x_graph->inode_arity & LOAD_STORE_ALIGNED_REAL);
+#else
 					i_fmove_x_fr (i_ad_p->ad_offset,i_ad_p->ad_areg,i_ad_p->ad_dreg,freg);
+#endif
 				} else {
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_register);
 					freg=get_fregister();
+#ifdef ALIGN_REAL_ARRAYS
+					i_fmove_id_fr_f (i_ad_p->ad_offset,i_ad_p->ad_register,freg,load_x_graph->inode_arity & LOAD_STORE_ALIGNED_REAL);
+#else
 					i_fmove_id_fr (i_ad_p->ad_offset,i_ad_p->ad_register,freg);
+#endif
 				}
 				i_ad_p->ad_register=freg;
 			} else {
@@ -5084,8 +5161,8 @@ static void in_float_register (ADDRESS *ad_p)
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 
 				if (i_ad_p->ad_mode==P_INDEXED){
 					if (--*i_ad_p->ad_count_p==0)
@@ -5093,12 +5170,20 @@ static void in_float_register (ADDRESS *ad_p)
 					if (--*i_ad_p->ad_count_p2==0)
 						free_dregister (i_ad_p->ad_dreg);
 					freg=get_fregister();
+#ifdef ALIGN_REAL_ARRAYS
+					i_fmove_x_fr (i_ad_p->ad_offset,i_ad_p->ad_areg,i_ad_p->ad_dreg,freg,load_x_graph->inode_arity & LOAD_STORE_ALIGNED_REAL);
+#else
 					i_fmove_x_fr (i_ad_p->ad_offset,i_ad_p->ad_areg,i_ad_p->ad_dreg,freg);
+#endif
 				} else {
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_register);
 					freg=get_fregister();
+#ifdef ALIGN_REAL_ARRAYS
+					i_fmove_id_fr_f (i_ad_p->ad_offset,i_ad_p->ad_register,freg,load_x_graph->inode_arity & LOAD_STORE_ALIGNED_REAL);
+#else
 					i_fmove_id_fr (i_ad_p->ad_offset,i_ad_p->ad_register,freg);
+#endif
 				}
 				i_ad_p->ad_register=freg;
 			} else {
@@ -5143,6 +5228,9 @@ static void instruction_ad_fr (int instruction_code,ADDRESS *ad_p,int register_1
 			parameter_p->parameter_type=P_INDIRECT;
 			parameter_p->parameter_offset=ad_p->ad_offset;
 			parameter_p->parameter_data.i=ad_p->ad_register;
+#ifdef ALIGN_REAL_ARRAYS
+			parameter_p->parameter_flags=0;
+#endif
 			if (--*ad_p->ad_count_p==0)
 				free_aregister (ad_p->ad_register);
 			break;
@@ -5165,8 +5253,8 @@ static void instruction_ad_fr (int instruction_code,ADDRESS *ad_p,int register_1
 			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
 			
-			if (load_x_graph->inode_arity==1){
-				load_x_graph->inode_arity=2;
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 
 				if (i_ad_p->ad_mode==P_INDEXED){
 					index_registers=(struct index_registers*)fast_memory_allocate (sizeof (struct index_registers));
@@ -5174,7 +5262,7 @@ static void instruction_ad_fr (int instruction_code,ADDRESS *ad_p,int register_1
 					parameter_p->parameter_type=P_INDEXED;
 					parameter_p->parameter_offset=i_ad_p->ad_offset;
 					parameter_p->parameter_data.ir=index_registers;
-			
+
 					index_registers->a_reg.r=i_ad_p->ad_areg;
 					index_registers->d_reg.r=i_ad_p->ad_dreg;
 
@@ -5186,10 +5274,13 @@ static void instruction_ad_fr (int instruction_code,ADDRESS *ad_p,int register_1
 					parameter_p->parameter_type=P_INDIRECT;
 					parameter_p->parameter_offset=i_ad_p->ad_offset;
 					parameter_p->parameter_data.i=i_ad_p->ad_register;
-					
+
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_register);
 				}
+#ifdef ALIGN_REAL_ARRAYS
+				parameter_p->parameter_flags = load_x_graph->inode_arity & LOAD_STORE_ALIGNED_REAL;
+#endif
 			} else {
 				set_float_register_parameter (*parameter_p,i_ad_p->ad_register);
 				if (--*i_ad_p->ad_count_p==0){
@@ -5338,8 +5429,8 @@ static void linearize_fhigh_operator (register INSTRUCTION_GRAPH graph,register 
 			if (graph->node_count>1){
 				int reg;
 
-				if (load_x_graph->inode_arity==1){
-					load_x_graph->inode_arity=2;
+				if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+					load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 
 					if (i_ad_p->ad_mode==P_INDEXED){
 						if (--*i_ad_p->ad_count_p==0)
@@ -5388,7 +5479,7 @@ static void linearize_fhigh_operator (register INSTRUCTION_GRAPH graph,register 
 
 				register_node (graph,reg);
 			} else {
-				if (load_x_graph->inode_arity==1){
+				if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
 				} else {
 					local_data_offset-=FLOAT_SIZE;
 
@@ -5521,8 +5612,8 @@ static void linearize_flow_operator (register INSTRUCTION_GRAPH graph,register A
 			if (graph->node_count>1){
 				int reg;
 
-				if (load_x_graph->inode_arity==1){
-					load_x_graph->inode_arity=2;
+				if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+					load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 
 					if (i_ad_p->ad_mode==P_INDEXED){
 						if (--*i_ad_p->ad_count_p==0)
@@ -5554,7 +5645,7 @@ static void linearize_flow_operator (register INSTRUCTION_GRAPH graph,register A
 				graph->instruction_code=P_REGISTER;
 				graph->instruction_parameters[0].i=reg;
 			} else {
-				if (load_x_graph->inode_arity==1){
+				if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
 					if (i_ad_p->ad_mode==P_INDEXED)
 						i_ad_p->ad_offset+=4<<2;
 					else
@@ -5884,7 +5975,7 @@ static void linearize_float_keep_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p
 	}			
 }
 
-static void linearize_fload_x_operator (register INSTRUCTION_GRAPH graph,register ADDRESS *ad_p)
+static void linearize_fload_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
 	int offset;
@@ -5931,7 +6022,7 @@ static void linearize_fload_x_operator (register INSTRUCTION_GRAPH graph,registe
 				ad_p->ad_count2=ad_1.ad_count;
 			}
 			graph->node_count=0;
-			graph->inode_arity=1;
+			graph->inode_arity|=LOAD_X_TO_ADDRESS;
 		} else {
 			int reg_1;
 			
@@ -5941,8 +6032,11 @@ static void linearize_fload_x_operator (register INSTRUCTION_GRAPH graph,registe
 				free_dregister (ad_1.ad_register);
 						
 			reg_1=get_fregister();
+#ifdef ALIGN_REAL_ARRAYS
+			i_fmove_x_fr (offset,ad_p->ad_register,ad_1.ad_register,reg_1,graph->inode_arity & LOAD_STORE_ALIGNED_REAL);
+#else
 			i_fmove_x_fr (offset,ad_p->ad_register,ad_1.ad_register,reg_1);
-						
+#endif
 			ad_p->ad_mode=P_F_REGISTER;
 			ad_p->ad_register=reg_1;
 			ad_p->ad_count_p=&graph->node_count;
@@ -5968,7 +6062,7 @@ static void linearize_fload_x_operator (register INSTRUCTION_GRAPH graph,registe
 			i_ad_p->ad_count_p=ad_p->ad_count_p;
 			
 			graph->node_count=0;
-			graph->inode_arity=1;
+			graph->inode_arity|=LOAD_X_TO_ADDRESS;
 		} else {
 			int reg_1;
 	
@@ -5976,12 +6070,15 @@ static void linearize_fload_x_operator (register INSTRUCTION_GRAPH graph,registe
 				free_aregister (ad_p->ad_register);
 					
 			reg_1=get_fregister();
+#ifdef ALIGN_REAL_ARRAYS
+			i_fmove_id_fr_f (offset>>2,ad_p->ad_register,reg_1,graph->inode_arity & LOAD_STORE_ALIGNED_REAL);
+#else
 			i_fmove_id_fr (offset>>2,ad_p->ad_register,reg_1);
-					
+#endif				
 			ad_p->ad_mode=P_F_REGISTER;
 			ad_p->ad_register=reg_1;
 			ad_p->ad_count_p=&graph->node_count;
-					
+
 			float_register_node (graph,reg_1);
 		}
 	}
@@ -6107,11 +6204,9 @@ static void linearize_float_graph (register INSTRUCTION_GRAPH graph,register ADD
 		case GFNEG:
 			linearize_monadic_float_operator (graph,ad_p,IFNEG);
 			break;
-#if defined (I486) || defined (G_POWER)
 		case GFABS:
 			linearize_monadic_float_operator (graph,ad_p,IFABS);
 			break;
-#endif
 		case GFSIN:
 			linearize_monadic_float_operator (graph,ad_p,IFSIN);
 			break;
@@ -6439,7 +6534,7 @@ static void linearize_load_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p
 			}
 
 			graph->node_count=0;
-			graph->inode_arity=1;
+			graph->inode_arity|=LOAD_X_TO_ADDRESS;
 		} else {
 			int reg_1;
 	
@@ -6486,7 +6581,7 @@ static void linearize_load_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p
 			i_ad_p->ad_count_p=ad_p->ad_count_p;
 
 			graph->node_count=0;
-			graph->inode_arity=1;
+			graph->inode_arity|=LOAD_X_TO_ADDRESS;
 		} else {
 			int reg_1;
 	
@@ -6640,7 +6735,7 @@ static void linearize_store_r_node (INSTRUCTION_GRAPH graph)
 				load_x_graph=(INSTRUCTION_GRAPH)ad_1.ad_offset;
 				i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;			
 #ifdef M68000
-				if (load_x_graph->inode_arity==1 && i_ad_p->ad_mode==P_INDEXED)
+				if ((load_x_graph->inode_arity & LOAD_X_TO_ADDRESS) && i_ad_p->ad_mode==P_INDEXED)
 					--*i_ad_p->ad_count_p2;
 #endif
 				--*i_ad_p->ad_count_p;
@@ -6689,7 +6784,7 @@ static void linearize_store_r_node (INSTRUCTION_GRAPH graph)
 				load_x_graph=(INSTRUCTION_GRAPH)ad_1.ad_offset;
 				i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;			
 #ifdef M68000
-				if (load_x_graph->inode_arity==1 && i_ad_p->ad_mode==P_INDEXED)
+				if ((load_x_graph->inode_arity & LOAD_X_TO_ADDRESS) && i_ad_p->ad_mode==P_INDEXED)
 					++*i_ad_p->ad_count_p2;
 #endif
 				++*i_ad_p->ad_count_p;
@@ -6768,7 +6863,7 @@ static void linearize_load_b_x_operator (register INSTRUCTION_GRAPH graph,regist
 			ad_p->ad_count_p=&graph->node_count;
 
 			if (graph->node_count<=1)
-				graph->inode_arity=2;
+				graph->inode_arity=(graph->inode_arity & ~LOAD_X_TO_ADDRESS) | LOAD_X_TO_REGISTER;
 			else
 				register_node (graph,reg_2);
 		}
@@ -6807,7 +6902,7 @@ static void linearize_load_b_x_operator (register INSTRUCTION_GRAPH graph,regist
 			ad_p->ad_count_p=&graph->node_count;
 		
 			if (graph->node_count<=1)
-				graph->inode_arity=2;
+				graph->inode_arity=(graph->inode_arity & ~LOAD_X_TO_ADDRESS) | LOAD_X_TO_REGISTER;
 			else
 				register_node (graph,reg_1);
 		}
@@ -6841,7 +6936,7 @@ static void linearize_load_b_x_operator (register INSTRUCTION_GRAPH graph,regist
 		ad_p->ad_count_p=&graph->node_count;
 		
 		if (graph->node_count<=1)
-			graph->inode_arity=2;
+			graph->inode_arity=(graph->inode_arity & ~LOAD_X_TO_ADDRESS) | LOAD_X_TO_REGISTER;
 		else
 			register_node (graph,reg_1);
 	}
@@ -6886,13 +6981,13 @@ static void do_array_selects_before_update (INSTRUCTION_GRAPH select_graph,INSTR
 #endif
 											);
 						--select_graph->node_count;
-					} else if (select_graph->inode_arity==1 && select_graph!=graph_1){
+					} else if ((select_graph->inode_arity & LOAD_X_TO_ADDRESS) && select_graph!=graph_1){
 						ADDRESS *i_ad_p;
 						int dreg;
 						
 						i_ad_p=(ADDRESS *)select_graph->instruction_parameters[1].p;
 			
-						select_graph->inode_arity=2;
+						select_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 
 						if (i_ad_p->ad_mode==P_INDEXED){
 							if (--*i_ad_p->ad_count_p==0)
@@ -6917,7 +7012,7 @@ static void do_array_selects_before_update (INSTRUCTION_GRAPH select_graph,INSTR
 #else
 				if (selects_from_array (select_graph->instruction_parameters[0].p,graph_2)){
 #endif
-					if (select_graph->node_count>0 /* added 29-2-2000: */ && select_graph->inode_arity!=2 /**/){
+					if (select_graph->node_count>0 /* added 29-2-2000: */ && !(select_graph->inode_arity & LOAD_X_TO_REGISTER) /**/){
 						ADDRESS s_ad;
 										
 						++select_graph->node_count;
@@ -6938,13 +7033,13 @@ static void do_array_selects_before_update (INSTRUCTION_GRAPH select_graph,INSTR
 						++select_graph->node_count;
 						linearize_fload_x_operator (select_graph,&s_ad);
 						--select_graph->node_count;
-					} else if (select_graph->inode_arity==1 && select_graph!=graph_1){
+					} else if ((select_graph->inode_arity & LOAD_X_TO_ADDRESS) && select_graph!=graph_1){
 						ADDRESS *i_ad_p;
 						int freg;
 							
 						i_ad_p=(ADDRESS *)select_graph->instruction_parameters[1].p;
 				
-						select_graph->inode_arity=2;
+						select_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);;
 
 						if (i_ad_p->ad_mode==P_INDEXED){
 							if (--*i_ad_p->ad_count_p==0)
@@ -6952,12 +7047,20 @@ static void do_array_selects_before_update (INSTRUCTION_GRAPH select_graph,INSTR
 							if (--*i_ad_p->ad_count_p2==0)
 								free_dregister (i_ad_p->ad_dreg);
 							freg=get_fregister();
+#ifdef ALIGN_REAL_ARRAYS
+							i_fmove_x_fr (i_ad_p->ad_offset,i_ad_p->ad_areg,i_ad_p->ad_dreg,freg,select_graph->inode_arity & LOAD_STORE_ALIGNED_REAL);
+#else
 							i_fmove_x_fr (i_ad_p->ad_offset,i_ad_p->ad_areg,i_ad_p->ad_dreg,freg);
+#endif
 						} else {
 							if (--*i_ad_p->ad_count_p==0)
 								free_aregister (i_ad_p->ad_register);
 							freg=get_fregister();
+#ifdef ALIGN_REAL_ARRAYS
+							i_fmove_id_fr_f (i_ad_p->ad_offset,i_ad_p->ad_register,freg,select_graph->inode_arity & LOAD_STORE_ALIGNED_REAL);
+#else
 							i_fmove_id_fr (i_ad_p->ad_offset,i_ad_p->ad_register,freg);
+#endif
 						}
 						i_ad_p->ad_register=freg;
 					}
@@ -7637,10 +7740,10 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GFILL_R:
 			linearize_fill_r_operator (graph,ad_p);
 			return;
-#if defined (I486) || defined (G_POWER)
 		case GNEG:
 			linearize_monadic_data_operator (INEG,graph,ad_p);
 			return;
+#if defined (I486) || defined (G_POWER)
 		case GNOT:
 			linearize_monadic_data_operator (INOT,graph,ad_p);
 			return;
@@ -7760,9 +7863,20 @@ static void linearize_fstore_x_operator (register INSTRUCTION_GRAPH graph,regist
 
 	in_address_register (ad_p);
 
-	if (graph_3==NULL)
+	if (graph_3==NULL){
+#ifdef ALIGN_REAL_ARRAYS
+		if (ad_1.ad_mode==P_F_REGISTER){
+			i_fmove_fr_id_f (ad_1.ad_register,offset>>2,ad_p->ad_register,graph->inode_arity & LOAD_STORE_ALIGNED_REAL);
+			if (--*ad_1.ad_count_p==0){
+# ifdef FP_STACK_OPTIMIZATIONS
+				last_instruction->instruction_parameters[0].parameter_flags |= FP_REG_LAST_USE;
+# endif
+				free_fregister (ad_1.ad_register);
+			}
+		} else
+#endif
 		move_float_ad_id (&ad_1,offset>>2,ad_p->ad_register);
-	else {		
+	} else {
 		in_data_register (&ad_3);
 
 		if (--*ad_3.ad_count_p==0)
@@ -7776,7 +7890,11 @@ static void linearize_fstore_x_operator (register INSTRUCTION_GRAPH graph,regist
 # endif
 			in_float_register (&ad_1);
 #endif
+#ifdef ALIGN_REAL_ARRAYS
+		move_float_ad_x (&ad_1,offset,ad_p->ad_register,ad_3.ad_register,graph->inode_arity & LOAD_STORE_ALIGNED_REAL);
+#else
 		move_float_ad_x (&ad_1,offset,ad_p->ad_register,ad_3.ad_register);
+#endif
 	}
 	
 	if (graph->node_count>1){
