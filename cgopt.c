@@ -419,9 +419,7 @@ IF_G_POWER ( case IUMULH: )
 #if !defined (G_POWER)
 		case IFSQRT:
 #endif
-#if defined (G_POWER) || defined (I486)
 		case IFABS:
-#endif
 			return 8;
 		default:
 			return 0;
@@ -1574,9 +1572,7 @@ IF_G_POWER ( case IUMULH: )
 #if !defined (G_POWER)
 			case IFSQRT:
 #endif
-#if defined (G_POWER) || defined (I486)
 			case IFABS:
-#endif
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)
 IF_G_RISC (case IADDI: case ILSLI:)
 				define_parameter (&instruction->instruction_parameters[1]);
@@ -1586,8 +1582,9 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #if defined (M68000) || defined (G_POWER)
 			case IEXTB:
 #endif
+			case INEG:
 #if defined (I486) || defined (G_POWER)
-			case INEG:	case INOT:
+			case INOT:
 #endif
 			/* case IJMP:	case IJSR: */
 				use_parameter (&instruction->instruction_parameters[0]);
@@ -3860,9 +3857,7 @@ IF_G_POWER (case ICMPLW:)
 #if !defined (G_POWER)
 			case IFSQRT:	
 #endif
-#if defined (G_POWER) || defined (I486)
 			case IFABS:
-#endif
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)
 IF_G_RISC (case IADDI: case ILSLI:)
 
@@ -3881,8 +3876,9 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #if defined (M68000) || defined (G_POWER)
 			case IEXTB:
 #endif
+			case INEG:
 #if defined (I486) || defined (G_POWER)
-			case INEG:	case INOT:
+			case INOT:
 #endif
 				instruction_usedef (instruction);
 				break;

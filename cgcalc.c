@@ -2307,8 +2307,8 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			calculate_eor_operator (graph);
 			return;
 		case GCNOT:
-#if defined (I486) || defined (G_POWER)
 		case GNEG:
+#if defined (I486) || defined (G_POWER)
 		case GNOT:
 #endif
 			calculate_cnot_operator (graph);
@@ -2342,9 +2342,7 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
-#if defined (I486) || defined (G_POWER)
 		case GFABS:
-#endif
 			calculate_monadic_float_operator (graph);
 			return;
 		case GFLOAD_ID:
@@ -2538,9 +2536,9 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
-#if defined (I486) || defined (G_POWER)
 		case GFABS:
 		case GNEG:
+#if defined (I486) || defined (G_POWER)
 		case GNOT:
 #endif
 		case GBEFORE0:
@@ -2704,9 +2702,9 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
-#if defined (I486) || defined (G_POWER)
 		case GFABS:
 		case GNEG:
+#if defined (I486) || defined (G_POWER)
 		case GNOT:
 #endif
 		case GBEFORE0:
@@ -2882,8 +2880,8 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
-#if defined (I486) || defined (G_POWER)
 		case GFABS:
+#if defined (I486) || defined (G_POWER)
 		case GNEG:
 		case GNOT:
 #endif
