@@ -2275,7 +2275,7 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			calculate_dyadic_non_commutative_operator (graph);
 			return;
 		case GDIV:
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 		case GDIVU:
 #endif
 			calculate_dyadic_non_commutative_data_operator (graph);
@@ -2485,7 +2485,7 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GCMP_LT:
 		case GCMP_LTU:
 		case GDIV:
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 		case GDIVU:
 #endif
 		case GFADD:
@@ -2650,7 +2650,7 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GCMP_LT:
 		case GCMP_LTU:
 		case GDIV:
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 		case GDIVU:
 #endif
 		case GFADD:
@@ -2830,7 +2830,7 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GCMP_LT:
 		case GCMP_LTU:
 		case GDIV:
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 		case GDIVU:
 #endif
 		case GFADD:

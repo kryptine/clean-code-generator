@@ -21,8 +21,11 @@ enum {
 #ifdef G_POWER
 	,GCREATE_S,		GUMULH
 #endif
+#if defined (I486) || defined (G_POWER)
+	,GDIVU
+#endif
 #ifdef I486
-	,GDIVU,	GREMU
+	,GREMU
 #endif
 };
 

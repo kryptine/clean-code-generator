@@ -63,7 +63,7 @@ void code_decI (VOID);
 void code_del_args (int source_offset,int n_arguments,int destination_offset);
 void code_divI (VOID);
 void code_divR (VOID);
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
  void code_divU (VOID);
 #endif
 void code_entierR (VOID);

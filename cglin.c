@@ -7679,10 +7679,10 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GMOD:
 			linearize_div_rem_operator (IMOD,graph,ad_p);
 			return;
-# ifdef I486
 		case GDIVU:
 			linearize_div_rem_operator (IDIVU,graph,ad_p);
 			return;
+# ifdef I486
 		case GREMU:
 			linearize_div_rem_operator (IREMU,graph,ad_p);
 			return;

@@ -199,7 +199,7 @@ int no_time_profiling;
 #endif
 #define g_cnot(g1) g_instruction_1(GCNOT,(g1))
 #define g_div(g1,g2) g_instruction_2(GDIV,(g1),(g2))
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 # define g_divu(g1,g2) g_instruction_2(GDIVU,(g1),(g2))
 #endif
 #define g_eor(g1,g2) g_instruction_2(GEOR,(g1),(g2))
@@ -1828,7 +1828,7 @@ void code_divR (VOID)
 #endif
 }
 
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 void code_divU (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;

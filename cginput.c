@@ -1762,7 +1762,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("del_args",		parse_instruction_n_n_n,	code_del_args );
 	put_instruction_name ("divI",			parse_instruction,			code_divI );
 	put_instruction_name ("divR",			parse_instruction,			code_divR );
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 	put_instruction_name ("divU",			parse_instruction,			code_divU );
 #endif
 	put_instruction_name ("entierR",		parse_instruction,			code_entierR );

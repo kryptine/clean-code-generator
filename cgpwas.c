@@ -2252,6 +2252,19 @@ static void w_as_div_instruction (struct instruction *instruction)
 	w_as_register_newline (reg);
 }
 
+static void w_as_divu_instruction (struct instruction *instruction)
+{
+	int reg;
+
+	reg=w_as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	
+	w_as_opcode ("divwu");
+	
+	w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+	w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+	w_as_register_newline (reg);
+}
+
 static void w_as_mul_instruction (struct instruction *instruction)
 {
 	int r,reg;
@@ -3091,6 +3104,9 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case IDIV:
 				w_as_div_instruction (instruction);
+				break;
+			case IDIVU:
+				w_as_divu_instruction (instruction);
 				break;
 			case IMOD:
 				w_as_rem_instruction (instruction);

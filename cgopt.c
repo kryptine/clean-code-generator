@@ -415,7 +415,10 @@ static int get_argument_size (int instruction_code)
 IF_G_RISC (case IADDI: case ILSLI:)
 IF_G_SPARC (case IADDO: case ISUBO: )
 #ifdef I486
-		case IDIVI:		case IREMI:		case IDIVU:		case IREMU:
+		case IDIVI:		case IREMI:		case IREMU:
+#endif
+#if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
+		case IDIVU:		
 #endif
 IF_G_POWER ( case IUMULH: )
 			return 4;
@@ -1511,10 +1514,10 @@ static void store_next_uses (struct instruction *instruction)
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IASR:	case ILSL:	case ILSR:
 			case IDIV:
-# ifdef I486
-			case IDIVU:
-# endif
 			case ICMPW:
+#endif
+#if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
+			case IDIVU:
 #endif
 			case IEOR:	case IFADD:	
 			case IFCMP:	case IFDIV:	case IFMUL:	case IFREM:	case IFSUB:
@@ -3797,9 +3800,9 @@ static void allocate_registers (struct basic_block *basic_block)
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IASR:	case ILSL:	case ILSR:
 			case IDIV:
-# ifdef I486
+#endif
+#if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
 			case IDIVU:
-# endif
 #endif
 			case IEOR:
 			case IFADD:	case IFCMP:	case IFDIV:	case IFMUL:	case IFREM:	case IFSUB:

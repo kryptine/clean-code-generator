@@ -509,6 +509,7 @@ static unsigned char real_reg_num [32] =
 #define as_cmpi(ra,si)		store_instruction ((11<<26)|(reg_num(ra)<<16)|((UWORD)(si)))
 #define as_cmpl(ra,rb)		store_instruction ((31<<26)|(reg_num(ra)<<16)|(reg_num(rb)<<11)|(32<<1))
 #define as_divw(rd,ra,rb)	as_i_dab (rd,ra,rb,491)
+#define as_divwu(rd,ra,rb)	as_i_dab (rd,ra,rb,459)
 #define as_bc(i)			store_instruction ((16<<26)|(i))
 #define as_bcl(i)			store_instruction ((16<<26)|1|(i))
 #ifdef USE_DCBZ
@@ -1416,6 +1417,16 @@ static void as_div_instruction (struct instruction *instruction)
 	
 	as_divw (instruction->instruction_parameters[1].parameter_data.reg.r,
 			instruction->instruction_parameters[1].parameter_data.reg.r,reg);
+}
+
+static void as_divu_instruction (struct instruction *instruction)
+{
+	int reg;
+
+	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	
+	as_divwu (instruction->instruction_parameters[1].parameter_data.reg.r,
+			 instruction->instruction_parameters[1].parameter_data.reg.r,reg);
 }
 
 static void as_rem_instruction (struct instruction *instruction)
@@ -2772,6 +2783,9 @@ static void write_instructions (struct instruction *instructions)
 				break;
 			case IDIV:
 				as_div_instruction (instruction);
+				break;
+			case IDIVU:
+				as_divu_instruction (instruction);
 				break;
 			case IMOD:
 				as_rem_instruction (instruction);
