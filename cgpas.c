@@ -19,6 +19,7 @@
 #	include <elf.h>
 #elif defined (PROJECT_BUILDER) || defined (MACH_O)
 #	define G_MACH_O
+#	define G_MACH_O_SCATTERED
 #	include </usr/include/mach-o/loader.h>
 #	include </usr/include/mach-o/nlist.h>
 #	include </usr/include/mach-o/ppc/reloc.h>
@@ -351,7 +352,7 @@ static struct object_label *first_object_label,**last_object_label_l;
 static struct object_label *code_csect_object_label,*data_csect_object_label;
 static int n_object_labels;
 #ifdef G_MACH_O
-static int n_exported_object_labels;
+static int n_section_object_labels,n_exported_object_labels;
 static struct object_label *stub_csect_object_label;
 #endif
 
@@ -1120,7 +1121,7 @@ static void as_cmp_instruction (struct instruction *instruction,int size_flag)
 		case P_IMMEDIATE:
 		{
 			int i;
-				
+			
 			i=parameter_0.parameter_data.i;
 			
 			if (i!=(WORD)i){
@@ -1688,6 +1689,15 @@ static void write_w (int c)
 	fputc (c,output_file);
 }
 
+#ifdef G_MACH_O_SCATTERED
+static void write_3b (int c)
+{
+	fputc (c>>16,output_file);
+	fputc (c>>8,output_file);
+	fputc (c,output_file);
+}
+#endif
+
 static void write_l (int c)
 {
 	fputc (c>>24,output_file);
@@ -1942,7 +1952,7 @@ static void as_new_code_module (void)
 	unsigned long current_code_offset;
 	int code_section_label_number;
 
-#ifndef XCOFF
+#if !defined (XCOFF) && !defined (G_MACH_O_SCATTERED)
 	if (code_csect_object_label!=NULL)
 		return;
 #endif
@@ -1971,7 +1981,7 @@ void as_new_data_module (void)
 	unsigned long current_data_offset;
 	int data_section_label_number;
 
-#ifndef XCOFF
+#if !defined (XCOFF) && !defined (G_MACH_O_SCATTERED)
 	if (data_csect_object_label!=NULL)
 		return;
 #endif
@@ -2990,7 +3000,7 @@ static void write_code (void)
 	for_l (block,first_block,block_next){
 		if (block->block_begin_module){
 			if (block->block_link_module){
-#ifdef XCOFF
+#if defined (XCOFF) || defined (G_MACH_O_SCATTERED)
 				if (code_csect_object_label!=NULL 
 					&& CURRENT_CODE_OFFSET!=code_csect_object_label->object_label_offset
 					&& block->block_labels)
@@ -3645,12 +3655,21 @@ static void write_file_header_and_section_headers (void)
 
 	write_l (LC_DYSYMTAB);
 	write_l (sizeof (struct dysymtab_command));
+#  ifdef G_MACH_O_SCATTERED
+	write_l (0);
+	write_l (n_section_object_labels);
+	write_l (n_section_object_labels);
+	write_l (n_exported_object_labels);
+	write_l (n_section_object_labels+n_exported_object_labels);
+	write_l (n_object_labels-n_section_object_labels-n_exported_object_labels);
+#  else
 	write_l (0);
 	write_l (0);
 	write_l (0);
 	write_l (n_exported_object_labels);
 	write_l (n_exported_object_labels);
 	write_l (n_object_labels-n_exported_object_labels);
+#  endif
 	write_l (0);
 	write_l (0);
 	write_l (0);
@@ -3801,11 +3820,18 @@ static void store_references (void)
 	}
 }
 
+#ifdef G_MACH_O_SCATTERED
+int first_module_string_offset;
+#endif
+
 static void renumber_object_labels_and_calculate_section_sizes (void)
 {
 	struct object_label *object_label,*previous_code_object_label,*previous_data_object_label;
 #if defined (ELF) || defined (G_MACH_O)
 	int section_object_label_n;
+# ifdef G_MACH_O
+	int first_section_object_label_n;
+# endif
 #endif
 
 	previous_code_object_label=NULL;
@@ -3838,8 +3864,13 @@ static void renumber_object_labels_and_calculate_section_sizes (void)
 #else
 # ifdef G_MACH_O
 	section_object_label_n=n_object_labels;
+	first_section_object_label_n=section_object_label_n;
 # endif
 	n_object_labels=0;
+#endif
+
+#ifdef G_MACH_O_SCATTERED
+	first_module_string_offset=string_table_offset;
 #endif
 
 	previous_data_object_label=NULL;
@@ -3851,6 +3882,9 @@ static void renumber_object_labels_and_calculate_section_sizes (void)
 #ifndef XCOFF
 				object_label->object_label_number=section_object_label_n;
 				++section_object_label_n;
+# ifdef G_MACH_O_SCATTERED
+				string_table_offset+=14;
+# endif
 #else
 				object_label->object_label_number=n_object_labels;
 				++n_object_labels;
@@ -3863,6 +3897,9 @@ static void renumber_object_labels_and_calculate_section_sizes (void)
 #ifndef XCOFF
 				object_label->object_label_number=section_object_label_n;
 				++section_object_label_n;
+# ifdef G_MACH_O_SCATTERED
+				string_table_offset+=14;
+# endif
 #else
 				object_label->object_label_number=n_object_labels;
 				++n_object_labels;
@@ -3889,8 +3926,17 @@ static void renumber_object_labels_and_calculate_section_sizes (void)
 	}
 
 #ifdef G_MACH_O
+	n_section_object_labels=section_object_label_n-first_section_object_label_n;
 	n_exported_object_labels=n_object_labels;
-
+# ifdef G_MACH_O_SCATTERED
+	n_object_labels=n_section_object_labels;
+	for_l (object_label,first_object_label,next){
+		if (object_label->kind==EXPORTED_CODE_LABEL || object_label->kind==EXPORTED_DATA_LABEL){
+			object_label->object_label_number=n_object_labels;
+			++n_object_labels;
+		}
+	}
+# endif
 	for_l (object_label,first_object_label,next)
 		if (object_label->kind==IMPORTED_CODE_LABEL){
 			object_label->object_label_number=n_object_labels;
@@ -3989,8 +4035,36 @@ static void write_code_relocations (void)
 				label=relocation->relocation_label;
 				if (label->label_object_label==NULL)
 					internal_error_in_function ("write_code_relocations");
+#ifdef G_MACH_O_SCATTERED
+				if (label->label_object_label->kind!=IMPORTED_CODE_LABEL){
+					struct object_label *object_label;
+					int offset;
 
+					object_label=label->label_object_label;
+					
+					write_c ((1<<7) | (1<<6) | (2<<4) | PPC_RELOC_BR14);
+					write_3b (relocation->offset);
+
+					offset=label->label_offset;
+
+					if (object_label->kind!=CODE_CONTROL_SECTION && object_label->kind!=MERGED_CODE_CONTROL_SECTION){
+						if (object_label->kind==DATA_CONTROL_SECTION)
+							offset+=code_buffer_offset;
+						else {
+							if (object_label!=stub_csect_object_label)
+								internal_error_in_function ("write_code_relocations");
+						}
+					}
+
+					write_l (offset);
+					break;
+				}
+#endif
+#ifndef G_MACH_O
 				write_l (relocation->offset+2);
+#else
+				write_l (relocation->offset);
+#endif
 #ifdef ELF
 				write_relocation_label_number_and_addend (label,R_PPC_REL14,0);
 #elif defined (G_MACH_O)
@@ -4009,10 +4083,40 @@ static void write_code_relocations (void)
 				label=relocation->relocation_label;
 				if (label->label_object_label==NULL)
 					internal_error_in_function ("write_code_relocations");
+#ifdef G_MACH_O_SCATTERED
+				if (label->label_object_label->kind!=IMPORTED_CODE_LABEL){
+					struct object_label *object_label;
+					int offset;
 
+					object_label=label->label_object_label;
+					
+					write_c ((1<<7) | (1<<6) | (2<<4) | PPC_RELOC_BR14);
+					write_3b (relocation->offset);
+
+					offset=label->label_offset;
+
+					if (object_label->kind!=CODE_CONTROL_SECTION && object_label->kind!=MERGED_CODE_CONTROL_SECTION){
+						if (object_label->kind==DATA_CONTROL_SECTION)
+							offset+=code_buffer_offset;
+						else {
+							if (object_label!=stub_csect_object_label)
+								internal_error_in_function ("write_code_relocations");
+						}
+					}
+
+					write_l (offset);
+					break;
+				}
+#endif
+#ifndef G_MACH_O
 				write_l (relocation->offset+2);
+#else
+				write_l (relocation->offset);
+#endif
 #ifdef ELF
 				write_relocation_label_number_and_addend (label,R_PPC_REL14,0);
+#elif defined (G_MACH_O)
+				write_relocation_symbol_number_and_kind (label,PPC_RELOC_BR14 | (2<<5) | (1<<7));
 #else
 				write_l (label->label_object_label->object_label_number<<1);
 				write_c (0x80+16-1);
@@ -4027,7 +4131,33 @@ static void write_code_relocations (void)
 				label=relocation->relocation_label;
 				if (label->label_object_label==NULL)
 					internal_error_in_function ("write_code_relocations");
-				
+
+#ifdef G_MACH_O_SCATTERED
+				if (label->label_object_label->kind!=IMPORTED_CODE_LABEL){
+					struct object_label *object_label;
+					int offset;
+
+					object_label=label->label_object_label;
+					
+					write_c ((1<<7) | (1<<6) | (2<<4) | PPC_RELOC_BR24);
+					write_3b (relocation->offset);
+
+					offset=label->label_offset;
+
+					if (object_label->kind!=CODE_CONTROL_SECTION && object_label->kind!=MERGED_CODE_CONTROL_SECTION){
+						if (object_label->kind==DATA_CONTROL_SECTION)
+							offset+=code_buffer_offset;
+						else {
+							if (object_label!=stub_csect_object_label)
+								internal_error_in_function ("write_code_relocations");
+						}
+					}
+
+					write_l (offset);
+					break;
+				}
+#endif
+
 				write_l (relocation->offset);
 #ifdef ELF
 				write_relocation_label_number_and_addend (label,R_PPC_REL24,0);
@@ -4064,14 +4194,42 @@ static void write_code_relocations (void)
 				int addend;
 				struct label *label;
 				
-				write_l (relocation->offset);
-				write_relocation_symbol_number_and_kind (relocation->relocation_label,PPC_RELOC_HA16 | (2<<5));
-		
 				label=relocation->relocation_label;
 				if (label->label_object_label==NULL)
 					internal_error_in_function ("write_code_relocations");
+
+#  ifdef G_MACH_O_SCATTERED
+				if (label->label_object_label->kind!=IMPORTED_CODE_LABEL){
+					struct object_label *object_label;
+
+					object_label=label->label_object_label;
+					
+					write_c ((1<<7) | (2<<4) | PPC_RELOC_HA16);
+					write_3b (relocation->offset);
+
+					addend=label->label_offset;
+					
+					if (object_label->kind!=CODE_CONTROL_SECTION && object_label->kind!=MERGED_CODE_CONTROL_SECTION){
+						if (object_label->kind==DATA_CONTROL_SECTION)
+							addend+=code_buffer_offset;
+						else {
+							if (object_label!=stub_csect_object_label)
+								internal_error_in_function ("write_code_relocations");
+						}
+					}
+
+					write_l (addend);
+
+					write_c ((1<<7) | (2<<4) | PPC_RELOC_PAIR);
+					write_3b ((addend+relocation->relocation_addend) & 0xffff);
+					write_l (0);
+					break;
+				}
+#  endif
+				write_l (relocation->offset);
+				write_relocation_symbol_number_and_kind (label,PPC_RELOC_HA16 | (2<<5));		
 				
-				addend=relocation->relocation_addend+relocation->relocation_label->label_offset;
+				addend=relocation->relocation_addend+label->label_offset;
 				if (label->label_object_label->kind==DATA_CONTROL_SECTION || label->label_object_label->kind==EXPORTED_DATA_LABEL)
 					addend+=code_buffer_offset;
 				
@@ -4093,11 +4251,40 @@ static void write_code_relocations (void)
 				label=relocation->relocation_label;
 				if (label->label_object_label==NULL)
 					internal_error_in_function ("write_code_relocations");
+
+#  ifdef G_MACH_O_SCATTERED
+				if (label->label_object_label->kind!=IMPORTED_CODE_LABEL){
+					struct object_label *object_label;
+
+					object_label=label->label_object_label;
+					
+					write_c ((1<<7) | (2<<4) | PPC_RELOC_LO16);
+					write_3b (relocation->offset);
+
+					addend=label->label_offset;
+					
+					if (object_label->kind!=CODE_CONTROL_SECTION && object_label->kind!=MERGED_CODE_CONTROL_SECTION){
+						if (object_label->kind==DATA_CONTROL_SECTION)
+							addend+=code_buffer_offset;
+						else {
+							if (object_label!=stub_csect_object_label)
+								internal_error_in_function ("write_code_relocations");
+						}
+					}
+
+					write_l (addend);
+
+					write_c ((1<<7) | (2<<4) | PPC_RELOC_PAIR);
+					write_3b (((unsigned)(addend+relocation->relocation_addend))>>16);
+					write_l (0);
+					break;
+				}
+#  endif
 				
 				write_l (relocation->offset);
-				write_relocation_symbol_number_and_kind (relocation->relocation_label,PPC_RELOC_LO16 | (2<<5));
+				write_relocation_symbol_number_and_kind (label,PPC_RELOC_LO16 | (2<<5));
 
-				addend=relocation->relocation_addend+relocation->relocation_label->label_offset;
+				addend=relocation->relocation_addend+label->label_offset;
 				if (label->label_object_label->kind==DATA_CONTROL_SECTION || label->label_object_label->kind==EXPORTED_DATA_LABEL)
 					addend+=code_buffer_offset;
 
@@ -4111,14 +4298,45 @@ static void write_code_relocations (void)
 				break;
 			}
 			case LONG_WORD_RELOCATION:
+			{
+				struct label *label;
+		
+				label=relocation->relocation_label;
+				if (label->label_object_label==NULL)
+					internal_error_in_function ("write_code_relocations");
+
+# ifdef G_MACH_O_SCATTERED
+				if (label->label_object_label->kind!=IMPORTED_CODE_LABEL){
+					int addend;
+					struct object_label *object_label;
+
+					object_label=label->label_object_label;
+					addend=label->label_offset;
+
+					if (object_label->kind!=CODE_CONTROL_SECTION && object_label->kind!=MERGED_CODE_CONTROL_SECTION){
+						if (object_label->kind==DATA_CONTROL_SECTION)
+							addend+=code_buffer_offset;
+						else {
+							if (object_label!=stub_csect_object_label)
+								internal_error_in_function ("write_code_relocations");
+						}
+					}
+					
+					write_c ((1<<7) | (2<<4) | PPC_RELOC_VANILLA);
+					write_3b (relocation->offset);
+					write_l (addend);
+
+					break;
+				}
+# endif
 				write_l (relocation->offset);
 # ifdef G_MACH_O
-				write_relocation_symbol_number_and_kind (relocation->relocation_label,PPC_RELOC_VANILLA | (2<<5));
+				write_relocation_symbol_number_and_kind (label,PPC_RELOC_VANILLA | (2<<5));
 # else
-				write_relocation_label_number_and_addend (relocation->relocation_label,R_PPC_ADDR32,
-															relocation->relocation_addend);
+				write_relocation_label_number_and_addend (label,R_PPC_ADDR32,relocation->relocation_addend);
 # endif
 				break;
+			}
 #endif
 			default:
 				internal_error_in_function ("write_code_relocations");
@@ -4156,6 +4374,38 @@ static void write_data_relocations (void)
 
 		switch (relocation->kind){
 			case LONG_WORD_RELOCATION:
+			{
+				struct label *label;
+		
+				label=relocation->relocation_label;
+				if (label->label_object_label==NULL)
+					internal_error_in_function ("write_code_relocations");
+
+#ifdef G_MACH_O_SCATTERED
+				if (label->label_object_label->kind!=IMPORTED_CODE_LABEL){
+					int addend;
+					struct object_label *object_label;
+
+					object_label=label->label_object_label;
+					addend=label->label_offset;
+
+					if (object_label->kind!=CODE_CONTROL_SECTION && object_label->kind!=MERGED_CODE_CONTROL_SECTION){
+						if (object_label->kind==DATA_CONTROL_SECTION)
+							addend+=code_buffer_offset;
+						else {
+							if (object_label!=stub_csect_object_label)
+								internal_error_in_function ("write_code_relocations");
+						}
+					}
+					
+					write_c ((1<<7) | (2<<4) | PPC_RELOC_VANILLA);
+					write_3b (relocation->offset);
+					write_l (addend);
+
+					break;
+				}
+#endif
+
 				write_l (relocation->offset);
 #ifdef ELF
 				write_relocation_label_number_and_addend (label,R_PPC_ADDR32,relocation->relocation_addend);
@@ -4167,6 +4417,7 @@ static void write_data_relocations (void)
 				write_c (R_POS);
 #endif
 				break;
+			}
 			default:
 				internal_error_in_function ("write_data_relocations");
 		}
@@ -4256,6 +4507,37 @@ static void write_object_labels (void)
 	write_c (ELF32_ST_INFO (STB_LOCAL,STT_SECTION));
 	write_c (0);
 	write_w (3);
+#endif
+
+#ifdef G_MACH_O_SCATTERED
+	{
+	int string_table_offset;
+	
+	string_table_offset=first_module_string_offset;
+
+	for_l (object_label,first_object_label,next){
+		switch (object_label->kind){
+			case CODE_CONTROL_SECTION:
+				write_l (string_table_offset);
+				write_c (N_SECT);
+				write_c (1);
+				write_w (0);
+				write_l (object_label->object_label_offset);
+
+				string_table_offset+=14;
+				break;
+			case DATA_CONTROL_SECTION:
+				write_l (string_table_offset);
+				write_c (N_SECT);
+				write_c (2);
+				write_w (0);
+				write_l (object_label->object_label_offset + code_buffer_offset);
+
+				string_table_offset+=14;
+				break;
+		}
+	}
+	}
 #endif
 	
 	for_l (object_label,first_object_label,next){
@@ -4549,6 +4831,66 @@ static void write_string_table (void)
 			} while (c!='\0');
 		}
 	}
+
+#ifdef G_MACH_O_SCATTERED
+	{
+	int code_section_n,data_section_n;
+	
+	code_section_n=0;
+	data_section_n=0;
+	for_l (object_label,first_object_label,next){
+		int object_label_kind,section_n,n;
+		
+		object_label_kind=object_label->kind;
+		
+		if (object_label_kind==CODE_CONTROL_SECTION){
+			write_c ('_');
+			write_c ('_');
+			write_c ('T');
+			write_c ('E');
+			write_c ('X');
+			write_c ('T');
+			write_c ('.');
+			section_n=code_section_n++;
+		} else if (object_label_kind==DATA_CONTROL_SECTION){
+			write_c ('_');
+			write_c ('_');
+			write_c ('D');
+			write_c ('A');
+			write_c ('T');
+			write_c ('A');
+			write_c ('.');
+			section_n=data_section_n++;
+		} else
+			continue;
+		
+		n=section_n/100000;
+		write_c ('0'+n);
+		section_n-=n*100000;
+
+		n=section_n/10000;
+		write_c ('0'+n);
+		section_n-=n*10000;
+	
+		n=section_n/1000;
+		write_c ('0'+n);
+		section_n-=n*1000;
+	
+		n=section_n/100;
+		write_c ('0'+n);
+		section_n-=n*100;
+	
+		n=section_n/10;
+		write_c ('0'+n);
+		section_n-=n*10;
+
+		n=section_n;
+		write_c ('0'+n);
+		
+		write_c ('\0');
+	}
+	}
+#endif
 }
 
 #ifdef DYNAMIC_CODEGENERATOR
