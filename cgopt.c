@@ -43,7 +43,9 @@
 #define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
 
 #define POWER_PC_A_STACK_OPTIMIZE
-#undef OPTIMIZE_LOOPS
+#ifdef I486
+# define OPTIMIZE_LOOPS
+#endif
 
 #pragma segment Code4
 
