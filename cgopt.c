@@ -4,8 +4,6 @@
 	At:		University of Nijmegen
 */
 
-#define FIX_REG_USES_INDEX
-
 #include <stdio.h>
 #include "cgport.h"
 #include "cg.h"
@@ -2462,13 +2460,8 @@ static void register_use (struct reg *reg_p,int use_flag)
 	r_reg_uses[reg].instruction_n=instruction_n;
 	
 	r_reg_alloc[real_reg_n].instruction_n =
-#ifdef FIX_REG_USES_INDEX
 		(r_reg_uses[real_reg_n-N_REAL_A_REGISTERS].instruction_n>instruction_n)
 		? r_reg_uses[real_reg_n-N_REAL_A_REGISTERS].instruction_n : instruction_n;
-#else
-		(r_reg_uses[real_reg_n].instruction_n>instruction_n)
-		? r_reg_uses[real_reg_n].instruction_n : instruction_n;
-#endif
 
 	r_reg_alloc[real_reg_n].value_used=reg_p->u & 1;
 
@@ -2639,7 +2632,6 @@ static void use_2_same_type_registers
 		move_2_register (reg_n_2,real_reg_n_2,use_flag_2,reg_uses,reg_alloc,register_flag);
 	}
 
-#ifdef FIX_REG_USES_INDEX
 	{
 	int real_reg_n_1_reg,real_reg_n_2_reg;
 
@@ -2650,19 +2642,13 @@ static void use_2_same_type_registers
 		real_reg_n_1_reg = real_reg_n_1-N_REAL_A_REGISTERS;
 		real_reg_n_2_reg = real_reg_n_2-N_REAL_A_REGISTERS;
 	}
-#endif
 	
 	instruction_n=reg_p_1->u>>1;
 	reg_uses[reg_n_1].instruction_n=instruction_n;
 
 	reg_alloc[real_reg_n_1].instruction_n =
-#ifdef FIX_REG_USES_INDEX
 		(reg_uses[real_reg_n_1_reg].instruction_n>instruction_n)
 		? reg_uses[real_reg_n_1_reg].instruction_n : instruction_n;
-#else
-		(reg_uses[real_reg_n_1].instruction_n>instruction_n)
-		? reg_uses[real_reg_n_1].instruction_n : instruction_n;
-#endif
 	
 	reg_alloc[real_reg_n_1].value_used=reg_p_1->u & 1;
 
@@ -2670,13 +2656,9 @@ static void use_2_same_type_registers
 	reg_uses[reg_n_2].instruction_n=instruction_n;
 
 	reg_alloc[real_reg_n_2].instruction_n =
-#ifdef FIX_REG_USES_INDEX
 		(reg_uses[real_reg_n_2_reg].instruction_n>instruction_n)
 		? reg_uses[real_reg_n_2_reg].instruction_n : instruction_n;
-#else
-		(reg_uses[real_reg_n_2].instruction_n>instruction_n)
-		? reg_uses[real_reg_n_2].instruction_n : instruction_n;
-#endif
+
 	reg_alloc[real_reg_n_2].value_used=reg_p_2->u & 1;
 
 	if (use_flag_1!=USE)
@@ -2684,19 +2666,9 @@ static void use_2_same_type_registers
 	if (use_flag_2!=USE)
 		reg_alloc[real_reg_n_2].altered=1;
 	
-#ifdef FIX_REG_USES_INDEX
 	reg_p_1->r=real_reg_n_1_reg;
 	reg_p_2->r=real_reg_n_2_reg;
 	}
-#else
-	if (register_flag==F_REGISTER){
-		reg_p_1->r=real_reg_n_1;
-		reg_p_2->r=real_reg_n_2;
-	} else {
-		reg_p_1->r=real_reg_n_1-N_REAL_A_REGISTERS;
-		reg_p_2->r=real_reg_n_2-N_REAL_A_REGISTERS;
-	}
-#endif
 }
 #else
 static void use_2_same_type_registers
@@ -2907,7 +2879,6 @@ static void use_3_same_type_registers
 		move_2_register (reg_n_3,real_reg_n_3,use_flag_1,reg_uses,reg_alloc,register_flag);
 	}
 
-#ifdef FIX_REG_USES_INDEX
 	{
 	int real_reg_n_1_reg,real_reg_n_2_reg,real_reg_n_3_reg;
 	
@@ -2920,19 +2891,13 @@ static void use_3_same_type_registers
 		real_reg_n_2_reg = real_reg_n_2-N_REAL_A_REGISTERS;
 		real_reg_n_3_reg = real_reg_n_3-N_REAL_A_REGISTERS;
 	}
-#endif
 
 	instruction_n=reg_p_1->u>>1;
 	reg_uses[reg_n_1].instruction_n=instruction_n;
 
 	reg_alloc[real_reg_n_1].instruction_n =
-#ifdef FIX_REG_USES_INDEX
 		(reg_uses[real_reg_n_1_reg].instruction_n>instruction_n)
 		? reg_uses[real_reg_n_1_reg].instruction_n : instruction_n;
-#else
-		(reg_uses[real_reg_n_1].instruction_n>instruction_n)
-		? reg_uses[real_reg_n_1].instruction_n : instruction_n;
-#endif
 	
 	reg_alloc[real_reg_n_1].value_used=reg_p_1->u & 1;
 
@@ -2940,26 +2905,18 @@ static void use_3_same_type_registers
 	reg_uses[reg_n_2].instruction_n=instruction_n;
 
 	reg_alloc[real_reg_n_2].instruction_n =
-#ifdef FIX_REG_USES_INDEX
 		(reg_uses[real_reg_n_2_reg].instruction_n>instruction_n)
 		? reg_uses[real_reg_n_2_reg].instruction_n : instruction_n;
-#else
-		(reg_uses[real_reg_n_2].instruction_n>instruction_n)
-		? reg_uses[real_reg_n_2].instruction_n : instruction_n;
-#endif
+
 	reg_alloc[real_reg_n_2].value_used=reg_p_2->u & 1;
 
 	instruction_n=reg_p_3->u>>1;
 	reg_uses[reg_n_3].instruction_n=instruction_n;
 
 	reg_alloc[real_reg_n_3].instruction_n =
-#ifdef FIX_REG_USES_INDEX
 		(reg_uses[real_reg_n_3_reg].instruction_n>instruction_n)
 		? reg_uses[real_reg_n_3_reg].instruction_n : instruction_n;
-#else
-		(reg_uses[real_reg_n_3].instruction_n>instruction_n)
-		? reg_uses[real_reg_n_3].instruction_n : instruction_n;
-#endif
+
 	reg_alloc[real_reg_n_3].value_used=reg_p_3->u & 1;
 
 	if (use_flag_1!=USE)
@@ -2969,22 +2926,10 @@ static void use_3_same_type_registers
 	if (use_flag_3!=USE)
 		reg_alloc[real_reg_n_3].altered=1;
 	
-#ifdef FIX_REG_USES_INDEX
 	reg_p_1->r=real_reg_n_1_reg;
 	reg_p_2->r=real_reg_n_2_reg;
 	reg_p_3->r=real_reg_n_3_reg;
 	}	
-#else
-	if (register_flag==F_REGISTER){
-		reg_p_1->r=real_reg_n_1;
-		reg_p_2->r=real_reg_n_2;
-		reg_p_3->r=real_reg_n_3;
-	} else {
-		reg_p_1->r=real_reg_n_1-N_REAL_A_REGISTERS;
-		reg_p_2->r=real_reg_n_2-N_REAL_A_REGISTERS;
-		reg_p_3->r=real_reg_n_3-N_REAL_A_REGISTERS;
-	}
-#endif
 }
 #endif
 
@@ -3604,13 +3549,8 @@ static void use_scratch_register (void)
 	r_reg_uses[reg].instruction_n=instruction_n;
 	
 	r_reg_alloc[real_reg_n].instruction_n =
-#ifdef FIX_REG_USES_INDEX
 		(r_reg_uses[real_reg_n-N_REAL_A_REGISTERS].instruction_n>instruction_n)
 		? r_reg_uses[real_reg_n-N_REAL_A_REGISTERS].instruction_n : instruction_n;
-#else
-		(r_reg_uses[real_reg_n].instruction_n>instruction_n)
-		? r_reg_uses[real_reg_n].instruction_n : instruction_n;
-#endif
 
 	r_reg_alloc[real_reg_n].value_used=scratch_register_next_use->scratch_register_u & 1;
 	r_reg_alloc[real_reg_n].altered=1;
