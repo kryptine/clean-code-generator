@@ -1832,11 +1832,13 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("ItoP",			parse_instruction,			code_ItoP );
 	put_instruction_name ("ItoR",			parse_instruction,			code_ItoR );
 	put_instruction_name ("jmp",			parse_instruction_a,		code_jmp );
+	put_instruction_name ("jmp_ap",			parse_instruction,			code_jmp_ap );
 	put_instruction_name ("jmp_eval",		parse_instruction,			code_jmp_eval );
 	put_instruction_name ("jmp_eval_upd",	parse_instruction,			code_jmp_eval_upd );
 	put_instruction_name ("jmp_false",		parse_instruction_a,		code_jmp_false );
 	put_instruction_name ("jmp_true",		parse_instruction_a,		code_jmp_true );
 	put_instruction_name ("jsr",			parse_instruction_a,		code_jsr );
+	put_instruction_name ("jsr_ap",			parse_instruction,			code_jsr_ap );
 	put_instruction_name ("jsr_eval",		parse_instruction_n,		code_jsr_eval );
 	put_instruction_name ("lnR",			parse_instruction,			code_lnR );
 	put_instruction_name ("log10R",			parse_instruction,			code_log10R );

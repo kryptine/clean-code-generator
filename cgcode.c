@@ -3441,59 +3441,64 @@ static struct basic_block *profile_function_block;
 
 int profile_flag=PROFILE_NORMAL;
 
-void code_jmp (char label_name[])
+static void code_jmp_ap_ (void)
 {
-	if (!strcmp (label_name,"e__system__sAP")){
 #if defined (I486)
-		end_basic_block_with_registers (2,0,e_vector);
-		i_move_id_r (0,REGISTER_A1,REGISTER_A2);
+	end_basic_block_with_registers (2,0,e_vector);
+	i_move_id_r (0,REGISTER_A1,REGISTER_A2);
 # ifdef PROFILE
-		if (profile_function_label!=NULL)
-			i_jmp_id_profile (4-2,REGISTER_A2,0);
-		else
+	if (profile_function_label!=NULL)
+		i_jmp_id_profile (4-2,REGISTER_A2,0);
+	else
 # endif
-		i_jmp_id (4-2,REGISTER_A2,0);
+	i_jmp_id (4-2,REGISTER_A2,0);
 #else
-		INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
 
-		graph_1=s_get_a (0);
+	graph_1=s_get_a (0);
 
 # if defined (sparc) || defined (G_POWER)
 #  pragma unused (graph_3,graph_4)
-		graph_2=g_load_id (0,graph_1);
-		graph_5=g_load_id (4-2,graph_2);
+	graph_2=g_load_id (0,graph_1);
+	graph_5=g_load_id (4-2,graph_2);
 # else
-		graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
-		graph_3=g_g_register (GLOBAL_DATA_REGISTER);
+	graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
+	graph_3=g_g_register (GLOBAL_DATA_REGISTER);
 
-		graph_4=g_add (graph_3,graph_2);
+	graph_4=g_add (graph_3,graph_2);
 
 #  if defined (M68000) && !defined (SUN)
-		graph_5=g_load_des_id (2,graph_4);
+	graph_5=g_load_des_id (2,graph_4);
 #  else
-		graph_5=g_load_id (4,graph_4);
+	graph_5=g_load_id (4,graph_4);
 #  endif
 # endif
 
-		s_push_a (graph_5);
+	s_push_a (graph_5);
 
-		end_basic_block_with_registers (3,0,e_vector);
+	end_basic_block_with_registers (3,0,e_vector);
 # if defined (M68000) && !defined (SUN)
-		i_add_r_r (GLOBAL_DATA_REGISTER,REGISTER_A2);
+	i_add_r_r (GLOBAL_DATA_REGISTER,REGISTER_A2);
 # endif
 # ifdef PROFILE
-		if (profile_function_label!=NULL)
-			i_jmp_id_profile (0,REGISTER_A2,2<<4);
-		else
+	if (profile_function_label!=NULL)
+		i_jmp_id_profile (0,REGISTER_A2,2<<4);
+	else
 # endif
-			i_jmp_id (0,REGISTER_A2,2<<4);
+		i_jmp_id (0,REGISTER_A2,2<<4);
 #endif
-		demand_flag=0;
-		
-		reachable=0;
-		
-		begin_new_basic_block();
-	} else {
+	demand_flag=0;
+	
+	reachable=0;
+	
+	begin_new_basic_block();
+}
+
+void code_jmp (char label_name[])
+{
+	if (!strcmp (label_name,"e__system__sAP"))
+		code_jmp_ap_();
+	else {
 		LABEL *label;
 		int a_stack_size,b_stack_size,n_a_and_f_registers;
 		ULONG *vector;
@@ -3574,6 +3579,12 @@ void code_jmp (char label_name[])
 		
 		begin_new_basic_block();
 	}
+}
+
+void code_jmp_ap (void)
+{
+	code_d (2,0,e_vector);
+	code_jmp_ap_();
 }
 
 void code_label (char *label_name);
@@ -3853,42 +3864,47 @@ static int too_many_b_stack_parameters_for_registers (int b_stack_size,int n_dat
 }
 #endif
 
-void code_jsr (char label_name[])
+static void code_jsr_ap_ (void)
 {
-	if (!strcmp (label_name,"e__system__sAP")){
-		INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
 
 #if !defined (I486)
-		graph_1=s_get_a (0);
+	graph_1=s_get_a (0);
 # if defined (sparc) || defined (G_POWER)
 #  pragma unused (graph_3,graph_4)
-		graph_2=g_load_id (0,graph_1);
-		graph_5=g_load_id (4-2,graph_2);
+	graph_2=g_load_id (0,graph_1);
+	graph_5=g_load_id (4-2,graph_2);
 # else
-		graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
-		graph_3=g_g_register (GLOBAL_DATA_REGISTER);
-		graph_4=g_add (graph_3,graph_2);
+	graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
+	graph_3=g_g_register (GLOBAL_DATA_REGISTER);
+	graph_4=g_add (graph_3,graph_2);
 
 #  if defined (M68000) && !defined (SUN)	
-		graph_5=g_load_des_id (2,graph_4);
+	graph_5=g_load_des_id (2,graph_4);
 #  else
-		graph_5=g_load_id (4,graph_4);
+	graph_5=g_load_id (4,graph_4);
 #  endif
 # endif
-		s_push_a (graph_5);
+	s_push_a (graph_5);
 #endif
 
-		if (demand_flag)
-			offered_after_jsr=1;
-		demand_flag=0;
+	if (demand_flag)
+		offered_after_jsr=1;
+	demand_flag=0;
 
 #if defined (I486)
-		insert_basic_block (APPLY_BLOCK,2,0,e_vector,NULL);
+	insert_basic_block (APPLY_BLOCK,2,0,e_vector,NULL);
 #else
-		insert_basic_block (APPLY_BLOCK,3,0,e_vector,NULL);
+	insert_basic_block (APPLY_BLOCK,3,0,e_vector,NULL);
 #endif
-		init_a_stack (1);
-	} else {
+	init_a_stack (1);
+}
+
+void code_jsr (char label_name[])
+{
+	if (!strcmp (label_name,"e__system__sAP"))
+		code_jsr_ap_();
+	else {
 		LABEL *label;
 		INSTRUCTION_GRAPH graph;
 		int b_stack_size,n_data_parameter_registers;
@@ -3935,6 +3951,13 @@ void code_jsr (char label_name[])
 			define_label_in_block (label_2);
 #endif
 	}
+}
+
+void code_jsr_ap (void)
+{
+	code_d (2,0,e_vector);
+	code_jsr_ap_();
+	code_o (1,0,e_vector);
 }
 
 #ifdef G_POWER
