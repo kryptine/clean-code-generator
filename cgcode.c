@@ -6922,7 +6922,7 @@ void code_caf (char *label_name,int a_stack_size,int b_stack_size)
 	if (assembly_flag)
 		w_as_new_module (2);
 #endif
-#if defined (G_POWER) || defined (_WINDOWS_)
+#ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
@@ -7165,7 +7165,7 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 	if (assembly_flag)
 		w_as_new_module (0);
 #endif
-#if defined (G_POWER) || defined (_WINDOWS_)
+#ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
@@ -7433,7 +7433,7 @@ void code_record (char record_label_name[],char type[],int a_size,int b_size,cha
 	if (assembly_flag)
 		w_as_new_module (0);
 #endif
-#if defined (G_POWER) || defined (_WINDOWS_)
+#ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
@@ -7683,7 +7683,7 @@ void code_pb (char string[],int string_length)
 	}
 #endif
 
-# if defined (G_POWER) || defined (_WINDOWS_)
+# ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
@@ -7733,7 +7733,7 @@ void write_profile_table (void)
 	struct profile_table *profile_table_entry;
 	int string_length_4;
 	
-# if defined (G_POWER) || defined (_WINDOWS_)
+# ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
@@ -7844,7 +7844,7 @@ static LABEL *code_string_or_module (char label_name[],char string[],int string_
 	if (assembly_flag)
 		w_as_new_module (0);
 #endif
-#if defined (G_POWER) || defined (_WINDOWS_)
+#ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();

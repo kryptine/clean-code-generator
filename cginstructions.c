@@ -938,7 +938,7 @@ LABEL *w_code_string (char *string,int length)
 	if (assembly_flag)
 		w_as_new_module (0);
 #endif
-#if defined (G_POWER) || defined (_WINDOWS_)
+#ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
@@ -982,7 +982,7 @@ LABEL *w_code_descriptor_length_and_string (char *string,int length)
 	if (assembly_flag)
 		w_as_new_module (4);
 #endif
-#if defined (G_POWER) || defined (_WINDOWS_)
+#ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
@@ -1034,7 +1034,7 @@ LABEL *w_code_length_and_string (char *string,int length)
 	if (assembly_flag)
 		w_as_new_module (0);
 #endif
-#if defined (G_POWER) || defined (_WINDOWS_)
+#ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
