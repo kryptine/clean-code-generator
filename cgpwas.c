@@ -48,9 +48,9 @@
 #include "cgptoc.h"
 #include "cgpwas.h"
 
-#define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
+#define FP_REVERSE_SUB_DIV_OPERANDS 1
 
-#define FSUB_FDIV_REVERSED
+#define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
 
 #define IO_BUF_SIZE 8192
 
@@ -492,6 +492,15 @@ static void w_as_fp_register (int fp_reg)
 	fprintf (assembly_file,"%d",fp_reg+14);
 #else
 	fprintf (assembly_file,IF_MACH_O ("f%d","fp%d"),fp_reg+14);
+#endif
+}
+
+static void w_as_fp_register_comma (int fp_reg)
+{
+#ifdef ONLY_REGISTER_NUMBERS
+	fprintf (assembly_file,"%d,",fp_reg+14);
+#else
+	fprintf (assembly_file,IF_MACH_O ("f%d,","fp%d,"),fp_reg+14);
 #endif
 }
 
@@ -2333,8 +2342,7 @@ static void w_as_load_float_immediate (double float_value,int fp_reg)
 #endif
 
 	w_as_opcode ("lfd");
-	w_as_fp_register (fp_reg);
-	w_as_comma();
+	w_as_fp_register_comma (fp_reg);
 #ifdef GNU_SYNTAX
 # ifdef MACH_O
 	fprintf (assembly_file,"lo16(");
@@ -2365,8 +2373,7 @@ static struct parameter w_as_float_parameter (struct parameter parameter)
 			break;
 		case P_INDIRECT:
 			w_as_opcode ("lfd");
-			w_as_fp_register (17);
-			w_as_comma();
+			w_as_fp_register_comma (17);
 			w_as_indirect (parameter.parameter_offset,parameter.parameter_data.reg.r);
 			w_as_newline();
 
@@ -2375,8 +2382,7 @@ static struct parameter w_as_float_parameter (struct parameter parameter)
 			break;
 		case P_INDEXED:
 			w_as_opcode ("lfdx");
-			w_as_fp_register (17);
-			w_as_comma();
+			w_as_fp_register_comma (17);
 			w_as_indexed (parameter.parameter_offset,parameter.parameter_data.ir);
 			w_as_newline();
 
@@ -2483,6 +2489,27 @@ static struct instruction *w_as_fmul_instruction (struct instruction *instructio
 					
 					return next_instruction;
 				}
+			} else if (	next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
+						next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r)
+			{
+				struct parameter parameter_0;
+
+				parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
+
+				w_as_load_float_immediate (*next_instruction->instruction_parameters[0].parameter_data.r,16);
+
+				w_as_opcode ("fmadd");
+
+				w_as_parameter (&next_instruction->instruction_parameters[1]);
+				w_as_comma();
+				w_as_parameter (&parameter_0);
+				w_as_comma();
+				w_as_parameter (&instruction->instruction_parameters[1]);
+				w_as_comma();
+				w_as_fp_register (16);
+				w_as_newline();
+				
+				return next_instruction;
 			}
 		} else if (next_instruction->instruction_icode==IFSUB){
 			if (next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER &&
@@ -2495,11 +2522,9 @@ static struct instruction *w_as_fmul_instruction (struct instruction *instructio
 
 					parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
 					
-# ifdef FSUB_FDIV_REVERSED
-					if (next_instruction->instruction_parameters[1].parameter_flags)
+					if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 						w_as_opcode ("fmsub");
 					else
-# endif
 						w_as_opcode ("fnmsub");
 
 					w_as_parameter (&next_instruction->instruction_parameters[1]);
@@ -2517,11 +2542,9 @@ static struct instruction *w_as_fmul_instruction (struct instruction *instructio
 
 					parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
 					
-# ifdef FSUB_FDIV_REVERSED
-					if (next_instruction->instruction_parameters[1].parameter_flags)
+					if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 						w_as_opcode ("fnmsub");
 					else
-# endif
 						w_as_opcode ("fmsub");
 
 					w_as_parameter (&next_instruction->instruction_parameters[1]);
@@ -2535,6 +2558,30 @@ static struct instruction *w_as_fmul_instruction (struct instruction *instructio
 					
 					return next_instruction;
 				}
+			} else if (	next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
+						next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r)
+			{
+				struct parameter parameter_0;
+
+				parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
+
+				w_as_load_float_immediate (*next_instruction->instruction_parameters[0].parameter_data.r,16);
+
+				if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+					w_as_opcode ("fnmsub");
+				else
+					w_as_opcode ("fmsub");
+
+				w_as_parameter (&next_instruction->instruction_parameters[1]);
+				w_as_comma();
+				w_as_parameter (&parameter_0);
+				w_as_comma();
+				w_as_parameter (&instruction->instruction_parameters[1]);
+				w_as_comma();
+				w_as_fp_register (16);
+				w_as_newline();
+				
+				return next_instruction;
 			}
 		}
 
@@ -2544,7 +2591,6 @@ static struct instruction *w_as_fmul_instruction (struct instruction *instructio
 }
 #endif
 
-#ifdef FSUB_FDIV_REVERSED
 static void w_as_tryadic_reversed_float_instruction (struct instruction *instruction,char *opcode)
 {
 	struct parameter parameter_0;
@@ -2560,7 +2606,6 @@ static void w_as_tryadic_reversed_float_instruction (struct instruction *instruc
 	w_as_parameter (&instruction->instruction_parameters[1]);
 	w_as_newline();
 }
-#endif
 
 static struct instruction *w_as_fmove_instruction (struct instruction *instruction)
 {
@@ -2595,15 +2640,13 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 											w_as_opcode ("fadd");
 											break;
 										case IFSUB:
-#ifdef FSUB_FDIV_REVERSED
-											if (instruction->instruction_parameters[1].parameter_flags){
+											if (instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS){
 												int reg0_copy;
 												
 												reg0_copy=reg0;
 												reg0=reg_s;
 												reg_s=reg0_copy;
 											}
-#endif
 
 											w_as_opcode ("fsub");
 											break;
@@ -2614,24 +2657,38 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 											
 											next_of_next_instruction=next_instruction->instruction_next;
 											if (fmadd_flag && next_of_next_instruction!=NULL){
-												if (next_of_next_instruction->instruction_icode==IFADD &&
-													next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER &&
-													next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r==reg1 &&
-													next_of_next_instruction->instruction_parameters[0].parameter_flags & FP_REG_LAST_USE &&
-													next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r!=reg1)
-												{
-													w_as_opcode ("fmadd");
+												if (next_of_next_instruction->instruction_icode==IFADD){
+													if (next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER &&
+														next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r==reg1 &&
+														next_of_next_instruction->instruction_parameters[0].parameter_flags & FP_REG_LAST_USE &&
+														next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r!=reg1)
+													{
+														w_as_opcode ("fmadd");
 
-													w_as_parameter (&next_of_next_instruction->instruction_parameters[1]);
-													w_as_comma();
-													w_as_fp_register (reg0);
-													w_as_comma();
-													w_as_fp_register (reg_s);
-													w_as_comma();
-													w_as_parameter (&next_of_next_instruction->instruction_parameters[1]);
-													w_as_newline();
-													
-													return next_of_next_instruction;
+														w_as_parameter (&next_of_next_instruction->instruction_parameters[1]);
+														w_as_comma();
+														w_as_fp_register_comma (reg0);
+														w_as_fp_register_comma (reg_s);
+														w_as_parameter (&next_of_next_instruction->instruction_parameters[1]);
+														w_as_newline();
+														
+														return next_of_next_instruction;
+													} else if (	next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
+																next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1)
+													{
+														w_as_load_float_immediate (*next_of_next_instruction->instruction_parameters[0].parameter_data.r,16);
+														
+														w_as_opcode ("fmadd");
+
+														w_as_fp_register (reg1);
+														w_as_comma();
+														w_as_fp_register_comma (reg0);
+														w_as_fp_register_comma (reg_s);
+														w_as_fp_register (16);
+														w_as_newline();
+														
+														return next_of_next_instruction;
+													}			
 												} else if (next_of_next_instruction->instruction_icode==IFSUB &&
 													next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER &&
 													next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r!=next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r)
@@ -2639,37 +2696,29 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 													if (next_of_next_instruction->instruction_parameters[0].parameter_flags & FP_REG_LAST_USE &&
 														next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r==reg1)
 													{
-# ifdef FSUB_FDIV_REVERSED
-														if (next_of_next_instruction->instruction_parameters[1].parameter_flags)
+														if (next_of_next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 															w_as_opcode ("fmsub");
 														else
-# endif
 															w_as_opcode ("fnmsub");
 
 														w_as_parameter (&next_of_next_instruction->instruction_parameters[1]);
 														w_as_comma();
-														w_as_fp_register (reg0);
-														w_as_comma();
-														w_as_fp_register (reg_s);
-														w_as_comma();
+														w_as_fp_register_comma (reg0);
+														w_as_fp_register_comma (reg_s);
 														w_as_parameter (&next_of_next_instruction->instruction_parameters[1]);
 														w_as_newline();
 														
 														return next_of_next_instruction;					
 													} else if (next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1){
-# ifdef FSUB_FDIV_REVERSED
-														if (next_of_next_instruction->instruction_parameters[1].parameter_flags)
+														if (next_of_next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 															w_as_opcode ("fnmsub");
 														else
-# endif
 															w_as_opcode ("fmsub");
 
 														w_as_parameter (&next_of_next_instruction->instruction_parameters[1]);
 														w_as_comma();
-														w_as_fp_register (reg0);
-														w_as_comma();
-														w_as_fp_register (reg_s);
-														w_as_comma();
+														w_as_fp_register_comma (reg0);
+														w_as_fp_register_comma (reg_s);
 														w_as_parameter (&next_of_next_instruction->instruction_parameters[0]);
 														w_as_newline();
 														
@@ -2682,24 +2731,20 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 											w_as_opcode ("fmul");
 											break;
 										case IFDIV:
-#ifdef FSUB_FDIV_REVERSED
-											if (instruction->instruction_parameters[1].parameter_flags){
+											if (instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS){
 												int reg0_copy;
 												
 												reg0_copy=reg0;
 												reg0=reg_s;
 												reg_s=reg0_copy;
 											}
-#endif
 											w_as_opcode ("fdiv");
 											break;
 										case IFREM:
 											w_as_opcode ("frem");
 									}
-									w_as_fp_register (reg1);
-									w_as_comma();
-									w_as_fp_register (reg0);
-									w_as_comma();
+									w_as_fp_register_comma (reg1);
+									w_as_fp_register_comma (reg0);
 									w_as_fp_register (reg_s);
 									w_as_newline();
 									
@@ -2708,8 +2753,7 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 						}
 
 					w_as_opcode ("fmr");
-					w_as_fp_register (reg1);
-					w_as_comma();
+					w_as_fp_register_comma (reg1);
 					w_as_fp_register (reg0);
 					w_as_newline();
 				
@@ -2717,8 +2761,7 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 				}
 				case P_INDIRECT:
 					w_as_opcode ("lfd");
-					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-					w_as_comma();
+					w_as_fp_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,
 								   instruction->instruction_parameters[0].parameter_data.reg.r);
 					w_as_newline();
@@ -2730,8 +2773,7 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 					return instruction;
 				case P_INDEXED:
 					w_as_opcode ("lfdx");
-					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-					w_as_comma();
+					w_as_fp_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_indexed (instruction->instruction_parameters[0].parameter_offset,
 								  instruction->instruction_parameters[0].parameter_data.ir);
 					w_as_newline();
@@ -2742,8 +2784,7 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 		case P_INDIRECT:
 			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
 				w_as_opcode ("stfd");
-				w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
-				w_as_comma();
+				w_as_fp_register_comma (instruction->instruction_parameters[0].parameter_data.reg.r);
 				w_as_indirect (instruction->instruction_parameters[1].parameter_offset,
 							   instruction->instruction_parameters[1].parameter_data.reg.r);
 				w_as_newline();
@@ -2754,8 +2795,7 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 		case P_INDEXED:
 			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
 				w_as_opcode ("stfdx");
-				w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
-				w_as_comma();
+				w_as_fp_register_comma (instruction->instruction_parameters[0].parameter_data.reg.r);
 				w_as_indexed (instruction->instruction_parameters[1].parameter_offset,
 							  instruction->instruction_parameters[1].parameter_data.ir);
 				w_as_newline();
@@ -2778,16 +2818,14 @@ static void w_as_fmovel_instruction (struct instruction *instruction)
 			internal_error_in_function ("w_as_fmovel_instruction");
 
 		w_as_opcode ("fctiw");
-		w_as_fp_register (17);
-		w_as_comma();
+		w_as_fp_register_comma (17);
 		w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
 		w_as_newline();
 
 		w_as_load_label (r_to_i_buffer_label,REGISTER_O0);
 
 		w_as_opcode ("stfd");
-		w_as_fp_register (17);
-		w_as_comma();
+		w_as_fp_register_comma (17);
 		w_as_indirect (0,REGISTER_O0);
 		w_as_newline();
 
@@ -2885,8 +2923,7 @@ static void w_as_fmovel_instruction (struct instruction *instruction)
 		w_as_newline();
 		
 		w_as_opcode ("lfd");
-		w_as_fp_register (17);
-		w_as_comma();
+		w_as_fp_register_comma (17);
 		w_as_indirect (8,REGISTER_O1);
 		w_as_newline();
 
@@ -2896,16 +2933,13 @@ static void w_as_fmovel_instruction (struct instruction *instruction)
 		w_as_newline();
 
 		w_as_opcode ("lfd");
-		w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-		w_as_comma();
+		w_as_fp_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 		w_as_indirect (0,REGISTER_O1);
 		w_as_newline();
 
 		w_as_opcode ("fsub");
-		w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-		w_as_comma();
-		w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-		w_as_comma();
+		w_as_fp_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+		w_as_fp_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 		w_as_fp_register (17);
 		w_as_newline();
 		
@@ -3059,11 +3093,9 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_compare_float_instruction (instruction);
 				break;
 			case IFDIV:
-#ifdef FSUB_FDIV_REVERSED
-				if (instruction->instruction_parameters[1].parameter_flags)
+				if (instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 					w_as_tryadic_reversed_float_instruction (instruction,"fdiv");
 				else
-#endif
 					w_as_tryadic_float_instruction (instruction,"fdiv");
 				break;
 			case IFMUL:
@@ -3080,11 +3112,9 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_tryadic_float_instruction (instruction,"frem");
 				break;
 			case IFSUB:
-#ifdef FSUB_FDIV_REVERSED
-				if (instruction->instruction_parameters[1].parameter_flags)
+				if (instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 					w_as_tryadic_reversed_float_instruction (instruction,"fsub");
 				else
-#endif
 					w_as_tryadic_float_instruction (instruction,"fsub");
 				break;
 			case IFBEQ:
@@ -3278,7 +3308,7 @@ static void w_as_check_stack (struct basic_block *block)
 		w_as_newline();
 	}
 	if (block->block_b_stack_check_size>0){		
-		w_as_load_label (end_a_stack_label,REGISTER_O0);
+		w_as_load_label (end_b_stack_label,REGISTER_O0);
 
 		w_as_opcode ("addi");
 		w_as_register_comma (REGISTER_O1);
