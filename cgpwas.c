@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #include "cgport.h"
 
@@ -1929,6 +1930,55 @@ static void w_as_seto_condition_instruction (struct instruction *instruction)
 	w_as_newline();
 }
 
+static void w_as_divi (int i,int s_reg,int d_reg)
+{
+	struct ms ms;
+
+	ms=magic (abs (i));
+	
+	w_as_opcode ("lis");
+	w_as_register_comma (REGISTER_O0);
+	w_as_immediate ((ms.m-(WORD)ms.m)>>16);
+	w_as_newline();
+
+	w_as_opcode ("addi");
+	w_as_register_comma (REGISTER_O0);
+	w_as_register_comma (REGISTER_O0);
+	w_as_immediate ((WORD)ms.m);
+	w_as_newline();
+
+	w_as_opcode ("mulhw");
+	w_as_register_comma (REGISTER_O0);
+	w_as_register_comma (REGISTER_O0);
+	w_as_register_newline (s_reg);
+
+	if (ms.m<0){
+		w_as_opcode ("add");
+		w_as_register_comma (REGISTER_O0);
+		w_as_register_comma (REGISTER_O0);
+		w_as_register_newline (s_reg);
+	}
+
+	w_as_opcode (i>=0 ? "srwi" : "srawi");
+	w_as_register_comma (d_reg);
+	w_as_register_comma (s_reg);
+	w_as_immediate (31);
+	w_as_newline();
+
+	if (ms.s>0){
+		w_as_opcode ("srawi");
+		w_as_register_comma (REGISTER_O0);
+		w_as_register_comma (REGISTER_O0);
+		w_as_immediate (ms.s);
+		w_as_newline();
+	}
+				
+	w_as_opcode (i>=0 ? "add" : "sub");
+	w_as_register_comma (d_reg);
+	w_as_register_comma (d_reg);
+	w_as_register_newline (REGISTER_O0);
+}
+
 static void w_as_rem_instruction (struct instruction *instruction)
 {
 	int reg;
@@ -1937,6 +1987,10 @@ static void w_as_rem_instruction (struct instruction *instruction)
 		int i,sd_reg;
 				
 		i=instruction->instruction_parameters[0].parameter_data.i;
+
+		if (i<0 && i!=0x80000000)
+			i=-i;
+
 		if ((i & (i-1))==0 && i>1){
 			int log2i;
 						
@@ -1998,6 +2052,77 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			w_as_register_newline (REGISTER_O1);
 			
 			return;
+		} else if (i>1 || (i<-1 && i!=0x80000000)){
+			int i2;
+			
+			sd_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+
+			w_as_divi (i,sd_reg,REGISTER_O1);
+
+			i2=i & (i-1);
+			if ((i2 & (i2-1))==0){
+				unsigned int n;
+				int n_shifts;
+
+				n=i;
+				
+				n_shifts=0;
+				while (n>0){
+					while ((n & 1)==0){
+						n>>=1;
+						++n_shifts;
+					}
+					
+					if (n_shifts>0){
+						w_as_opcode ("slwi");
+						w_as_register_comma (REGISTER_O1);
+						w_as_register_comma (REGISTER_O1);
+						w_as_immediate (n_shifts);
+						w_as_newline();
+					}
+					
+					w_as_opcode ("sub");
+					w_as_register_comma (sd_reg);
+					w_as_register_comma (sd_reg);
+					w_as_register_newline (REGISTER_O1);
+
+					n>>=1;
+					n_shifts=1;
+				}
+			} else {
+				if (i!=(WORD)i){
+					w_as_opcode ("lis");
+					w_as_register_comma (REGISTER_O0);
+					w_as_immediate ((i-(WORD)i)>>16);
+					w_as_newline();
+				
+					i=(WORD)i;
+
+					w_as_opcode ("addi");
+					w_as_register_comma (REGISTER_O0);
+					w_as_register_comma (REGISTER_O0);
+					w_as_immediate (i);
+					w_as_newline();
+
+					w_as_opcode ("mullw");
+					w_as_register_comma (REGISTER_O1);
+					w_as_register_comma (REGISTER_O1);
+					w_as_register_newline (REGISTER_O0);
+				} else {
+					w_as_opcode ("mulli");
+					w_as_register_comma (REGISTER_O1);
+					w_as_register_comma (REGISTER_O1);
+					w_as_immediate (i);
+					w_as_newline();
+				}		
+
+				w_as_opcode ("sub");
+				w_as_register_comma (sd_reg);
+				w_as_register_comma (sd_reg);
+				w_as_register_newline (REGISTER_O1);
+			}
+			
+			return;
 		}
 	}
 
@@ -2052,69 +2177,10 @@ static void w_as_div_instruction (struct instruction *instruction)
 			w_as_register_newline (sd_reg);
 			
 			return;
-		} else if (i>1 || i<-1){
-			struct ms ms;
-
-			ms=magic (i);
-			
+		} else if (i>1 || (i<-1 && i!=0x80000000)){
 			sd_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
-			w_as_opcode ("lis");
-			w_as_register_comma (REGISTER_O0);
-			w_as_immediate ((ms.m-(WORD)ms.m)>>16);
-			w_as_newline();
-		
-			w_as_opcode ("addi");
-			w_as_register_comma (REGISTER_O0);
-			w_as_register_comma (REGISTER_O0);
-			w_as_immediate ((WORD)ms.m);
-			w_as_newline();
-
-			w_as_opcode ("mulhw");
-			w_as_register_comma (REGISTER_O0);
-			w_as_register_comma (REGISTER_O0);
-			w_as_register_newline (sd_reg);
-			
-			if (i>=0){
-				if (ms.m<0){
-					w_as_opcode ("add");
-					w_as_register_comma (REGISTER_O0);
-					w_as_register_comma (REGISTER_O0);
-					w_as_register_newline (sd_reg);
-				}
-
-				w_as_opcode ("srwi");
-				w_as_register_comma (sd_reg);
-				w_as_register_comma (sd_reg);
-				w_as_immediate (31);
-				w_as_newline();
-			} else {
-				if (ms.m>=0){
-					w_as_opcode ("sub");
-					w_as_register_comma (REGISTER_O0);
-					w_as_register_comma (REGISTER_O0);
-					w_as_register_newline (sd_reg);
-				}
-
-				w_as_opcode ("srwi");
-				w_as_register_comma (sd_reg);
-				w_as_register_comma (REGISTER_O0);
-				w_as_immediate (31);
-				w_as_newline();
-			}
-
-			if (ms.s>0){
-				w_as_opcode ("srawi");
-				w_as_register_comma (REGISTER_O0);
-				w_as_register_comma (REGISTER_O0);
-				w_as_immediate (ms.s);
-				w_as_newline();
-			}
-						
-			w_as_opcode ("add");
-			w_as_register_comma (sd_reg);
-			w_as_register_comma (sd_reg);
-			w_as_register_newline (REGISTER_O0);
+			w_as_divi (i,sd_reg,sd_reg);
 
 			return;
 		}

@@ -725,7 +725,7 @@ static int as_register_parameter (struct parameter parameter,int size_flag)
 		case P_IMMEDIATE:
 		{
 			int i;
-				
+			
 			i=parameter.parameter_data.i;
 			
 			if (i!=(WORD)i){
@@ -1331,6 +1331,31 @@ struct ms magic (int d)
 	return mag;
 }
 
+static void as_divi (int i,int s_reg,int d_reg)
+{
+	struct ms ms;
+
+	ms=magic (abs (i));			
+
+	as_lis (REGISTER_O0,(ms.m-(WORD)ms.m)>>16);
+	as_addi (REGISTER_O0,REGISTER_O0,(WORD)ms.m);
+	as_mulhw (REGISTER_O0,REGISTER_O0,s_reg);
+
+	if (ms.m<0)
+		as_add (REGISTER_O0,REGISTER_O0,s_reg);
+	if (i>=0)
+		as_srwi (d_reg,s_reg,31);
+	else
+		as_srawi (d_reg,s_reg,31);
+	if (ms.s>0)
+		as_srawi (REGISTER_O0,REGISTER_O0,ms.s);
+
+	if (i>=0)
+		as_add (d_reg,d_reg,REGISTER_O0);
+	else
+		as_sub (d_reg,d_reg,REGISTER_O0);
+}
+
 static void as_div_instruction (struct instruction *instruction)
 {
 	int reg;
@@ -1357,28 +1382,10 @@ static void as_div_instruction (struct instruction *instruction)
 			as_addze (sd_reg,sd_reg);			
 
 			return;
-		} else if (i>1 || i<-1){
-			struct ms ms;
-
-			ms=magic (i);
-			
+		} else if (i>1 || (i<-1 && i!=0x80000000)){
 			sd_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
-			as_lis (REGISTER_O0,(ms.m-(WORD)ms.m)>>16);
-			as_addi (REGISTER_O0,REGISTER_O0,(WORD)ms.m);
-			as_mulhw (REGISTER_O0,REGISTER_O0,sd_reg);
-			if (i>=0){
-				if (ms.m<0)
-					as_add (REGISTER_O0,REGISTER_O0,sd_reg);
-				as_srwi (sd_reg,sd_reg,31);
-			} else {
-				if (ms.m>=0)
-					as_sub (REGISTER_O0,REGISTER_O0,sd_reg);
-				as_srwi (sd_reg,REGISTER_O0,31);
-			}
-			if (ms.s>0)
-				as_srawi (REGISTER_O0,REGISTER_O0,ms.s);
-			as_add (sd_reg,sd_reg,REGISTER_O0);			
+			as_divi (i,sd_reg,sd_reg);
 
 			return;
 		}
@@ -1398,6 +1405,10 @@ static void as_rem_instruction (struct instruction *instruction)
 		int i,sd_reg;
 
 		i=instruction->instruction_parameters[0].parameter_data.i;
+		
+		if (i<0 && i!=0x80000000)
+			i=-i;
+		
 		if ((i & (i-1))==0 && i>1){
 			int log2i;
 						
@@ -1422,6 +1433,50 @@ static void as_rem_instruction (struct instruction *instruction)
 
 			as_sub (sd_reg,sd_reg,REGISTER_O1);
 			
+			return;
+		} else if (i>1 || (i<-1 && i!=0x80000000)){
+			int i2;
+			
+			sd_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+
+			as_divi (i,sd_reg,REGISTER_O1);
+
+			i2=i & (i-1);
+			if ((i2 & (i2-1))==0){
+				unsigned int n;
+				int n_shifts;
+
+				n=i;
+				
+				n_shifts=0;
+				while (n>0){
+					while ((n & 1)==0){
+						n>>=1;
+						++n_shifts;
+					}
+					
+					if (n_shifts>0)
+						as_slwi (REGISTER_O1,REGISTER_O1,n_shifts);
+					
+					as_sub (sd_reg,sd_reg,REGISTER_O1);
+
+					n>>=1;
+					n_shifts=1;
+				}
+			} else {
+				if (i!=(WORD)i){
+					as_lis (REGISTER_O0,(i-(WORD)i)>>16);
+				
+					i=(WORD)i;
+
+					as_addi (REGISTER_O0,REGISTER_O0,i);
+					as_mullw (REGISTER_O1,REGISTER_O1,REGISTER_O0);
+				} else
+					as_mulli (REGISTER_O1,REGISTER_O1,i);
+				
+				as_sub (sd_reg,sd_reg,REGISTER_O1);
+			}
+
 			return;
 		}
 	}
