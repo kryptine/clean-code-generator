@@ -45,8 +45,8 @@ struct object_buffer {
 #endif
 
 #ifdef FUNCTION_LEVEL_LINKING
-# define TEXT_LABEL_ID (-2)
-# define DATA_LABEL_ID (-3)
+# define TEXT_LABEL_ID (0x7fff-2)
+# define DATA_LABEL_ID (0x7fff-3)
 #else
 # define TEXT_LABEL_ID 1
 # define DATA_LABEL_ID 2
