@@ -5351,6 +5351,46 @@ static INSTRUCTION_GRAPH g_lsl_3_add_12 (INSTRUCTION_GRAPH graph_1)
 	return graph_2;
 }
 
+static INSTRUCTION_GRAPH optimize_array_index (int offset,int shift,INSTRUCTION_GRAPH graph_1,int *offset_p)
+{
+	INSTRUCTION_GRAPH graph_2,graph_3;
+	int new_offset;
+	
+	if (graph_1->instruction_code==GADD){
+		graph_2=graph_1->instruction_parameters[0].p;
+		graph_3=graph_1->instruction_parameters[1].p;
+		
+		if (graph_2->instruction_code==GLOAD_I){
+			new_offset=offset+(graph_2->instruction_parameters[0].i<<shift);
+			if ((unsigned)((new_offset | MAX_INDIRECT_OFFSET)+1)<=(unsigned)(MAX_INDIRECT_OFFSET+1) && !(shift==3 && (unsigned)new_offset>=(unsigned)(MAX_INDIRECT_OFFSET-4))){
+				*offset_p=new_offset;
+				return graph_3;
+			}
+		}
+		if (graph_3->instruction_code==GLOAD_I){
+			new_offset=offset+(graph_3->instruction_parameters[0].i<<shift);
+			if ((unsigned)((new_offset | MAX_INDIRECT_OFFSET)+1)<=(unsigned)(MAX_INDIRECT_OFFSET+1) && !(shift==3 && (unsigned)new_offset>=(unsigned)(MAX_INDIRECT_OFFSET-4))){
+				*offset_p=new_offset;
+				return graph_2;
+			}			
+		}
+	} else if (graph_1->instruction_code==GSUB){
+		graph_2=graph_1->instruction_parameters[0].p;
+		graph_3=graph_1->instruction_parameters[1].p;
+		
+		if (graph_2->instruction_code==GLOAD_I){
+			new_offset=offset-(graph_2->instruction_parameters[0].i<<shift);
+			if ((unsigned)((new_offset | MAX_INDIRECT_OFFSET)+1)<=(unsigned)(MAX_INDIRECT_OFFSET+1) && !(shift==3 && (unsigned)new_offset>=(unsigned)(MAX_INDIRECT_OFFSET-4))){
+				*offset_p=new_offset;
+				return graph_3;
+			}			
+		}
+	}
+	
+	*offset_p=offset;
+	return graph_1;
+}
+
 static void code_replaceI (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
@@ -5380,8 +5420,11 @@ static void code_replaceI (VOID)
 		} else
 # endif
 		{
-			graph_5=g_load_x (graph_1,12,2,graph_2);
-			graph_4=g_store_x (graph_3,graph_1,12,2,graph_2);
+			int offset;
+			
+			graph_2=optimize_array_index (12,2,graph_2,&offset);
+			graph_5=g_load_x (graph_1,offset,2,graph_2);
+			graph_4=g_store_x (graph_3,graph_1,offset,2,graph_2);
 		}
 #else
 		graph_2=g_lsl_2_add_12 (graph_2);
@@ -5414,8 +5457,13 @@ static void code_replaceBC (int offset,int ext_signed)
 			graph_2=g_bounds (graph_1,graph_2);
 
 #if defined (M68000) || defined (I486)
-		graph_5=g_load_b_x (graph_1,offset,ext_signed,graph_2);
-		graph_4=g_store_b_x (graph_3,graph_1,offset,graph_2);
+		{
+		int new_offset;
+
+		graph_2=optimize_array_index (offset,0,graph_2,&new_offset);
+		graph_5=g_load_b_x (graph_1,new_offset,ext_signed,graph_2);
+		graph_4=g_store_b_x (graph_3,graph_1,new_offset,graph_2);
+		}
 #else
 		graph_2=g_add (g_load_i (offset),graph_2);
 		graph_5=g_load_b_x (graph_1,0,ext_signed,graph_2);
@@ -5456,8 +5504,11 @@ static void code_lazy_replace (VOID)
 		} else 
 # endif
 		{
-			graph_5=g_load_x (graph_1,12,2,graph_3);
-			graph_4=g_store_x (graph_2,graph_1,12,2,graph_3);
+			int offset;
+
+			graph_3=optimize_array_index (12,2,graph_3,&offset);
+			graph_5=g_load_x (graph_1,offset,2,graph_3);
+			graph_4=g_store_x (graph_2,graph_1,offset,2,graph_3);
 		}
 #else
 		graph_3=g_lsl_2_add_12 (graph_3);
@@ -5525,8 +5576,11 @@ static void code_replaceR (VOID)
 			graph_8=g_fstore_x (graph_7,graph_1,offset,0,NULL);
 		} else {
 #if defined (M68000) || defined (I486)
-			graph_4=g_fload_x (graph_1,12,3,graph_2);
-			graph_8=g_fstore_x (graph_7,graph_1,12,3,graph_2);
+			int offset;
+
+			graph_2=optimize_array_index (12,3,graph_2,&offset);
+			graph_4=g_fload_x (graph_1,offset,3,graph_2);
+			graph_8=g_fstore_x (graph_7,graph_1,offset,3,graph_2);
 #else
 			graph_2=g_lsl_3_add_12 (graph_2);
 # ifdef sparc
@@ -6041,7 +6095,12 @@ static void code_lazy_select (VOID)
 			graph_3=g_load_x (graph_1,12,0,graph_2);
 		} else
 # endif
-			graph_3=g_load_x (graph_1,12,2,graph_2);
+		{
+			int offset;
+
+			graph_2=optimize_array_index (12,2,graph_2,&offset);
+			graph_3=g_load_x (graph_1,offset,2,graph_2);
+		}
 #else
 		graph_2=g_lsl_2_add_12 (graph_2);
 		graph_3=g_load_x (graph_1,0,0,graph_2);
@@ -6067,7 +6126,12 @@ static void code_selectBC (int offset,int ext_signed)
 			graph_2=g_bounds (graph_1,graph_2);
 
 #if defined (M68000) || defined (I486)
-		graph_3=g_load_b_x (graph_1,offset,ext_signed,graph_2);
+		{
+		int new_offset;
+
+		graph_2=optimize_array_index (offset,0,graph_2,&new_offset);
+		graph_3=g_load_b_x (graph_1,new_offset,ext_signed,graph_2);
+		}
 #else
 		graph_1=g_add (g_load_i (offset),graph_1);
 		graph_3=g_load_b_x (graph_1,0,ext_signed,graph_2);
@@ -6114,7 +6178,12 @@ static void code_selectI (VOID)
 			graph_3=g_load_x (graph_1,12,0,graph_2);
 		} else
 # endif
-			graph_3=g_load_x (graph_1,12,2,graph_2);
+		{
+			int offset;
+
+			graph_2=optimize_array_index (12,2,graph_2,&offset);
+			graph_3=g_load_x (graph_1,offset,2,graph_2);
+		}
 #else
 		graph_2=g_lsl_2_add_12 (graph_2);
 		graph_3=g_load_x (graph_1,0,0,graph_2);
@@ -6166,7 +6235,10 @@ static void code_selectR (VOID)
 			graph_4=g_fload_x (graph_1,12+(graph_2->instruction_parameters[0].i<<3),0,NULL);
 		} else {
 #if defined (M68000) || defined (I486)
-			graph_4=g_fload_x (graph_1,12,3,graph_2);
+			int offset;
+
+			graph_2=optimize_array_index (12,3,graph_2,&offset);
+			graph_4=g_fload_x (graph_1,offset,3,graph_2);
 #else
 			graph_2=g_lsl_3_add_12 (graph_2);
 # ifdef sparc
@@ -6599,7 +6671,12 @@ static void code_lazy_update (VOID)
 			graph_4=g_store_x (graph_2,graph_1,12,0,graph_3);
 		} else
 # endif
-			graph_4=g_store_x (graph_2,graph_1,12,2,graph_3);
+		{
+			int offset;
+
+			graph_3=optimize_array_index (12,2,graph_3,&offset);
+			graph_4=g_store_x (graph_2,graph_1,offset,2,graph_3);
+		}
 #else
 		graph_3=g_lsl_2_add_12 (graph_3);
 		graph_4=g_store_x (graph_2,graph_1,0,0,graph_3);
@@ -6626,7 +6703,12 @@ static void code_updateBC (int offset)
 			graph_2=g_bounds (graph_1,graph_2);
 
 #if defined (M68000) || defined (I486)
-		graph_4=g_store_b_x (graph_3,graph_1,offset,graph_2);
+		{
+		int new_offset;
+
+		graph_2=optimize_array_index (offset,0,graph_2,&new_offset);
+		graph_4=g_store_b_x (graph_3,graph_1,new_offset,graph_2);
+		}
 #else
 		graph_2=g_add (g_load_i (offset),graph_2);
 		graph_4=g_store_b_x (graph_3,graph_1,0,graph_2);
@@ -6671,7 +6753,12 @@ static void code_updateI (VOID)
 			graph_4=g_store_x (graph_3,graph_1,12,0,graph_2);
 		} else
 # endif
-			graph_4=g_store_x (graph_3,graph_1,12,2,graph_2);
+		{
+			int offset;
+
+			graph_2=optimize_array_index (12,2,graph_2,&offset);
+			graph_4=g_store_x (graph_3,graph_1,offset,2,graph_2);
+		}
 #else
 		graph_2=g_lsl_2_add_12 (graph_2);
 		graph_4=g_store_x (graph_3,graph_1,0,0,graph_2);
@@ -6726,7 +6813,10 @@ static void code_updateR (VOID)
 			graph_8=g_fstore_x (graph_7,graph_1,12+(graph_2->instruction_parameters[0].i<<3),0,NULL);
 		} else {
 #if defined (M68000) || defined (I486)
-			graph_8=g_fstore_x (graph_7,graph_1,12,3,graph_2);
+			int offset;
+
+			graph_2=optimize_array_index (12,3,graph_2,&offset);
+			graph_8=g_fstore_x (graph_7,graph_1,offset,3,graph_2);
 #else
 			graph_2=g_lsl_3_add_12 (graph_2);
 # ifdef sparc
