@@ -609,7 +609,7 @@ static void argument_error (VOID)
 	error ("Usage: cg [options] file [-o object_file] [-s assembly_file]");
 }
 
-#if defined (POWER) && !defined (CG_PPC_XO)
+#if defined(MAIN_CLM) && (defined (POWER) && !defined (CG_PPC_XO))
 extern int compiler_id;
 #endif
 
@@ -640,7 +640,7 @@ int main (int argc,char **argv)
 	char *module_name,*object_file_name,*assembly_file_name;
 
 
-#ifdef CG_PPC_XO
+#if defined (MAIN_CLM) && defined (CG_PPC_XO)
 	return_error_string=return_error_string_p;
 #endif
 
@@ -702,7 +702,7 @@ int main (int argc,char **argv)
 				mc68881_flag=0;
 			} else if (!strcmp (s,"sane"))
 				mc68881_flag=0;
-#ifdef POWER
+#if defined (MAIN_CLM) && defined (POWER)
 			else if (!strcmp (s,"id") && arg_n+1<argc){
 				++arg_n;
 # ifdef CG_PPC_XO
