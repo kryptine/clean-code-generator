@@ -64,9 +64,7 @@
 #if defined (M68000) && !defined (SUN)
 # define GEN_MAC_OBJ
 #endif
-#ifndef sparc
-# define GEN_OBJ
-#endif
+#define GEN_OBJ
 
 #if defined (M68000) || (defined (NO_STRING_ADDRES_IN_DESCRIPTOR) && (defined (G_POWER) || defined (I486)))
 # define ARITY_0_DESCRIPTOR_OFFSET (-8)
@@ -207,7 +205,10 @@ LABEL	*cycle_in_spine_label,*reserve_label;
 static LABEL	*halt_label,*cmp_string_label,*eqD_label,
 				*slice_string_label,*print_label,*print_sc_label,
 				*print_symbol_label,*print_symbol_sc_label,*D_to_S_label,
-				*div_label,*mod_label,*mul_label,*update_string_label,*equal_string_label,
+#ifdef M68000
+				*div_label,*mod_label,*mul_label,
+#endif
+				*update_string_label,*equal_string_label,
 				*yet_args_needed_label,
 				*repl_args_b_label,*push_arg_b_label,*del_args_label,*printD_label,
 				*yet_args_needed_labels[MAX_YET_ARGS_NEEDED_ARITY+1],
@@ -255,6 +256,9 @@ LABEL			*collect_0_label,*collect_1_label,*collect_2_label,
 #endif
 				*system_sp_label,*EMPTY_label;
 
+#ifdef sparc
+LABEL			*dot_mul_label,*dot_div_label,*dot_rem_label;
+#endif
 #ifdef PROFILE
 LABEL	*profile_l_label,*profile_l2_label,*profile_n_label,*profile_n2_label,
 		*profile_s_label,*profile_s2_label,*profile_r_label,*profile_t_label;
@@ -1711,6 +1715,10 @@ void code_divI (VOID)
 		graph_2=s_get_b (0);
 		graph_3=g_div (graph_2,graph_1);
 		s_put_b (0,graph_3);
+#ifdef sparc
+		if (dot_div_label==NULL)
+			dot_div_label=enter_label (".div",IMPORT_LABEL);
+#endif
 #ifdef M68000
 	} else {
 		if (div_label==NULL)
@@ -4020,6 +4028,10 @@ void code_remI (VOID)
 		graph_2=s_get_b (0);
 		graph_3=g_mod (graph_2,graph_1);
 		s_put_b (0,graph_3);
+#ifdef sparc
+		if (dot_rem_label==NULL)
+			dot_rem_label=enter_label (".rem",IMPORT_LABEL);
+#endif
 #ifdef M68000
 	} else {
 		if (mod_label==NULL)
@@ -4110,6 +4122,10 @@ void code_mulI (VOID)
 
 		graph_3=g_mul (graph_1,graph_2);
 		s_put_b (0,graph_3);
+#ifdef sparc
+		if (dot_mul_label==NULL)
+			dot_mul_label=enter_label (".mul",IMPORT_LABEL);
+#endif
 #ifdef M68000
 	} else {
 		if (mul_label==NULL)
@@ -8181,7 +8197,9 @@ void initialize_coding (VOID)
 	eval_22_label=enter_label ("eval_22",IMPORT_LABEL);
 #endif
 	
+#ifdef M68000
 	div_label=mod_label=mul_label=NULL;
+#endif
 	
 	first_dependency=NULL;
 	last_dependency=NULL;
