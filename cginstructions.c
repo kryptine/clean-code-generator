@@ -81,7 +81,7 @@ LABEL		*realloc_0_label,*realloc_1_label,*realloc_2_label,*realloc_3_label,
 			*schedule_0_label,*schedule_1_label,*schedule_2_label,*schedule_3_label,
 			*schedule_eval_label,*stack_overflow_label;
 
-#ifdef I486
+#ifdef SEPARATE_A_AND_B_STACK_OVERFLOW_CHECKS
 LABEL	*end_a_stack_label,*end_b_stack_label;
 #endif
 
@@ -3779,7 +3779,7 @@ void init_cginstructions (void)
 			stack_overflow_label=enter_label ("stack_overflow",IMPORT_LABEL);
 			stack_overflow_label->label_id=next_label_id++;
 		}
-#ifdef I486
+#ifdef SEPARATE_A_AND_B_STACK_OVERFLOW_CHECKS
 			end_a_stack_label=enter_label ("end_a_stack",IMPORT_LABEL);
 			end_a_stack_label->label_id=next_label_id++;
 			end_b_stack_label=enter_label ("end_b_stack",IMPORT_LABEL);
