@@ -1617,10 +1617,10 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 				index_registers.d_reg.r=s_reg2;
 						
 				w_as_opcode (intel_asm ? "lea" : "leal");
-				if (!intel_asm)
+				if (intel_asm)
 					w_as_register_comma (sd_reg);
 				w_as_indexed (0,&index_registers);
-				if (intel_asm)
+				if (!intel_asm)
 					w_as_comma_register (sd_reg);
 				w_as_newline();
 			} else {
