@@ -56,6 +56,12 @@ void w_as_internal_label_value (int label_id)
 
 static int in_data_section;
 
+#ifdef FUNCTION_LEVEL_LINKING
+void w_as_new_data_module (void)
+{
+}
+#endif
+
 void w_as_to_data_section (VOID)
 {
 	if (!in_data_section){
