@@ -40,9 +40,10 @@
 # define IF_G_RISC(a)
 #endif
 
-#define POWER_PC_A_STACK_OPTIMIZE
+#define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
 
-#define for_all(v,l,n) for(v=(l);v!=NULL;v=v->n)
+#define POWER_PC_A_STACK_OPTIMIZE
+#undef OPTIMIZE_LOOPS
 
 #pragma segment Code4
 
@@ -50,12 +51,14 @@
 
 extern struct basic_block *first_block;
 
-static void optimize_branch_jump 
-	(struct instruction *branch,struct instruction *jump,struct basic_block *jump_block)
+#ifdef OPTIMIZE_LOOPS
+extern LABEL *new_local_label (int label_flags);
+#endif
+
+static void optimize_branch_jump (struct instruction *branch,LABEL *new_branch_label)
 {
-	branch->instruction_parameters[0].parameter_data.l=
-		jump->instruction_parameters[0].parameter_data.l;
-											
+	branch->instruction_parameters[0].parameter_data.l=new_branch_label;
+	
 	switch (branch->instruction_icode){
 		case IBEQ:	branch->instruction_icode=IBNE;		break;
 		case IBGE:	branch->instruction_icode=IBLT;		break;
@@ -63,6 +66,10 @@ static void optimize_branch_jump
 		case IBLE:	branch->instruction_icode=IBGT;		break;
 		case IBLT:	branch->instruction_icode=IBGE;		break;
 		case IBNE:	branch->instruction_icode=IBEQ;		break;
+		case IBGEU:	branch->instruction_icode=IBLTU;	break;
+		case IBGTU:	branch->instruction_icode=IBLEU;	break;
+		case IBLEU:	branch->instruction_icode=IBGTU;	break;
+		case IBLTU:	branch->instruction_icode=IBGEU;	break;
 		case IFBEQ:	branch->instruction_icode=IFBNE;	break;
 		case IFBGE:	branch->instruction_icode=IFBLT;	break;
 		case IFBGT:	branch->instruction_icode=IFBLE;	break;
@@ -70,20 +77,41 @@ static void optimize_branch_jump
 		case IFBLT:	branch->instruction_icode=IFBGE;	break;
 		case IFBNE:	branch->instruction_icode=IFBEQ;
 	}
-	
-	jump_block->block_instructions=NULL;
 }
 
-void optimize_jumps()
+#ifdef OPTIMIZE_LOOPS
+static LABEL *get_label_of_block (struct basic_block *block)
+{
+	if (block->block_labels!=NULL)
+		return block->block_labels->block_label_label;
+	else {
+		struct block_label *new_block_label;
+		LABEL *new_jmp_label;
+
+		new_jmp_label=new_local_label (0);
+
+		new_block_label=fast_memory_allocate_type (struct block_label);
+		new_block_label->block_label_label=new_jmp_label;
+		new_block_label->block_label_next=NULL;
+		
+		block->block_labels=new_block_label;
+
+		return new_jmp_label;
+	}
+}
+#endif
+
+void optimize_jumps (void)
 {
 	struct basic_block *block;
 
-	for_all (block,first_block,block_next){
+	for_l (block,first_block,block_next){
 		struct instruction *branch;
 		
 		if ((branch=block->block_last_instruction)!=NULL){
 			switch (branch->instruction_icode){
-				case IBEQ:	case IBGE:	case IBGT:	case IBLE:	case IBLT:	case IBNE:
+				case IBEQ:	case IBGE:	case IBGT:	case IBLE:	case IBLT:
+				case IBNE:	case IBGEU:	case IBGTU:	case IBLEU:	case IBLTU:
 				case IFBEQ:	case IFBGE:	case IFBGT:	case IFBLE:	case IFBLT:	case IFBNE:
 				{
 					struct basic_block *next_block;
@@ -110,25 +138,54 @@ void optimize_jumps()
 #endif
 									)
 								{
-									for (	block_labels=next_next_block->block_labels;
-											block_labels!=NULL;
-											block_labels=block_labels->block_label_next
-										)
+									for_l (block_labels,next_next_block->block_labels,block_label_next)
 										if (block_labels->block_label_label==branch_label){
-											optimize_branch_jump (branch,jump,next_block);
+											optimize_branch_jump (branch,jump->instruction_parameters[0].parameter_data.l);
+											next_block->block_instructions=NULL;
+#ifdef OPTIMIZE_LOOPS
+											next_block->block_last_instruction=NULL;
+#endif
 											break;
 										}
 								}
 							}
 						}
 					}
+
+#ifdef OPTIMIZE_LOOPS
+					{
+					struct instruction *cmp_instruction;
+					
+					cmp_instruction=block->block_instructions;
+					if (cmp_instruction->instruction_icode==ICMP && cmp_instruction->instruction_next==branch
+						&& (cmp_instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE ||
+							cmp_instruction->instruction_parameters[0].parameter_type==P_REGISTER ||
+							(cmp_instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
+							 cmp_instruction->instruction_parameters[1].parameter_type==P_REGISTER))
+						&& (cmp_instruction->instruction_parameters[1].parameter_type==P_REGISTER ||
+							cmp_instruction->instruction_parameters[1].parameter_type==P_INDIRECT)
+					){
+						struct block_label *block_label;
+						
+						for_l (block_label,block->block_labels,block_label_next){
+							LABEL *label;
+														
+							label=block_label->block_label_label;
+							label->label_flags |= CMP_BRANCH_BLOCK_LABEL;
+							label->label_block = block;
+						}
+					}
+					}
+#endif
 					break;
 				}
 				case IJMP:
 				{
 					struct basic_block *next_block;
-					
-					if ((next_block=block->block_next)!=NULL){
+
+					if (branch->instruction_parameters[0].parameter_type==P_LABEL
+						&& (next_block=block->block_next)!=NULL)
+					{
 						struct block_label *labels;
 						LABEL *jmp_label;
 				
@@ -144,7 +201,14 @@ void optimize_jumps()
 								if (branch->instruction_prev!=NULL)
 									branch->instruction_prev->instruction_next=NULL;
 								else
+#ifdef OPTIMIZE_LOOPS
+								{
 									block->block_instructions=NULL;
+									block->block_last_instruction=NULL;
+								}
+#else
+									block->block_instructions=NULL;
+#endif
 								break;
 							}
 						}
@@ -187,6 +251,140 @@ void optimize_jumps()
 			}
 		}
 	}
+
+#ifdef OPTIMIZE_LOOPS
+	for_l (block,first_block,block_next){
+		struct instruction *branch;
+		
+		if ((branch=block->block_last_instruction)!=NULL &&
+			branch->instruction_icode==IJMP && branch->instruction_parameters[0].parameter_type==P_LABEL)
+		{
+			LABEL *jmp_label;
+		
+			jmp_label=branch->instruction_parameters[0].parameter_data.l;
+			if (jmp_label->label_flags & CMP_BRANCH_BLOCK_LABEL){
+				struct basic_block *jmp_block,*jmp_next_block;
+				struct block_label *branch_block_label,*branch_next_block_label;
+				struct instruction *old_cmp_instruction,*old_branch_instruction,*new_branch_instruction;
+				LABEL *branch_label,*new_jmp_label;
+# ifdef I486
+				struct instruction *previous_instruction;
+# endif
+
+				jmp_block=jmp_label->label_block;
+				old_cmp_instruction=jmp_block->block_instructions;
+				jmp_next_block=jmp_block->block_next;
+				old_branch_instruction=old_cmp_instruction->instruction_next;
+
+				branch_label=old_branch_instruction->instruction_parameters[0].parameter_data.l;
+
+				branch_next_block_label=NULL;
+				if (block->block_next!=NULL)
+					for_l (branch_next_block_label,block->block_next->block_labels,block_label_next)
+						if (branch_next_block_label->block_label_label==branch_label)
+							break;
+
+				branch_block_label=NULL;
+				if (branch_next_block_label==NULL)
+					for_l (branch_block_label,block->block_labels,block_label_next)
+						if (branch_block_label->block_label_label==branch_label)
+							break;
+
+# ifdef I486
+				if (old_cmp_instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE &&
+					old_cmp_instruction->instruction_parameters[0].parameter_data.i==0 &&
+					old_cmp_instruction->instruction_parameters[1].parameter_type==P_REGISTER &&
+					(previous_instruction=branch->instruction_prev)!=NULL &&
+					(previous_instruction->instruction_icode==ISUB || previous_instruction->instruction_icode==IADD) &&
+					previous_instruction->instruction_parameters[1].parameter_type==P_REGISTER &&
+					old_cmp_instruction->instruction_parameters[1].parameter_data.reg.r==previous_instruction->instruction_parameters[1].parameter_data.reg.r)
+				{
+					new_jmp_label = get_label_of_block (jmp_next_block);
+
+					if (branch_next_block_label!=NULL){
+						branch->instruction_icode=old_branch_instruction->instruction_icode;
+						branch->instruction_parameters[0]=old_branch_instruction->instruction_parameters[0];
+
+						optimize_branch_jump (branch,new_jmp_label);
+					} else {
+						new_branch_instruction=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+sizeof (struct parameter));
+						
+						new_branch_instruction->instruction_icode=old_branch_instruction->instruction_icode;
+						new_branch_instruction->instruction_arity=1;
+						new_branch_instruction->instruction_parameters[0]=old_branch_instruction->instruction_parameters[0];
+
+						if (block->block_instructions==branch){
+							block->block_instructions=new_branch_instruction;
+							new_branch_instruction->instruction_prev=NULL;
+						} else {
+							struct instruction *previous_instruction;
+							
+							previous_instruction=branch->instruction_prev;
+							previous_instruction->instruction_next=new_branch_instruction;
+							new_branch_instruction->instruction_prev=previous_instruction;
+						}
+						new_branch_instruction->instruction_next=branch;
+						
+						branch->instruction_prev=new_branch_instruction;
+
+						branch->instruction_parameters[0].parameter_data.l=new_jmp_label;
+					}
+				} else
+# endif
+
+				if (branch_next_block_label!=NULL || branch_block_label!=NULL){
+					struct instruction *new_cmp_instruction;
+					
+					new_cmp_instruction=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
+
+					new_cmp_instruction->instruction_icode=ICMP;
+					new_cmp_instruction->instruction_arity=2;
+					new_cmp_instruction->instruction_parameters[0]=old_cmp_instruction->instruction_parameters[0];
+					new_cmp_instruction->instruction_parameters[1]=old_cmp_instruction->instruction_parameters[1];
+
+					if (block->block_instructions==branch){
+						block->block_instructions=new_cmp_instruction;
+						new_cmp_instruction->instruction_prev=NULL;
+					} else {
+						struct instruction *previous_instruction;
+							
+						previous_instruction=branch->instruction_prev;
+						previous_instruction->instruction_next=new_cmp_instruction;
+						new_cmp_instruction->instruction_prev=previous_instruction;
+					}
+					
+					new_jmp_label = get_label_of_block (jmp_next_block);
+
+					if (branch_next_block_label!=NULL){
+						branch->instruction_icode=old_branch_instruction->instruction_icode;
+						branch->instruction_parameters[0]=old_branch_instruction->instruction_parameters[0];
+
+						optimize_branch_jump (branch,new_jmp_label);
+
+						new_cmp_instruction->instruction_next=branch;
+						
+						branch->instruction_prev=new_cmp_instruction;
+					} else {
+						new_branch_instruction=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+sizeof (struct parameter));
+						
+						new_branch_instruction->instruction_icode=old_branch_instruction->instruction_icode;
+						new_branch_instruction->instruction_arity=1;
+						new_branch_instruction->instruction_parameters[0]=old_branch_instruction->instruction_parameters[0];
+
+						new_cmp_instruction->instruction_next=new_branch_instruction;
+						
+						new_branch_instruction->instruction_prev=new_cmp_instruction;
+						new_branch_instruction->instruction_next=branch;
+						
+						branch->instruction_prev=new_branch_instruction;
+
+						branch->instruction_parameters[0].parameter_data.l=new_jmp_label;
+					}
+				}
+			}
+		}
+	}
+#endif
 }
 
 #if defined (M68000) || defined (I486)
@@ -209,7 +407,7 @@ static int get_argument_size (int instruction_code)
 IF_G_RISC (case IADDI: case ILSLI:)
 IF_G_SPARC (case IADDO: case ISUBO: )
 #ifdef I486
-		case IDIVI:		case REMI:
+		case IDIVI:		case IREMI:		case IDIVU:		case IREMU:
 #endif
 IF_G_POWER ( case IUMULH: )
 			return 4;
@@ -220,6 +418,9 @@ IF_G_POWER ( case IUMULH: )
 		case IFTAN:		case IFNEG:
 #if !defined (G_POWER)
 		case IFSQRT:
+#endif
+#ifdef I486
+		case IFABS:
 #endif
 			return 8;
 		default:
@@ -449,7 +650,7 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 {
 	struct instruction *instruction;
 	
-	for_all (instruction,last_instruction,instruction_prev){
+	for_l (instruction,last_instruction,instruction_prev){
 		switch (instruction->instruction_arity){
 			default:
 				if (
@@ -459,6 +660,7 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 #ifdef I486
 					instruction->instruction_icode!=IDIVI &&
 					instruction->instruction_icode!=IREMI &&
+					instruction->instruction_icode!=IREMU &&					
 #endif
 					instruction->instruction_icode!=IMOD)
 #ifdef M68000
@@ -511,7 +713,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 	compute_maximum_b_stack_offsets (*b_offset_p);
 
 # ifdef M68000
-	for_all (instruction,block->block_instructions,instruction_next){
+	for_l (instruction,block->block_instructions,instruction_next){
 		switch (instruction->instruction_arity){
 			default:
 				if (
@@ -594,7 +796,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 # endif
 
 # ifdef I486
-	for_all (instruction,block->block_instructions,instruction_next){
+	for_l (instruction,block->block_instructions,instruction_next){
 		if (instruction->instruction_icode==IMOVE){
 			if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
 				instruction->instruction_parameters[0].parameter_data.reg.r==B_STACK_POINTER)
@@ -692,6 +894,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 			default:
 				if (instruction->instruction_icode!=IDIVI && 
 					instruction->instruction_icode!=IREMI &&
+					instruction->instruction_icode!=IREMU &&
 					instruction->instruction_icode!=IMOD)
 					internal_error_in_function ("optimize_stack_access");
 				/* only first argument of mod might be register indirect */
@@ -722,7 +925,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 # endif
 
 # ifdef OLDI486
-	for_all (instruction,block->block_instructions,instruction_next){
+	for_l (instruction,block->block_instructions,instruction_next){
 		if (instruction->instruction_icode==IMOVE){
 			if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&	
 				instruction->instruction_parameters[0].parameter_data.reg.r==B_STACK_POINTER &&
@@ -799,8 +1002,8 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 
 	if (a_offset==0)
 		return;
-	
-	for_all (instruction,block->block_instructions,instruction_next){
+
+	for_l (instruction,block->block_instructions,instruction_next){
 		if (instruction->instruction_icode==IMOVE){
 			if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&			
 				instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER &&
@@ -1302,6 +1505,9 @@ static void store_next_uses (struct instruction *instruction)
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IASR:	case ILSL:	case ILSR:
 			case IDIV:
+# ifdef I486
+			case IDIVU:
+# endif
 			case ICMPW:
 #endif
 			case IEOR:	case IFADD:	
@@ -1331,7 +1537,7 @@ IF_G_POWER ( case IUMULH: )
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
-			case IDIV:	case IMOD:
+			case IDIV:	case IMOD:	case IDIVU:	case IREMU:
 				define_scratch_register();
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
@@ -1368,6 +1574,9 @@ IF_G_POWER ( case IUMULH: )
 #if !defined (G_POWER)
 			case IFSQRT:
 #endif
+#ifdef I486
+			case IFABS:
+#endif
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)
 IF_G_RISC (case IADDI: case ILSLI:)
 				define_parameter (&instruction->instruction_parameters[1]);
@@ -1382,7 +1591,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				break;
 			case IFSEQ:	case IFSGE:	case IFSGT:	case IFSLE:	case IFSLT:	case IFSNE:
 			case ISEQ:	case ISGE:	case ISGT:	case ISLE:	case ISLT:	case ISNE:
-			case ISO:	case ISNO:
+			case ISO:	case ISGEU:	case ISGTU:	case ISLEU:	case ISLTU:	case ISNO:
 #ifdef I486_USE_SCRATCH_REGISTER
 				define_scratch_register();
 #endif
@@ -1392,6 +1601,9 @@ IF_G_RISC (case IADDI: case ILSLI:)
 			case IMOD:
 # if defined (I486) || defined (G_POWER)
 				use_parameter (&instruction->instruction_parameters[1]);
+#  ifdef I486
+			case IREMU:
+#  endif
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
 # else
@@ -1429,8 +1641,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				break;
 			*/
 			case IBEQ:	case IBGE:	case IBGT:	case IBLE:	case IBLT:	case IBNE:
-			case IBHS:
-			case IBO:	case IBNO:
+			case IBO:	case IBGEU:	case IBGTU:	case IBLEU:	case IBLTU:	case IBNO:
 				break;
 			default:
 				internal_error_in_function ("store_next_uses");
@@ -3578,6 +3789,9 @@ static void allocate_registers (struct basic_block *basic_block)
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IASR:	case ILSL:	case ILSR:
 			case IDIV:
+# ifdef I486
+			case IDIVU:
+# endif
 #endif
 			case IEOR:
 			case IFADD:	case IFCMP:	case IFDIV:	case IFMUL:	case IFREM:	case IFSUB:
@@ -3593,7 +3807,7 @@ IF_G_POWER ( case IUMULH: )
 				instruction_use_2 (instruction,USE_DEF);
 				allocate_scratch_register=1;
 				break;
-			case IDIV:	case IMOD:
+			case IDIV:	case IMOD:	case IDIVU:	case IREMU:
 				use_scratch_register();
 				instruction_use_2 (instruction,USE_DEF);
 				allocate_scratch_register=1;
@@ -3643,6 +3857,9 @@ IF_G_POWER (case ICMPLW:)
 #if !defined (G_POWER)
 			case IFSQRT:	
 #endif
+#ifdef I486
+			case IFABS:
+#endif
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)
 IF_G_RISC (case IADDI: case ILSLI:)
 
@@ -3675,7 +3892,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				break;
 			}
 			case ISEQ:	case ISGE:	case ISGT:	case ISLE:	case ISLT:	case ISNE:
-			case ISO:	case ISNO:
+			case ISO:	case ISGEU:	case ISGTU:	case ISLEU:	case ISLTU:	case ISNO:
 #ifdef I486_USE_SCRATCH_REGISTER
 				use_scratch_register();
 #endif
@@ -3697,6 +3914,9 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IMOD:
 # if defined (I486) || defined (G_POWER)
+#  ifdef I486
+			case IREMU:
+#  endif
 				instruction_use_2 (instruction,USE_DEF);
 # else
 				instruction_mod_use_def_use (instruction);
@@ -3736,8 +3956,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				break;
 			*/
 			case IBEQ:	case IBGE:	case IBGT:	case IBLE:	case IBLT:	case IBNE:
-			case IBO:	case IBNO:
-			case IBHS:
+			case IBO:	case IBGEU:	case IBGTU:	case IBLEU:	case IBLTU:	case IBNO:
 				break;
 			default:
 				internal_error_in_function ("allocate_registers");

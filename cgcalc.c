@@ -571,7 +571,7 @@ static void calculate_dyadic_non_commutative_data_operator (INSTRUCTION_GRAPH gr
 	return;
 }
 
-static void calculate_mod_operator (INSTRUCTION_GRAPH graph)
+static void calculate_rem_operator (INSTRUCTION_GRAPH graph)
 {
 	register INSTRUCTION_GRAPH graph_1,graph_2;
 	int i_aregs,i_dregs;
@@ -2264,8 +2264,10 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			calculate_dyadic_commutative_data_operator (graph);
 			return;
 		case GCMP_EQ:
-		case GCMP_LT:
 		case GCMP_GT:
+		case GCMP_GTU:
+		case GCMP_LT:
+		case GCMP_LTU:
 			calculate_compare_operator (graph);
 			return;
 		case GSUB:
@@ -2273,10 +2275,16 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			calculate_dyadic_non_commutative_operator (graph);
 			return;
 		case GDIV:
+#ifdef I486
+		case GDIVU:
+#endif
 			calculate_dyadic_non_commutative_data_operator (graph);
 			return;
 		case GMOD:
-			calculate_mod_operator (graph);
+#ifdef I486
+		case GREMU:
+#endif
+			calculate_rem_operator (graph);
 			return;
 		case GLSL:
 		case GLSR:
@@ -2299,6 +2307,10 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			calculate_eor_operator (graph);
 			return;
 		case GCNOT:
+#ifdef I486
+		case GNEG:
+		case GNOT:
+#endif
 			calculate_cnot_operator (graph);
 			return;
 		case GMOVEMI:
@@ -2330,6 +2342,9 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
+#ifdef I486
+		case GFABS:
+#endif
 			calculate_monadic_float_operator (graph);
 			return;
 		case GFLOAD_ID:
@@ -2468,8 +2483,13 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GAND:
 		case GCMP_EQ:
 		case GCMP_GT:
+		case GCMP_GTU:
 		case GCMP_LT:
+		case GCMP_LTU:
 		case GDIV:
+#ifdef I486
+		case GDIVU:
+#endif
 		case GFADD:
 		case GFCMP_EQ:
 		case GFCMP_GT:
@@ -2482,6 +2502,9 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GLSL:
 		case GLSR:
 		case GMOD:
+#ifdef I486
+		case GREMU:
+#endif
 		case GMUL:
 		case GMUL_O:
 		case GOR:
@@ -2515,6 +2538,11 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
+#ifdef I486
+		case GFABS:
+		case GNEG:
+		case GNOT:
+#endif
 		case GBEFORE0:
 		case GTEST_O:
 			if (++graph->node_count==1)
@@ -2620,8 +2648,13 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GAND:
 		case GCMP_EQ:
 		case GCMP_GT:
+		case GCMP_GTU:
 		case GCMP_LT:
+		case GCMP_LTU:
 		case GDIV:
+#ifdef I486
+		case GDIVU:
+#endif
 		case GFADD:
 		case GFCMP_EQ:
 		case GFCMP_GT:
@@ -2634,6 +2667,9 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GLSL:
 		case GLSR:
 		case GMOD:
+#ifdef I486
+		case GREMU:
+#endif
 		case GMUL:
 		case GMUL_O:
 		case GOR:
@@ -2668,6 +2704,11 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
+#ifdef I486
+		case GFABS:
+		case GNEG:
+		case GNOT:
+#endif
 		case GBEFORE0:
 		case GTEST_O:
 			if (graph->node_mark<2){
@@ -2787,8 +2828,13 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GAND:
 		case GCMP_EQ:
 		case GCMP_GT:
+		case GCMP_GTU:
 		case GCMP_LT:
+		case GCMP_LTU:
 		case GDIV:
+#ifdef I486
+		case GDIVU:
+#endif
 		case GFADD:
 		case GFCMP_EQ:
 		case GFCMP_GT:
@@ -2801,6 +2847,9 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GLSL:
 		case GLSR:
 		case GMOD:
+#ifdef I486
+		case GREMU:
+#endif
 		case GMUL:
 		case GMUL_O:
 		case GOR:
@@ -2833,6 +2882,11 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
+#ifdef I486
+		case GFABS:
+		case GNEG:
+		case GNOT:
+#endif
 		case GBEFORE0:
 		case GTEST_O:
 			if (!graph->node_mark){

@@ -1717,6 +1717,9 @@ static void put_instruction_name
 
 static void put_instructions_in_table (void)
 {
+#ifdef I486
+	put_instruction_name ("absR",			parse_instruction,			code_absR );
+#endif
 	put_instruction_name ("acosR",			parse_instruction,			code_acosR );
 	put_instruction_name ("add_args",		parse_instruction_n_n_n,	code_add_args );
 	put_instruction_name ("addI",			parse_instruction,			code_addI );
@@ -1760,6 +1763,9 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("del_args",		parse_instruction_n_n_n,	code_del_args );
 	put_instruction_name ("divI",			parse_instruction,			code_divI );
 	put_instruction_name ("divR",			parse_instruction,			code_divR );
+#ifdef I486
+	put_instruction_name ("divU",			parse_instruction,			code_divU );
+#endif
 	put_instruction_name ("entierR",		parse_instruction,			code_entierR );
 	put_instruction_name ("eqB",			parse_instruction,			code_eqB );
 	put_instruction_name ("eqB_a",			parse_instruction_b_n,		code_eqB_a );
@@ -1810,6 +1816,9 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("gtC",			parse_instruction,			code_gtC );
 	put_instruction_name ("gtI",			parse_instruction,			code_gtI );
 	put_instruction_name ("gtR",			parse_instruction,			code_gtR );
+#ifdef I486
+	put_instruction_name ("gtU",			parse_instruction,			code_gtU );
+#endif
 	put_instruction_name ("halt",			parse_instruction,			code_halt );
 	put_instruction_name ("in",				parse_instruction_in_or_out, code_in );
 	put_instruction_name ("incI",			parse_instruction,			code_incI );
@@ -1834,9 +1843,15 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("ltC",			parse_instruction,			code_ltC );
 	put_instruction_name ("ltI",			parse_instruction,			code_ltI );
 	put_instruction_name ("ltR",			parse_instruction,			code_ltR );
+#ifdef I486
+	put_instruction_name ("ltU",			parse_instruction,			code_ltU );
+#endif
 	put_instruction_name ("modI",			parse_instruction,			code_remI );
 	put_instruction_name ("mulI",			parse_instruction,			code_mulI );
 	put_instruction_name ("mulR",			parse_instruction,			code_mulR );
+#ifdef I486
+	put_instruction_name ("negI",			parse_instruction,			code_negI );
+#endif
 	put_instruction_name ("negR",			parse_instruction,			code_negR );
 	put_instruction_name ("new_ext_reducer",parse_instruction_a_n,		code_new_ext_reducer );
 	put_instruction_name ("new_int_reducer",parse_instruction_a_n,		code_new_int_reducer );
@@ -1911,6 +1926,9 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("randomP",		parse_instruction,			code_randomP );
 	put_instruction_name ("release",		parse_instruction,			code_release );
 	put_instruction_name ("remI",			parse_instruction,			code_remI );
+#ifdef I486
+	put_instruction_name ("remU",			parse_instruction,			code_remU );
+#endif
 	put_instruction_name ("replace",		parse_instruction_a_n_n,	code_replace );
 	put_instruction_name ("repl_arg",		parse_instruction_n_n,		code_repl_arg );
 	put_instruction_name ("repl_args",		parse_instruction_n_n,		code_repl_args );

@@ -15,6 +15,9 @@
 #	define ULONG unsigned long
 #endif
 
+#ifdef I486
+void code_absR (void);
+#endif
 void code_acosR (VOID);
 void code_add_args (int source_offset,int n_arguments,int destination_offset);
 void code_addI (VOID);
@@ -62,6 +65,9 @@ void code_decI (VOID);
 void code_del_args (int source_offset,int n_arguments,int destination_offset);
 void code_divI (VOID);
 void code_divR (VOID);
+#ifdef I486
+ void code_divU (VOID);
+#endif
 void code_entierR (VOID);
 void code_eqB (VOID);
 void code_eqB_a (int value,int a_offset);
@@ -112,6 +118,9 @@ void code_get_node_arity (int a_offset);
 void code_gtC (VOID);
 void code_gtI (VOID);
 void code_gtR (VOID);
+#ifdef I486
+void code_gtU (VOID);
+#endif
 void code_halt (VOID);
 void code_in (char parameters[]);
 void code_incI (VOID);
@@ -132,12 +141,21 @@ void code_log10R (VOID);
 void code_ltC (VOID);
 void code_ltI (VOID);
 void code_ltR (VOID);
+#ifdef I486
+void code_ltU (VOID);
+#endif
 void code_remI (VOID);
+#ifdef I486
+ void code_remU (VOID);
+#endif
 void code_mulI (VOID);
 #ifndef M68000
 void code_mulIo (VOID);
 #endif
 void code_mulR (VOID);
+#ifdef I486
+void code_negI (void);
+#endif
 void code_negR (VOID);
 void code_new_ext_reducer (char descriptor_name[],int a_offset);
 void code_new_int_reducer (char label_name[],int a_offset);

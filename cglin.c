@@ -3068,7 +3068,8 @@ static int compare_node (INSTRUCTION_GRAPH graph,int i_test_1,int i_test_2)
 }
 
 enum {
-	CEQ,	CNE,	CGT,	CLT,	CGE,	CLE,	CO,		CNO,
+	CEQ,	CNE,	CGT,	CLT,	CGE,	CLE,
+	CO,		CNO,	CGTU,	CLTU,	CGEU,	CLEU,
 	CFEQ,	CFNE,	CFGT,	CFLT,	CFGE,	CFLE
 };
 
@@ -3076,19 +3077,22 @@ enum {
 
 int condition_to_set_instruction[]=
 {
-	ISEQ,	ISNE,	ISGT,	ISLT,	ISGE,	ISLE,	ISO,	ISNO,
+	ISEQ,	ISNE,	ISGT,	ISLT,	ISGE,	ISLE,
+	ISO,	ISNO,	ISGTU,	ISLTU,	ISGEU,	ISLEU,
 	IFSEQ,	IFSNE,	IFSGT,	IFSLT,	IFSGE,	IFSLE
 };
 
 static int condition_to_branch_false_instruction[]=
 {
-	IBNE,	IBEQ,	IBLE,	IBGE,	IBLT,	IBGT,	IBNO,	IBO,
+	IBNE,	IBEQ,	IBLE,	IBGE,	IBLT,	IBGT,
+	IBNO,	IBO,	IBLEU,	IBGEU,	IBLTU,	IBGTU,
 	IFBNE,	IFBEQ,	IFBLE,	IFBGE,	IFBLT,	IFBGT
 };
 
 static int condition_to_branch_true_instruction[]=
 {
-	IBEQ,	IBNE,	IBGT,	IBLT,	IBGE,	IBLE,	IBO,	IBNO,
+	IBEQ,	IBNE,	IBGT,	IBLT,	IBGE,	IBLE,
+	IBO,	IBNO,	IBGTU,	IBLTU,	IBGEU,	IBLEU,
 	IFBEQ,	IFBNE,	IFBGT,	IFBLT,	IFBGE,	IFBLE
 };
 
@@ -3125,8 +3129,14 @@ static int linearize_condition (INSTRUCTION_GRAPH graph)
 		case GCMP_LT:
 			condition=compare_node (graph,CLT,CGT);
 			break;
+		case GCMP_LTU:
+			condition=compare_node (graph,CLTU,CGTU);
+			break;
 		case GCMP_GT:
 			condition=compare_node (graph,CGT,CLT);
+			break;
+		case GCMP_GTU:
+			condition=compare_node (graph,CGTU,CLTU);
 			break;
 		case GFCMP_EQ:
 			condition=float_compare_node (graph,CFEQ,CFEQ);
@@ -3186,8 +3196,14 @@ static int linearize_not_condition (INSTRUCTION_GRAPH graph)
 		case GCMP_LT:
 			condition=compare_node (graph,CGE,CLE);
 			break;
+		case GCMP_LTU:
+			condition=compare_node (graph,CGEU,CLEU);
+			break;
 		case GCMP_GT:
 			condition=compare_node (graph,CLE,CGE);
+			break;
+		case GCMP_GTU:
+			condition=compare_node (graph,CLEU,CGEU);
 			break;
 		case GFCMP_EQ:
 			condition=float_compare_node (graph,CFNE,CFNE);
@@ -3364,8 +3380,41 @@ static void linearize_dyadic_non_commutative_data_operator (int i_instruction_co
 		register_node (graph,reg_1);
 }
 
+#ifdef I486
+static void linearize_monadic_data_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
+{
+	INSTRUCTION_GRAPH graph_1;
+	ADDRESS ad_1;
+	int reg_1;
+	
+	graph_1=graph->instruction_parameters[0].p;
+	
+	linearize_graph (graph_1,&ad_1);
+	
+	in_alterable_data_register (&ad_1);
+	reg_1=ad_1.ad_register;
+	instruction_r (i_instruction_code,reg_1);
+	
+	if (graph->instruction_d_min_a_cost>0){
+		int areg;
+		
+		areg=get_aregister();
+		i_move_r_r (reg_1,areg);
+		free_dregister (reg_1);
+		reg_1=areg;
+	}
+
+	ad_p->ad_mode=P_REGISTER;
+	ad_p->ad_register=reg_1;
+	
+	ad_p->ad_count_p=&graph->node_count;
+	if (*ad_p->ad_count_p>1)
+		register_node (graph,reg_1);
+}
+#endif
+
 #if defined (I486) || defined (G_POWER)
-static void linearize_div_mod_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
+static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
 	ADDRESS ad_1,ad_2;
@@ -3387,23 +3436,28 @@ static void linearize_div_mod_operator (int i_instruction_code,INSTRUCTION_GRAPH
 
 # ifdef I486
 	if (ad_1.ad_mode==P_IMMEDIATE){
-		int i;
-		
-		i=ad_1.ad_offset;
-		if (i_instruction_code==IMOD && i<0 && i!=0x80000000)
-			i=-i;
-		
-		if ((i & (i-1))==0 && (i_instruction_code==IMOD ? i>1 : i>0))
-			instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
-		else if (i>1 || (i<-1 && i!=0x80000000)){
-			int tmp_reg;
-			
-			tmp_reg=get_dregister();
-			instruction_ad_r_r (i_instruction_code==IDIV ? IDIVI : IREMI,&ad_1,ad_2.ad_register,tmp_reg);
-			free_dregister (tmp_reg);
-		} else {
+		if (i_instruction_code==IDIVU || i_instruction_code==IREMU){
 			in_data_register (&ad_1);
-			instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
+			instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);		
+		} else {
+			int i;
+			
+			i=ad_1.ad_offset;
+			if (i_instruction_code==IMOD && i<0 && i!=0x80000000)
+				i=-i;
+			
+			if ((i & (i-1))==0 && (i_instruction_code==IMOD ? i>1 : i>0))
+				instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
+			else if (i>1 || (i<-1 && i!=0x80000000)){
+				int tmp_reg;
+				
+				tmp_reg=get_dregister();
+				instruction_ad_r_r (i_instruction_code==IDIV ? IDIVI : IREMI,&ad_1,ad_2.ad_register,tmp_reg);
+				free_dregister (tmp_reg);
+			} else {
+				in_data_register (&ad_1);
+				instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
+			}
 		}
 	} else {
 		if (ad_1.ad_mode==P_INDEXED)
@@ -6053,6 +6107,11 @@ static void linearize_float_graph (register INSTRUCTION_GRAPH graph,register ADD
 		case GFNEG:
 			linearize_monadic_float_operator (graph,ad_p,IFNEG);
 			break;
+#ifdef I486
+		case GFABS:
+			linearize_monadic_float_operator (graph,ad_p,IFABS);
+			break;
+#endif
 		case GFSIN:
 			linearize_monadic_float_operator (graph,ad_p,IFSIN);
 			break;
@@ -7512,11 +7571,19 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			return;
 #if defined (I486) || defined (G_POWER)
 		case GDIV:
-			linearize_div_mod_operator (IDIV,graph,ad_p);
+			linearize_div_rem_operator (IDIV,graph,ad_p);
 			return;
 		case GMOD:
-			linearize_div_mod_operator (IMOD,graph,ad_p);
+			linearize_div_rem_operator (IMOD,graph,ad_p);
 			return;
+# ifdef I486
+		case GDIVU:
+			linearize_div_rem_operator (IDIVU,graph,ad_p);
+			return;
+		case GREMU:
+			linearize_div_rem_operator (IREMU,graph,ad_p);
+			return;
+# endif
 #else
 		case GDIV:
 			linearize_dyadic_non_commutative_data_operator (IDIV,graph,ad_p);
@@ -7531,8 +7598,14 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GCMP_LT:
 			linearize_compare_operator (CLT,CGT,graph,ad_p);
 			return;
+		case GCMP_LTU:
+			linearize_compare_operator (CLTU,CGTU,graph,ad_p);
+			return;
 		case GCMP_GT:
 			linearize_compare_operator (CGT,CLT,graph,ad_p);
+			return;
+		case GCMP_GTU:
+			linearize_compare_operator (CGTU,CLTU,graph,ad_p);
 			return;
 		case GCNOT:
 			linearize_conditional_not_operator (graph,ad_p);
@@ -7564,6 +7637,14 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GFILL_R:
 			linearize_fill_r_operator (graph,ad_p);
 			return;
+#ifdef I486
+		case GNEG:
+			linearize_monadic_data_operator (INEG,graph,ad_p);
+			return;
+		case GNOT:
+			linearize_monadic_data_operator (INOT,graph,ad_p);
+			return;
+#endif
 		case GMOVEMI:
 			linearize_movemi_operator (graph,ad_p);
 			return;

@@ -3194,7 +3194,7 @@ int block_stack_displacement;
 static WORD *check_size_p;
 #endif
 
-static int stack_access_and_adjust_a_stack_pointer (int extra_b_offset)
+static int stack_access_and_adjust_a_stack_pointer (int extra_b_offset,int do_not_alter_condition_codes)
 {
 	int a_offset,b_offset,minimum_b_offset;
 	
@@ -3270,32 +3270,34 @@ static int stack_access_and_adjust_a_stack_pointer (int extra_b_offset)
 
 	if (a_offset!=0)
 #ifdef I486
-		i_lea_id_r (a_offset,A_STACK_POINTER,A_STACK_POINTER);
-#else
+		if (do_not_alter_condition_codes)
+			i_lea_id_r (a_offset,A_STACK_POINTER,A_STACK_POINTER);
+		else
+#endif
 		if (a_offset>0)
 			i_add_i_r (a_offset,A_STACK_POINTER);
 		else
 			i_sub_i_r (-a_offset,A_STACK_POINTER);
-#endif
 
 	return b_offset;
 }
 
-static void stack_access (void)
+static void stack_access (int do_not_alter_condition_codes)
 {
 	register int b_offset;
 
-	b_offset=stack_access_and_adjust_a_stack_pointer (0);
+	b_offset=stack_access_and_adjust_a_stack_pointer (0,do_not_alter_condition_codes);
 	
 	if (b_offset!=0)
 #ifdef I486
-		i_lea_id_r (b_offset,B_STACK_POINTER,B_STACK_POINTER);
-#else
+		if (do_not_alter_condition_codes)
+			i_lea_id_r (b_offset,B_STACK_POINTER,B_STACK_POINTER);
+		else
+#endif
 		if (b_offset>0)
 			i_add_i_r (b_offset,B_STACK_POINTER);
 		else
 			i_sub_i_r (-b_offset,B_STACK_POINTER);
-#endif
 }
 
 static int local_register_allocation_and_adjust_a_stack_pointer (int extra_b_offset)
@@ -3304,7 +3306,7 @@ static int local_register_allocation_and_adjust_a_stack_pointer (int extra_b_off
 	
 	get_n_virtual_registers (&n_virtual_a_regs,&n_virtual_d_regs,&n_virtual_f_regs);
 	do_register_allocation (last_instruction,last_block,n_virtual_a_regs,n_virtual_d_regs,n_virtual_f_regs,0,0);
-	return stack_access_and_adjust_a_stack_pointer (extra_b_offset);
+	return stack_access_and_adjust_a_stack_pointer (extra_b_offset,0);
 }
 
 void adjust_stack_pointers (void)
@@ -3313,7 +3315,7 @@ void adjust_stack_pointers (void)
 	
 	get_n_virtual_registers (&n_virtual_a_regs,&n_virtual_d_regs,&n_virtual_f_regs);
 	do_register_allocation (last_instruction,last_block,n_virtual_a_regs,n_virtual_d_regs,n_virtual_f_regs,0,0);
-	stack_access();
+	stack_access (0);
 }
 
 int adjust_stack_pointers_without_altering_condition_codes (int float_condition,int condition)
@@ -3322,7 +3324,7 @@ int adjust_stack_pointers_without_altering_condition_codes (int float_condition,
 	
 	get_n_virtual_registers (&n_virtual_a_regs,&n_virtual_d_regs,&n_virtual_f_regs);
 	condition_on_stack=do_register_allocation (last_instruction,last_block,n_virtual_a_regs,n_virtual_d_regs,n_virtual_f_regs,1+float_condition,condition);
-	stack_access();
+	stack_access (1);
 	return condition_on_stack;
 }
 
@@ -3755,14 +3757,10 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 			}
 #else
 			if (b_offset!=0)
-# ifdef I486
-				i_lea_id_r (b_offset,B_STACK_POINTER,B_STACK_POINTER);
-# else
 				if (b_offset<0)
 					i_sub_i_r (-b_offset,B_STACK_POINTER);
 				else
 					i_add_i_r (b_offset,B_STACK_POINTER);
-# endif
 
 # if ! defined (sparc)
 			{
@@ -4187,14 +4185,10 @@ void end_basic_block_with_registers (int n_a_parameters,int n_b_parameters,ULONG
 	b_offset=end_basic_block_with_registers_and_return_b_stack_offset (n_a_parameters,n_b_parameters,vector,N_ADDRESS_PARAMETER_REGISTERS);
 
 	if (b_offset!=0)
-#ifdef I486
-		i_lea_id_r (b_offset,B_STACK_POINTER,B_STACK_POINTER);
-#else
 		if (b_offset>0)
 			i_add_i_r (b_offset,B_STACK_POINTER);
 		else
 			i_sub_i_r (-b_offset,B_STACK_POINTER);
-#endif
 }
 
 void end_stack_elements (int n_a_parameters,int n_b_parameters,ULONG vector[])

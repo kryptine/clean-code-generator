@@ -36,6 +36,7 @@ typedef struct label {
 	} label_u1;
 	union {
 		struct basic_block *		u_last_lea_block;	/* cgcode.c */
+		struct basic_block *		u_block;			/* cgopt.c */
 #ifdef G_POWER
 		struct toc_label *			u_toc_labels;		/* cgpwas.c */
 #endif
@@ -43,7 +44,8 @@ typedef struct label {
 	WORD						label_last_lea_arity;
 } LABEL;
 
-#define label_last_lea_block label_u2.u_last_lea_block 
+#define label_last_lea_block label_u2.u_last_lea_block
+#define label_block label_u2.u_block
 #ifdef G_POWER
 # define label_toc_labels label_u2.u_toc_labels
 #endif
@@ -66,6 +68,7 @@ typedef struct label {
 #	define DOT_O_BEFORE_LABEL	2048
 #	define STUB_GENERATED		4096
 #endif
+#define CMP_BRANCH_BLOCK_LABEL	8192
 
 struct label_node {
 	struct label_node *	label_node_left;

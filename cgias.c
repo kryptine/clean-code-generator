@@ -2149,13 +2149,13 @@ static void as_div_rem_i_instruction (struct instruction *instruction,int comput
 	}
 }
 
-static void as_div_instruction (struct instruction *instruction)
+static void as_div_instruction (struct instruction *instruction,int unsigned_div)
 {
-	int d_reg;
+	int d_reg,opcode2;
 
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
-	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE && unsigned_div==0){
 		int i,log2i;
 		
 		i=instruction->instruction_parameters[0].parameter_data.i;
@@ -2198,24 +2198,28 @@ static void as_div_instruction (struct instruction *instruction)
 		return;
 	}
 
+	opcode2=unsigned_div ? 0060 : 0070;
+
 	switch (d_reg){
 		case REGISTER_D0:
 			as_move_r_r (REGISTER_A1,REGISTER_O0);
 	
-			/*cdq*/
-			store_c (0231);
+			if (unsigned_div)
+				as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+			else
+				store_c (0231);							/* cdq */
 	
 			/* idivl */
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER
 				&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
 			{
-				as_r (0367,0070,REGISTER_O0);
+				as_r (0367,opcode2,REGISTER_O0);
 			} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT
 				&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
 			{
-				as_id (0367,0070,instruction->instruction_parameters[0].parameter_offset,REGISTER_O0);
+				as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,REGISTER_O0);
 			} else
-				as_parameter (0367,0070,&instruction->instruction_parameters[0]);
+				as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
 			
 			as_move_r_r (REGISTER_O0,REGISTER_A1);
 			break;
@@ -2223,8 +2227,10 @@ static void as_div_instruction (struct instruction *instruction)
 			as_move_r_r (REGISTER_D0,REGISTER_O0);
 			as_move_r_r (REGISTER_A1,REGISTER_D0);
 	
-			/*cdq*/
-			store_c (0231);
+			if (unsigned_div)
+				as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+			else
+				store_c (0231);							/* cdq */
 	
 			/* idivl */
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
@@ -2236,7 +2242,7 @@ static void as_div_instruction (struct instruction *instruction)
 				else if (r==REGISTER_A1)
 					r=REGISTER_D0;
 				
-				as_r (0367,0070,r);
+				as_r (0367,opcode2,r);
 			} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
 				int r;
 				
@@ -2246,9 +2252,9 @@ static void as_div_instruction (struct instruction *instruction)
 				else if (r==REGISTER_A1)
 					r=REGISTER_D0;
 
-				as_id (0367,0070,instruction->instruction_parameters[0].parameter_offset,r);					
+				as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);					
 			} else
-				as_parameter (00367,0070,&instruction->instruction_parameters[0]);
+				as_parameter (00367,opcode2,&instruction->instruction_parameters[0]);
 	
 			as_move_r_r (REGISTER_D0,REGISTER_A1);
 			as_move_r_r (REGISTER_O0,REGISTER_D0);
@@ -2257,8 +2263,10 @@ static void as_div_instruction (struct instruction *instruction)
 			as_move_r_r (REGISTER_A1,REGISTER_O0);
 			store_c (0x90+reg_num (d_reg));	/* xchg d_reg,D0 */
 	
-			/*cdq*/
-			store_c (0231);
+			if (unsigned_div)
+				as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+			else
+				store_c (0231);							/* cdq */
 	
 			/* idivl */
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
@@ -2272,7 +2280,7 @@ static void as_div_instruction (struct instruction *instruction)
 				else if (r==d_reg)
 					r=REGISTER_D0;
 				
-				as_r (0367,0070,r);			
+				as_r (0367,opcode2,r);			
 			} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
 				int r;
 				
@@ -2284,7 +2292,7 @@ static void as_div_instruction (struct instruction *instruction)
 				else if (r==d_reg)
 					r=REGISTER_D0;
 				
-				as_id (0367,0070,instruction->instruction_parameters[0].parameter_offset,r);
+				as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);
 			} else
 				as_parameter (0367,0070,&instruction->instruction_parameters[0]);
 	
@@ -2293,13 +2301,13 @@ static void as_div_instruction (struct instruction *instruction)
 	}
 }
 
-static void as_rem_instruction (struct instruction *instruction)
+static void as_rem_instruction (struct instruction *instruction,int unsigned_rem)
 {
-	int d_reg;
+	int d_reg,opcode2;
 
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
-	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE && unsigned_rem==0){
 		int i,log2i;
 		
 		i=instruction->instruction_parameters[0].parameter_data.i;
@@ -2356,24 +2364,28 @@ static void as_rem_instruction (struct instruction *instruction)
 		return;
 	}
 
+	opcode2=unsigned_rem ? 0060 : 0070;
+
 	switch (d_reg){
 		case REGISTER_D0:
 			as_move_r_r (REGISTER_A1,REGISTER_O0);
 
-			/*cdq*/
-			store_c (0231);
+			if (unsigned_rem)
+				as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+			else
+				store_c (0231);							/* cdq */
 
 			/* idivl */
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER
 				&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
 			{
-				as_r (0367,0070,REGISTER_O0);
+				as_r (0367,opcode2,REGISTER_O0);
 			} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT
 				&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
 			{
-				as_id (0367,0070,instruction->instruction_parameters[0].parameter_offset,REGISTER_O0);
+				as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,REGISTER_O0);
 			} else
-				as_parameter (0367,0070,&instruction->instruction_parameters[0]);
+				as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
 
 			as_move_r_r (REGISTER_A1,REGISTER_D0);
 			as_move_r_r (REGISTER_O0,REGISTER_A1);
@@ -2382,8 +2394,11 @@ static void as_rem_instruction (struct instruction *instruction)
 			as_move_r_r (REGISTER_D0,REGISTER_O0);
 			as_move_r_r (REGISTER_A1,REGISTER_D0);
 	
-			/*cdq*/
-			store_c (0231);
+			if (unsigned_rem)
+				as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+			else
+				store_c (0231);							/* cdq */
+
 			/* idivl */	
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
 				int r;
@@ -2394,7 +2409,7 @@ static void as_rem_instruction (struct instruction *instruction)
 				else if (r==REGISTER_A1)
 					r=REGISTER_D0;
 				
-				as_r (0367,0070,r);
+				as_r (0367,opcode2,r);
 			} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
 				int r;
 				
@@ -2404,9 +2419,9 @@ static void as_rem_instruction (struct instruction *instruction)
 				else if (r==REGISTER_A1)
 					r=REGISTER_D0;
 				
-				as_id (0367,0070,instruction->instruction_parameters[0].parameter_offset,r);
+				as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);
 			} else
-				as_parameter (0367,0070,&instruction->instruction_parameters[0]);
+				as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
 		
 			as_move_r_r (REGISTER_O0,REGISTER_D0);
 			break;
@@ -2414,8 +2429,10 @@ static void as_rem_instruction (struct instruction *instruction)
 			as_move_r_r (REGISTER_A1,REGISTER_O0);
 			store_c (0x90+reg_num (d_reg)); /* xchg d_reg,D0 */
 	
-			/*cdq*/
-			store_c (0231);	
+			if (unsigned_rem)
+				as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+			else
+				store_c (0231);							/* cdq */
 			/* idivl */
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
 				int r;
@@ -2428,7 +2445,7 @@ static void as_rem_instruction (struct instruction *instruction)
 				else if (r==d_reg)
 					r=REGISTER_D0;
 				
-				as_r (0367,0070,r);
+				as_r (0367,opcode2,r);
 			} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
 				int r;
 				
@@ -2440,9 +2457,9 @@ static void as_rem_instruction (struct instruction *instruction)
 				else if (r==d_reg)
 					r=REGISTER_D0;
 				
-				as_id (0367,0070,instruction->instruction_parameters[0].parameter_offset,r);				
+				as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);				
 			} else
-				as_parameter (0367,0070,&instruction->instruction_parameters[0]);
+				as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
 
 			as_move_r_r (d_reg,REGISTER_D0);
 			as_move_r_r (REGISTER_A1,d_reg);
@@ -2600,6 +2617,16 @@ static void as_exg_instruction (struct instruction *instruction)
 		as_r_r (0207,r1,r2);
 }
 
+static void as_neg_instruction (struct instruction *instruction)
+{	
+	as_r (0367,0030,instruction->instruction_parameters[0].parameter_data.reg.r);
+}
+
+static void as_not_instruction (struct instruction *instruction)
+{	
+	as_r (0367,0020,instruction->instruction_parameters[0].parameter_data.reg.r);
+}
+
 static void as_rtsi_instruction (struct instruction *instruction)
 {
 	store_c (0xc2);
@@ -2685,6 +2712,9 @@ static void as_f_i (int code1,int code2,DOUBLE *r_p)
 
 	new_label->label_flags=DATA_LABEL;
 
+	if (data_object_label==NULL)
+		as_new_data_module();
+
 	data_object_label->object_section_align8=1;
 	if ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 4)
 		store_long_word_in_data_section (0);
@@ -2706,7 +2736,7 @@ struct instruction *find_next_fp_instruction (struct instruction *instruction)
 	while (instruction!=NULL){
 		switch (instruction->instruction_icode){
 			case IFADD: case IFSUB: case IFMUL: case IFDIV:
-			case IFMOVEL: case IFCMP: case IFNEG: case IFTST: case IFREM:
+			case IFMOVEL: case IFCMP: case IFNEG: case IFABS: case IFTST: case IFREM:
 			case IFBEQ: case IFBGE: case IFBGT: case IFBLE: case IFBLT: case IFBNE:
 			case IFSEQ: case IFSGE: case IFSGT: case IFSLE: case IFSLT: case IFSNE:
 			case IFCOS: case IFSIN: case IFSQRT: case IFTAN:
@@ -2734,7 +2764,7 @@ int next_instruction_is_fld_reg (int reg0,struct instruction *instruction)
 	if (next_fp_instruction!=NULL){		
 		switch (next_fp_instruction->instruction_icode){
 			case IFADD: case IFSUB: case IFMUL: case IFDIV:
-			case IFSQRT: case IFNEG: case IFSIN: case IFCOS:
+			case IFSQRT: case IFNEG: case IFABS: case IFSIN: case IFCOS:
 				if (next_fp_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER
 					&& next_fp_instruction->instruction_parameters[0].parameter_data.reg.r==reg0)
 				{
@@ -2846,7 +2876,7 @@ static void fstpl_instruction (int reg0,struct instruction *instruction)
 					
 					return;
 				} /* else */
-			case IFSQRT: case IFNEG: case IFSIN: case IFCOS:
+			case IFSQRT: case IFNEG: case IFABS: case IFSIN: case IFCOS:
 				if (next_fp_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER
 					&& next_fp_instruction->instruction_parameters[0].parameter_data.reg.r==reg0)
 				{
@@ -3651,9 +3681,28 @@ void store_descriptor_string_in_data_section (char *string,int length,LABEL *str
 
 static void as_fmovel_instruction (struct instruction *instruction)
 {
-	if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER)
-		internal_error_in_function ("as_fmovel_instruction");
-	else {
+	if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+		if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
+			LABEL *new_label;
+			int s_freg;
+			
+			new_label=allocate_memory_from_heap (sizeof (struct label));
+		
+			new_label->label_flags=DATA_LABEL;
+			
+			define_data_label (new_label);
+			store_long_word_in_data_section (0);
+			
+			s_freg=instruction->instruction_parameters[0].parameter_data.reg.r;
+			if (s_freg!=0){
+				as_f_r (0xd9,0xc0,s_freg); /* fld s_freg */
+				as_f_a (0xdb,3,new_label); /* fistp */
+			} else
+				as_f_a (0xdb,2,new_label); /* fist */
+			as_r_a (0x8b,instruction->instruction_parameters[1].parameter_data.reg.r,new_label);			
+		} else
+			internal_error_in_function ("as_fmovel_instruction");
+	} else {
 		switch (instruction->instruction_parameters[0].parameter_type){
 			case P_REGISTER:
 			{
@@ -3792,20 +3841,29 @@ static void as_instructions (struct instruction *instruction)
 			case IBGE:
 				as_branch_instruction (instruction,015);
 				break;
+			case IBGEU:
+				as_branch_instruction (instruction,003);
+				break;
 			case IBGT:
 				as_branch_instruction (instruction,017);
+				break;
+			case IBGTU:
+				as_branch_instruction (instruction,007);
 				break;
 			case IBLE:
 				as_branch_instruction (instruction,016);
 				break;
+			case IBLEU:
+				as_branch_instruction (instruction,006);
+				break;
 			case IBLT:
 				as_branch_instruction (instruction,014);
 				break;
+			case IBLTU:
+				as_branch_instruction (instruction,002);
+				break;
 			case IBNE:
 				as_branch_instruction (instruction,005);
-				break;
-			case IBHS:
-				as_branch_instruction (instruction,003);
 				break;
 			case IBO:
 				as_branch_instruction (instruction,0);
@@ -3826,16 +3884,22 @@ static void as_instructions (struct instruction *instruction)
 				as_mul_instruction (instruction);
 				break;
 			case IDIV:
-				as_div_instruction (instruction);
+				as_div_instruction (instruction,0);
 				break;
 			case IDIVI:
 				as_div_rem_i_instruction (instruction,0);
 				break;
+			case IDIVU:
+				as_div_instruction (instruction,1);
+				break;
 			case IMOD:
-				as_rem_instruction (instruction);
+				as_rem_instruction (instruction,0);
 				break;
 			case IREMI:
 				as_div_rem_i_instruction (instruction,1);
+				break;
+			case IREMU:
+				as_rem_instruction (instruction,1);
 				break;
 			case IAND:
 				as_logic_instruction (instruction,0043,040,045);
@@ -3852,14 +3916,26 @@ static void as_instructions (struct instruction *instruction)
 			case ISGE:
 				as_set_condition_instruction (instruction,015);
 				break;
+			case ISGEU:
+				as_set_condition_instruction (instruction,003);
+				break;
 			case ISGT:
 				as_set_condition_instruction (instruction,017);
+				break;
+			case ISGTU:
+				as_set_condition_instruction (instruction,007);
 				break;
 			case ISLE:
 				as_set_condition_instruction (instruction,016);
 				break;
+			case ISLEU:
+				as_set_condition_instruction (instruction,006);
+				break;
 			case ISLT:
 				as_set_condition_instruction (instruction,014);
+				break;
+			case ISLTU:
+				as_set_condition_instruction (instruction,002);
 				break;
 			case ISNE:
 				as_set_condition_instruction (instruction,005);
@@ -3887,6 +3963,12 @@ static void as_instructions (struct instruction *instruction)
 				break;
 			case IEXG:
 				as_exg_instruction (instruction);
+				break;
+			case INEG:
+				as_neg_instruction (instruction);
+				break;
+			case INOT:
+				as_not_instruction (instruction);
 				break;
 			case IWORD:
 				store_c (instruction->instruction_parameters[0].parameter_data.i);
@@ -3945,6 +4027,9 @@ static void as_instructions (struct instruction *instruction)
 				break;
 			case IFNEG:
 				as_monadic_float_instruction (instruction,0xe0);
+				break;
+			case IFABS:
+				as_monadic_float_instruction (instruction,0xe1);
 				break;
 			case IFSIN:
 				as_monadic_float_instruction (instruction,0xfe);

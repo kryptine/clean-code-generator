@@ -158,9 +158,18 @@ int no_time_profiling;
 #define g_bounds(g1,g2) g_instruction_2(GBOUNDS,(g1),(g2))
 #define g_cmp_eq(g1,g2) g_instruction_2(GCMP_EQ,(g1),(g2))
 #define g_cmp_gt(g1,g2) g_instruction_2(GCMP_GT,(g1),(g2))
+#ifdef I486
+# define g_cmp_gtu(g1,g2) g_instruction_2(GCMP_GTU,(g1),(g2))
+#endif
 #define g_cmp_lt(g1,g2) g_instruction_2(GCMP_LT,(g1),(g2))
+#ifdef I486
+# define g_cmp_ltu(g1,g2) g_instruction_2(GCMP_LTU,(g1),(g2))
+#endif
 #define g_cnot(g1) g_instruction_1(GCNOT,(g1))
 #define g_div(g1,g2) g_instruction_2(GDIV,(g1),(g2))
+#ifdef I486
+# define g_divu(g1,g2) g_instruction_2(GDIVU,(g1),(g2))
+#endif
 #define g_eor(g1,g2) g_instruction_2(GEOR,(g1),(g2))
 #define g_fadd(g1,g2) g_instruction_2(GFADD,(g1),(g2))
 #define g_fcmp_eq(g1,g2) g_instruction_2(GFCMP_EQ,(g1),(g2))
@@ -179,7 +188,14 @@ int no_time_profiling;
 #define g_lsl(g1,g2) g_instruction_2(GLSL,(g1),(g2))
 #define g_lsr(g1,g2) g_instruction_2(GLSR,(g1),(g2))
 #define g_mod(g1,g2) g_instruction_2(GMOD,(g1),(g2))
+#ifdef I486
+# define g_remu(g1,g2) g_instruction_2(GREMU,(g1),(g2))
+#endif
 #define g_mul(g1,g2) g_instruction_2(GMUL,(g1),(g2))
+#ifdef I486
+# define g_neg(g1) g_instruction_1(GNEG,(g1))
+# define g_not(g1) g_instruction_1(GNOT,(g1))
+#endif
 #define g_or(g1,g2) g_instruction_2(GOR,(g1),(g2))
 #define g_keep(g1,g2) g_instruction_2(GKEEP,(g1),(g2))
 #define g_fkeep(g1,g2) g_instruction_2(GFKEEP,(g1),(g2))
@@ -243,7 +259,7 @@ LABEL			*eval_fill_label,*eval_upd_labels[33];
 static LABEL	*print_r_arg_label,*push_t_r_args_label,*push_a_r_args_label;
 LABEL			*index_error_label;
 
-#ifdef G_POWER
+#if defined (G_POWER) || defined (I486)
 LABEL	*r_to_i_buffer_label;
 #endif
 
@@ -434,6 +450,13 @@ static void code_dyadic_sane_operator (LABEL *label)
 	}
 #endif
 }
+
+#ifdef I486
+void code_absR (void)
+{
+	code_monadic_real_operator (GFABS);
+}
+#endif
 
 void code_acosR (VOID)
 {
@@ -1769,6 +1792,18 @@ void code_divR (VOID)
 	}
 #endif
 }
+
+#ifdef I486
+void code_divU (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+
+	graph_1=s_pop_b();
+	graph_2=s_get_b (0);
+	graph_3=g_divu (graph_2,graph_1);
+	s_put_b (0,graph_3);
+}
+#endif
 
 void code_entierR (VOID)
 {
@@ -3237,6 +3272,19 @@ void code_gtR (VOID)
 #endif
 }
 
+#ifdef I486
+void code_gtU (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+	
+	graph_1=s_pop_b();
+	graph_2=s_get_b (0);
+	graph_3=g_cmp_gtu (graph_2,graph_1);
+	
+	s_put_b (0,graph_3);
+}
+#endif
+
 void code_halt (VOID)
 {
 	if (halt_label==NULL)
@@ -4021,6 +4069,19 @@ void code_ltR (VOID)
 #endif
 }
 
+#ifdef I486
+void code_ltU (VOID)
+{	
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+	
+	graph_1=s_pop_b();
+	graph_2=s_get_b (0);
+	graph_3=g_cmp_ltu (graph_2,graph_1);
+	
+	s_put_b (0,graph_3);
+}
+#endif
+
 void code_remI (VOID)
 {
 #ifdef M68000
@@ -4051,6 +4112,18 @@ void code_remI (VOID)
 	}
 #endif
 }
+
+#ifdef I486
+void code_remU (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+
+	graph_1=s_pop_b();
+	graph_2=s_get_b (0);
+	graph_3=g_remu (graph_2,graph_1);
+	s_put_b (0,graph_3);
+}
+#endif
 
 static INSTRUCTION_GRAPH multiply_by_constant (unsigned int n,INSTRUCTION_GRAPH graph_1)
 {
@@ -4264,6 +4337,18 @@ void code_nu (int a_size,int b_size,char *descriptor_name,char *ea_label_name)
 		last_block->block_ea_label=NULL;
 }
 
+#ifdef I486
+void code_negI (void)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+	
+	graph_1=s_get_b (0);
+	graph_2=g_neg (graph_1);
+	
+	s_put_b (0,graph_2);
+}
+#endif
+
 void code_negR (void)
 {
 #ifdef M68000
@@ -4296,9 +4381,12 @@ void code_not (VOID)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 	
 	graph_1=s_get_b (0);
+#ifdef I486
+	graph_3=g_not (graph_1);
+#else
 	graph_2=g_load_i (-1);
 	graph_3=g_eor (graph_2,graph_1);
-	
+#endif
 	s_put_b (0,graph_3);
 }
 
@@ -6200,7 +6288,7 @@ void code_RtoI (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
 
-#ifdef G_POWER
+#if defined (G_POWER) || defined (I486)
 	if (r_to_i_buffer_label==NULL)
 		r_to_i_buffer_label=enter_label ("r_to_i_buffer",IMPORT_LABEL);
 
@@ -8435,7 +8523,7 @@ void initialize_coding (VOID)
 	sqrt_real=NULL;
 #endif
 
-#ifdef G_POWER
+#if defined (G_POWER) || defined (I486)
 	r_to_i_buffer_label=NULL;
 #endif
 	
