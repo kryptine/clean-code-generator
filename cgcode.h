@@ -1,8 +1,4 @@
 
-#if defined (G_POWER) || defined (_WINDOWS_) || defined (LINUX_ELF)
-# define FUNCTION_LEVEL_LINKING
-#endif
-
 #define g_fhighlow(gh,gl,gf) \
 	(gh)=g_instruction_2 (GFHIGH,(gf),NULL); \
 	(gl)=g_instruction_2 (GFLOW,(gf),(gh)); \

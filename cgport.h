@@ -20,6 +20,10 @@
 #define ALIGN_C_CALLS
 #endif
 
+#if defined (G_POWER) || defined (_WINDOWS_) || defined (LINUX_ELF) || defined (sparc)
+# define FUNCTION_LEVEL_LINKING
+#endif
+                                                                                                                        
 #ifdef THINK_C
 #	define ANSI_C
 #	define WORD int
