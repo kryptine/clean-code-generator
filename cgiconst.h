@@ -1,5 +1,5 @@
 
-#undef FMADD
+#define FMADD
 
 #ifdef I486
 # define FP_STACK_OPTIMIZATIONS
