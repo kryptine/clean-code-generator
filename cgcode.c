@@ -5250,6 +5250,102 @@ static INSTRUCTION_GRAPH lsl_3_add_12_cache_index[INDEX_CSE_CACHE_SIZE];
 static INSTRUCTION_GRAPH lsl_3_add_12_cache_offset[INDEX_CSE_CACHE_SIZE];
 static int n_lsl_3_add_12_cache;
 static struct basic_block *block_in_lsl_3_add_12_cache;
+
+static INSTRUCTION_GRAPH lsl_2_cache_index[INDEX_CSE_CACHE_SIZE];
+static INSTRUCTION_GRAPH lsl_2_cache_offset[INDEX_CSE_CACHE_SIZE];
+static int n_lsl_2_cache;
+static struct basic_block *block_in_lsl_2_cache;
+
+static INSTRUCTION_GRAPH lsl_3_cache_index[INDEX_CSE_CACHE_SIZE];
+static INSTRUCTION_GRAPH lsl_3_cache_offset[INDEX_CSE_CACHE_SIZE];
+static int n_lsl_3_cache;
+static struct basic_block *block_in_lsl_3_cache;
+
+static INSTRUCTION_GRAPH g_lsl_2 (INSTRUCTION_GRAPH graph_1)
+{
+	INSTRUCTION_GRAPH graph_2;
+	int i;
+
+	if (block_in_lsl_2_cache!=last_block){
+		n_lsl_2_cache=0;
+		block_in_lsl_2_cache=last_block;
+	} else {
+		int n;
+		
+		n=n_lsl_2_cache;
+		if (n<=INDEX_CSE_CACHE_SIZE){
+			while (--n>=0)
+				if (lsl_2_cache_index[n]==graph_1)
+					return lsl_2_cache_offset[n];
+		} else {
+			int e;
+			
+			e = n & (INDEX_CSE_CACHE_SIZE-1);
+
+			n = e;
+			while (--n>=0)
+				if (lsl_2_cache_index[n]==graph_1)
+					return lsl_2_cache_offset[n];
+			
+			n = INDEX_CSE_CACHE_SIZE;
+			while (--n>=e)
+				if (lsl_2_cache_index[n]==graph_1)
+					return lsl_2_cache_offset[n];
+		}
+	}
+
+	graph_2=g_lsl (g_load_i (2),graph_1);
+	
+	i=n_lsl_2_cache & (INDEX_CSE_CACHE_SIZE-1);
+	lsl_2_cache_index[i]=graph_1;
+	lsl_2_cache_offset[i]=graph_2;
+	++n_lsl_2_cache;
+	
+	return graph_2;
+}
+
+static INSTRUCTION_GRAPH g_lsl_3 (INSTRUCTION_GRAPH graph_1)
+{
+	INSTRUCTION_GRAPH graph_2;
+	int i;
+
+	if (block_in_lsl_3_cache!=last_block){
+		n_lsl_3_cache=0;
+		block_in_lsl_3_cache=last_block;
+	} else {
+		int n;
+		
+		n=n_lsl_3_cache;
+		if (n<=INDEX_CSE_CACHE_SIZE){
+			while (--n>=0)
+				if (lsl_3_cache_index[n]==graph_1)
+					return lsl_3_cache_offset[n];
+		} else {
+			int e;
+			
+			e = n & (INDEX_CSE_CACHE_SIZE-1);
+
+			n = e;
+			while (--n>=0)
+				if (lsl_3_cache_index[n]==graph_1)
+					return lsl_3_cache_offset[n];
+			
+			n = INDEX_CSE_CACHE_SIZE;
+			while (--n>=e)
+				if (lsl_3_cache_index[n]==graph_1)
+					return lsl_3_cache_offset[n];
+		}
+	}
+
+	graph_2=g_lsl (g_load_i (3),graph_1);
+
+	i=n_lsl_3_cache & (INDEX_CSE_CACHE_SIZE-1);
+	lsl_3_cache_index[i]=graph_1;
+	lsl_3_cache_offset[i]=graph_2;
+	++n_lsl_3_cache;
+	
+	return graph_2;
+}
 #endif
 
 static INSTRUCTION_GRAPH g_lsl_2_add_12 (INSTRUCTION_GRAPH graph_1)
@@ -5287,7 +5383,27 @@ static INSTRUCTION_GRAPH g_lsl_2_add_12 (INSTRUCTION_GRAPH graph_1)
 	}
 #endif
 
-	graph_2=g_add (g_load_i (12),g_lsl (g_load_i (2),graph_1));
+	if (graph_1->instruction_code==GADD){
+		INSTRUCTION_GRAPH graph_1_arg_1,graph_1_arg_2;
+		
+		graph_1_arg_1=graph_1->instruction_parameters[0].p;
+		graph_1_arg_2=graph_1->instruction_parameters[1].p;
+		if (graph_1_arg_1->instruction_code==GLOAD_I)
+			return g_add (g_load_i (12+(graph_1_arg_1->instruction_parameters[0].i<<2)),g_lsl_2 (graph_1_arg_2));
+		if (graph_1_arg_2->instruction_code==GLOAD_I)
+			return g_add (g_load_i (12+(graph_1_arg_2->instruction_parameters[0].i<<2)),g_lsl_2 (graph_1_arg_1));
+	} else if (graph_1->instruction_code==GSUB){
+		INSTRUCTION_GRAPH graph_1_arg_1,graph_1_arg_2;
+		
+		graph_1_arg_1=graph_1->instruction_parameters[0].p;
+		graph_1_arg_2=graph_1->instruction_parameters[1].p;
+		if (graph_1_arg_1->instruction_code==GLOAD_I)
+			return g_add (g_load_i (12-(graph_1_arg_1->instruction_parameters[0].i<<2)),g_lsl_2 (graph_1_arg_2));
+		if (graph_1_arg_2->instruction_code==GLOAD_I)
+			return g_sub (g_lsl_2 (graph_1_arg_1),g_load_i (12+(graph_1_arg_2->instruction_parameters[0].i<<2)));
+	}
+	graph_2=g_add (g_load_i (12),g_lsl_2 (graph_1));
+
 	
 #ifdef INDEX_CSE
 	i=n_lsl_2_add_12_cache & (INDEX_CSE_CACHE_SIZE-1);
@@ -5338,7 +5454,26 @@ static INSTRUCTION_GRAPH g_lsl_3_add_12 (INSTRUCTION_GRAPH graph_1)
 #ifdef sparc
 	graph_2=g_lsl (g_load_i (3),graph_1);
 #else
-	graph_2=g_add (g_load_i (12),g_lsl (g_load_i (3),graph_1));
+	if (graph_1->instruction_code==GADD){
+		INSTRUCTION_GRAPH graph_1_arg_1,graph_1_arg_2;
+		
+		graph_1_arg_1=graph_1->instruction_parameters[0].p;
+		graph_1_arg_2=graph_1->instruction_parameters[1].p;
+		if (graph_1_arg_1->instruction_code==GLOAD_I)
+			return g_add (g_load_i (12+(graph_1_arg_1->instruction_parameters[0].i<<3)),g_lsl_3 (graph_1_arg_2));
+		if (graph_1_arg_2->instruction_code==GLOAD_I)
+			return g_add (g_load_i (12+(graph_1_arg_2->instruction_parameters[0].i<<3)),g_lsl_3 (graph_1_arg_1));
+	} else if (graph_1->instruction_code==GSUB){
+		INSTRUCTION_GRAPH graph_1_arg_1,graph_1_arg_2;
+		
+		graph_1_arg_1=graph_1->instruction_parameters[0].p;
+		graph_1_arg_2=graph_1->instruction_parameters[1].p;
+		if (graph_1_arg_1->instruction_code==GLOAD_I)
+			return g_add (g_load_i (12-(graph_1_arg_1->instruction_parameters[0].i<<3)),g_lsl_3 (graph_1_arg_2));
+		if (graph_1_arg_2->instruction_code==GLOAD_I)
+			return g_sub (g_lsl_3 (graph_1_arg_1),g_load_i (12+(graph_1_arg_2->instruction_parameters[0].i<<3)));
+	}
+	graph_2=g_add (g_load_i (12),g_lsl_3 (graph_1));
 #endif
 
 #ifdef INDEX_CSE
@@ -5437,6 +5572,32 @@ static void code_replaceI (VOID)
 	s_put_a (0,graph_4);
 }
 
+
+static INSTRUCTION_GRAPH char_or_bool_array_offset (int offset,INSTRUCTION_GRAPH graph_1)
+{
+	if (graph_1->instruction_code==GADD){
+		INSTRUCTION_GRAPH graph_1_arg_1,graph_1_arg_2;
+		
+		graph_1_arg_1=graph_1->instruction_parameters[0].p;
+		graph_1_arg_2=graph_1->instruction_parameters[1].p;
+		if (graph_1_arg_1->instruction_code==GLOAD_I)
+			return g_add (g_load_i (offset+graph_1_arg_1->instruction_parameters[0].i),graph_1_arg_2);
+		else if (graph_1_arg_2->instruction_code==GLOAD_I)
+			return g_add (g_load_i (offset+graph_1_arg_2->instruction_parameters[0].i),graph_1_arg_1);
+	} else if (graph_1->instruction_code==GSUB){
+		INSTRUCTION_GRAPH graph_1_arg_1,graph_1_arg_2;
+		
+		graph_1_arg_1=graph_1->instruction_parameters[0].p;
+		graph_1_arg_2=graph_1->instruction_parameters[1].p;
+		if (graph_1_arg_1->instruction_code==GLOAD_I)
+			return g_add (g_load_i (offset-graph_1_arg_1->instruction_parameters[0].i),graph_1_arg_2);
+		else if (graph_1_arg_2->instruction_code==GLOAD_I)
+			return g_sub (graph_1_arg_1,g_load_i (offset+graph_1_arg_2->instruction_parameters[0].i));
+	}
+	
+	return g_add (g_load_i (offset),graph_1);
+}
+
 static void code_replaceBC (int offset,int ext_signed)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
@@ -5465,7 +5626,7 @@ static void code_replaceBC (int offset,int ext_signed)
 		graph_4=g_store_b_x (graph_3,graph_1,new_offset,graph_2);
 		}
 #else
-		graph_2=g_add (g_load_i (offset),graph_2);
+		graph_2=char_or_bool_array_offset (offset,graph_2);
 		graph_5=g_load_b_x (graph_1,0,ext_signed,graph_2);
 		graph_4=g_store_b_x (graph_3,graph_1,0,graph_2);
 #endif
@@ -6133,7 +6294,7 @@ static void code_selectBC (int offset,int ext_signed)
 		graph_3=g_load_b_x (graph_1,new_offset,ext_signed,graph_2);
 		}
 #else
-		graph_1=g_add (g_load_i (offset),graph_1);
+		graph_2=char_or_bool_array_offset (offset,graph_2);
 		graph_3=g_load_b_x (graph_1,0,ext_signed,graph_2);
 #endif
 	}
@@ -6710,7 +6871,7 @@ static void code_updateBC (int offset)
 		graph_4=g_store_b_x (graph_3,graph_1,new_offset,graph_2);
 		}
 #else
-		graph_2=g_add (g_load_i (offset),graph_2);
+		graph_2=char_or_bool_array_offset (offset,graph_2);
 		graph_4=g_store_b_x (graph_3,graph_1,0,graph_2);
 #endif
 	}
@@ -8315,6 +8476,10 @@ void initialize_coding (VOID)
 	n_lsl_3_add_12_cache=0;
 	block_in_lsl_2_add_12_cache=NULL;
 	block_in_lsl_3_add_12_cache=NULL;
+	n_lsl_2_cache=0;
+	n_lsl_3_cache=0;
+	block_in_lsl_2_cache=NULL;
+	block_in_lsl_3_cache=NULL;
 #endif
 
 	module_label=NULL;
