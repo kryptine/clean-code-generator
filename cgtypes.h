@@ -11,7 +11,7 @@ typedef struct label {
 	WORD		label_flags;
 	WORD		label_a_stack_size;
 	WORD		label_b_stack_size;
-#if defined (G_POWER) || defined (_WINDOWS_)
+#if defined (G_POWER) || defined (_WINDOWS_) || defined (ELF)
 	union {
 	ULONG *							u_vector;
 # define		label_vector		label_u.u_vector
