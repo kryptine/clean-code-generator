@@ -8,7 +8,6 @@
 #endif
 
 #if defined (__MWERKS__) || defined (__MRC__) || defined (PROJECT_BUILDER)
-# undef MACH_O
 # define POWER
 # ifdef __cplusplus
 #  include "cgrenameglobals.h"
@@ -17,7 +16,7 @@
 # endif
 #endif
 
-#if 1 || defined (MACH_O)
+#if 0 || defined (MACH_O)
 #define ALIGN_C_CALLS
 #endif
 
