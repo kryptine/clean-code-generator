@@ -3,7 +3,7 @@ CC = cc
 CFLAGS = -DGNU_C -DSUN_C -DSOLARIS -O
 
 OBJECTS = cg.o cgcalc.o cgcode.o cginput.o cginstructions.o \
-	cglin.o cgopt.o cgswas.o cgstack.o
+	cglin.o cgopt.o cgswas.o cgstack.o cgsas.o
 
 cg: $(OBJECTS)
 	$(CC) -s $(OBJECTS) -o $@ 
