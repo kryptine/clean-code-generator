@@ -2959,8 +2959,17 @@ void code_ccall (char *c_function_name,char *s,int length)
 		}
 		
 		if (float_parameters){
+#if 1
+			int freg_n;
+
+			for (freg_n=0; freg_n<8; ++freg_n){
+	 			i_word_i (0xdd);
+				i_word_i (0xc0+freg_n);
+			}
+#else
 			i_word_i (0xdb);
 			i_word_i (0xe3);
+#endif
 		}
 
 		if (save_state_in_global_variables){
