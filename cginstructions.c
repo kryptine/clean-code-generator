@@ -3099,7 +3099,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 #if defined (I486) || defined (G_POWER)
 	struct block_label *new_label;
 	LABEL *label;
-	int i,n,n_integer_parameters,n_integer_results,callee_pops_arguments;
+	int i,n,n_integer_parameters,n_integer_results,integer_c_function_result,callee_pops_arguments;
 
 	if (saved_heap_p_label==NULL)
 		saved_heap_p_label=enter_label ("saved_heap_p",IMPORT_LABEL);
@@ -3116,6 +3116,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		callee_pops_arguments=1;
 	}
 	
+	integer_c_function_result=0;
 	while (i<length){
 		char c;
 		
@@ -3123,21 +3124,38 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		if (c=='I')
 			++n_integer_parameters;
 		else if (c==':'){
-			while (++i<length){
+			++i;
+			if (i<length){
+				c=s[i];
+				if (c=='V')
+					;
+				else if (c=='I'){
+					integer_c_function_result=1;
+					++n_integer_results;
+				} else
+					error_s (centry_error_string,c_function_name);
+				++i;
+			}
+			while (i<length){
 				c=s[i];
 				if (c=='I')
 					++n_integer_results;
 				else
 					error_s (centry_error_string,c_function_name);
+				++i;
 			}
-			if (n_integer_results!=1)
-				error_s (centry_error_string,c_function_name);
 			break;
 		} else
 			error_s (centry_error_string,c_function_name);
 		
 		++i;
 	}
+#ifdef I486
+	if (n_integer_results==0)
+#else
+	if (n_integer_results!=1)
+#endif
+		error_s (centry_error_string,c_function_name);
 
 # if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
 	{
@@ -3277,22 +3295,18 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 
 	if (INT_label==NULL)
 		INT_label=enter_label ("INT",IMPORT_LABEL | DATA_LABEL);
-
 	i_lea_l_i_r (INT_label,2,INT_REGISTER);
 	
 	if (CHAR_label==NULL)
 		CHAR_label=enter_label ("CHAR",IMPORT_LABEL | DATA_LABEL);
-	
 	i_lea_l_i_r (CHAR_label,2,CHAR_REGISTER);	
 
 	if (REAL_label==NULL)
 		REAL_label=enter_label ("REAL",IMPORT_LABEL | DATA_LABEL);
-
 	i_lea_l_i_r (REAL_label,2,REAL_REGISTER);
 
 	if (BOOL_label==NULL)
 		BOOL_label=enter_label ("BOOL",IMPORT_LABEL | DATA_LABEL);
-	
 	i_lea_l_i_r (BOOL_label,2,BOOL_REGISTER);
 	
 	if (!parallel_flag){
@@ -3301,7 +3315,6 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 			cycle_in_spine_label->label_arity=0;
 			cycle_in_spine_label->label_descriptor=EMPTY_label;
 		}
-		
 		i_lea_l_i_r (cycle_in_spine_label,0,REGISTER_A5);
 	} else {
 		if (reserve_label==NULL){
@@ -3317,7 +3330,34 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	code_jsr (clean_function_label);
 #endif	
 
-	code_o (0,1,i_vector);
+	{
+		int result_n,result_pointer_parameter_offset,n_data_parameter_registers;
+		
+		result_pointer_parameter_offset=20+4+(n_integer_parameters<<2);
+		if (n_integer_results-integer_c_function_result>N_DATA_PARAMETER_REGISTERS)
+			result_pointer_parameter_offset+=(n_integer_results-integer_c_function_result-N_DATA_PARAMETER_REGISTERS)<<2;
+
+		n_data_parameter_registers=n_integer_results;
+		if (n_data_parameter_registers>N_DATA_PARAMETER_REGISTERS)
+			n_data_parameter_registers=N_DATA_PARAMETER_REGISTERS;
+		
+		for (result_n=integer_c_function_result; result_n<n_integer_results; ++result_n){
+			i_move_id_r (result_pointer_parameter_offset,B_STACK_POINTER,-1/*ECX*/);
+			if (result_n<n_data_parameter_registers)
+				i_move_r_id (n_data_parameter_registers-1-result_n,0,-1/*ECX*/);
+			else
+				i_move_id_id ((result_n-n_data_parameter_registers)<<2,B_STACK_POINTER,0,-1/*ECX*/);
+			result_pointer_parameter_offset+=4;
+		}
+		
+		if (n_integer_results>n_data_parameter_registers)
+			i_add_i_r ((n_integer_results-n_data_parameter_registers)<<2,B_STACK_POINTER);
+		
+		if (integer_c_function_result && n_data_parameter_registers>1)
+			i_move_r_r (n_data_parameter_registers-1,0);
+	}
+
+	code_o (0,integer_c_function_result,i_vector);
 
 # if defined (I486)
 	i_move_r_l (-4/*ESI*/,saved_a_stack_p_label);
@@ -3356,27 +3396,19 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		i_add_i_r (offset,B_STACK_POINTER);
 	}
 # endif
-	
-	/*
-	code_d (0,1,i_vector);
-	code_rtn();
-	*/
 
 	{
 		int b_offset,a_stack_size,b_stack_size;
-		ULONG *local_demanded_vector;
 		
 		a_stack_size=0;
-		b_stack_size=1;
-		local_demanded_vector=i_vector;
+		b_stack_size=integer_c_function_result;
 
 #if ! (defined (sparc))
 		b_offset=0;
 #else
 		b_offset=4;
 #endif
-
-		b_offset+=end_basic_block_with_registers_and_return_b_stack_offset (a_stack_size,b_stack_size,local_demanded_vector,N_ADDRESS_PARAMETER_REGISTERS);
+		b_offset+=end_basic_block_with_registers_and_return_b_stack_offset (a_stack_size,b_stack_size,i_vector,N_ADDRESS_PARAMETER_REGISTERS);
 
 #if ! (defined (sparc) || defined (G_POWER))
 		if (b_offset!=0)
@@ -3384,7 +3416,6 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 				i_add_i_r (b_offset,B_STACK_POINTER);
 			else
 				i_sub_i_r (-b_offset,B_STACK_POINTER);
-		
 # ifdef I486
 		if (callee_pops_arguments && n_integer_parameters>0)
 			i_rts_i (n_integer_parameters<<2);
