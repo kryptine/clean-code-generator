@@ -7277,11 +7277,7 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 	store_word_in_data_section (arity);
 #else
 # ifdef GEN_OBJ
-#  ifdef I486
-	store_long_word_in_data_section ((arity<<16) | lazy_record_flag);
-#  else
 	store_2_words_in_data_section (lazy_record_flag,arity);
-#  endif
 # endif
 #endif
 	if (assembly_flag){
