@@ -307,6 +307,9 @@ void optimize_jumps (void)
 						branch->instruction_icode=old_branch_instruction->instruction_icode;
 						branch->instruction_parameters[0]=old_branch_instruction->instruction_parameters[0];
 
+						if (block->block_next->block_begin_module)
+							block->block_next->block_link_module=1;
+
 						optimize_branch_jump (branch,new_jmp_label);
 					} else {
 						new_branch_instruction=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+sizeof (struct parameter));
@@ -360,6 +363,9 @@ void optimize_jumps (void)
 					if (branch_next_block_label!=NULL){
 						branch->instruction_icode=old_branch_instruction->instruction_icode;
 						branch->instruction_parameters[0]=old_branch_instruction->instruction_parameters[0];
+
+						if (block->block_next->block_begin_module)
+							block->block_next->block_link_module=1;
 
 						optimize_branch_jump (branch,new_jmp_label);
 
