@@ -2369,6 +2369,9 @@ void code_ccall (char *c_function_name,char *s,int length)
 				if (!float_parameters)
 					++n_clean_b_register_parameters;
 				continue;
+#ifdef I486
+			case 'r':
+#endif
 			case 'R':
 				float_parameters=1;
 				b_offset+=8;
@@ -2885,6 +2888,39 @@ void code_ccall (char *c_function_name,char *s,int length)
 						}
 						c_offset+=4;
 						break;
+#ifdef I486
+					case 'r':
+					{
+						int offset;
+						
+						b_o-=8;
+
+						i_lea_id_r (-4,B_STACK_POINTER,B_STACK_POINTER);
+
+						offset=b_o+c_offset+4;
+
+						i_word_i (0xDD);	//	fldl <b_o+c_offset+4>(%esp)
+						if ((signed char)offset==offset){
+							i_word_i (0x44);
+							i_word_i (0x24);
+							i_word_i (offset);
+						} else {
+							i_word_i (0x84);
+							i_word_i (0x24);
+							i_word_i (offset);
+							i_word_i (offset>>8);						
+							i_word_i (offset>>16);
+							i_word_i (offset>>24);
+						}
+
+						i_word_i (0xD9);	//	fstps (%esp)
+						i_word_i (0x1C);
+						i_word_i (0x24);
+
+						c_offset+=4;
+						break;
+					}
+#endif
 					case 'R':
 						b_o-=8;
 						i_move_id_pd (b_o+c_offset+4,B_STACK_POINTER,B_STACK_POINTER);
