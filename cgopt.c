@@ -1586,6 +1586,9 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #if defined (M68000) || defined (G_POWER)
 			case IEXTB:
 #endif
+#if defined (I486) || defined (G_POWER)
+			case INEG:	case INOT:
+#endif
 			/* case IJMP:	case IJSR: */
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
@@ -3877,6 +3880,9 @@ IF_G_RISC (case IADDI: case ILSLI:)
 			case IEXT:
 #if defined (M68000) || defined (G_POWER)
 			case IEXTB:
+#endif
+#if defined (I486) || defined (G_POWER)
+			case INEG:	case INOT:
 #endif
 				instruction_usedef (instruction);
 				break;
