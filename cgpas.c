@@ -17,7 +17,7 @@
 #if defined (LINUX_ELF)
 #   define ELF
 #	include <elf.h>
-#elif defined (MACH_O) || defined (GNU_C)
+#elif defined (MACH_O)
 #	define G_MACH_O
 #	define G_MACH_O_SCATTERED
 #	include </usr/include/mach-o/loader.h>
