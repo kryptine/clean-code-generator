@@ -22,12 +22,12 @@
 #	define REMOVE_UNDERSCORE_AT_BEGIN_OF_LABEL
 #endif
 
-#ifdef _WINDOWS_
-#	define FUNCTION_LEVEL_LINKING
-#endif
-
 #ifdef LINUX_ELF 
 #	define ELF
+#endif
+
+#if defined (_WINDOWS_) || defined (ELF)
+#	define FUNCTION_LEVEL_LINKING
 #endif
 
 #include "cgport.h"
@@ -480,11 +480,11 @@ void initialize_assembler (FILE *output_file_d)
 	n_data_sections=0;
 #else	
 	code_object_label=fast_memory_allocate_type (struct object_label);
-#ifdef ELF
+# ifdef ELF
 	++n_object_labels;
-#else
+# else
 	n_object_labels+=2;
-#endif	
+# endif	
 	*last_object_label_l=code_object_label;
 	last_object_label_l=&code_object_label->next;
 	code_object_label->next=NULL;
@@ -494,11 +494,11 @@ void initialize_assembler (FILE *output_file_d)
 	code_object_label->object_label_kind=CODE_CONTROL_SECTION;
 
 	data_object_label=fast_memory_allocate_type (struct object_label);
-#ifdef ELF
+# ifdef ELF
 	++n_object_labels;
-#else
+# else
 	n_object_labels+=2;
-#endif	
+# endif	
 	*last_object_label_l=data_object_label;
 	last_object_label_l=&data_object_label->next;
 	data_object_label->next=NULL;
@@ -666,9 +666,12 @@ void as_new_data_module (void)
 	new_object_label=fast_memory_allocate_type (struct object_label);
 	data_object_label=new_object_label;
 
+# ifdef ELF
+	data_section_label_number=0;
+# else
 	data_section_label_number=n_object_labels;
 	n_object_labels+=2;
-
+# endif
 	current_data_offset=CURRENT_DATA_OFFSET;
 
 	*last_object_label_l=new_object_label;
@@ -693,9 +696,12 @@ static void as_new_code_module (void)
 	new_object_label=fast_memory_allocate_type (struct object_label);
 	code_object_label=new_object_label;
 
+# ifdef ELF
+	code_section_label_number=0;
+# else
 	code_section_label_number=n_object_labels;
 	n_object_labels+=2;
-
+# endif
 	current_code_offset=CURRENT_CODE_OFFSET;
 
 	*last_object_label_l=new_object_label;
@@ -1914,9 +1920,9 @@ static void as_parameter (int code1,int code2,struct parameter *parameter)
 }
 
 /*
-	From The PowerPC Compiler WriterÕs Guide,
+	From The PowerPC Compiler WriterÃ•s Guide,
 	Warren, Henry S., Jr., IBM Research Report RC 18601 [1992]. Changing Division by a
-	Constant to Multiplication in TwoÕs Complement Arithmetic, (December 21),
+	Constant to Multiplication in TwoÃ•s Complement Arithmetic, (December 21),
 	Granlund, Torbjorn and Montgomery, Peter L. [1994]. SIGPLAN Notices, 29 (June), 61.
 */
 
@@ -1925,7 +1931,7 @@ struct ms magic (int d)
 {
 	int p;
 	unsigned int ad, anc, delta, q1, r1, q2, r2, t;
-	const unsigned int two31 = 2147483648;/* 231 */
+	const unsigned int two31 = 2147483648u;/* 231 */
 	struct ms mag;
 
 	ad = abs(d);
@@ -4349,6 +4355,42 @@ static void write_zstring (char *string)
 
 extern char *this_module_name;
 
+#if defined (ELF) && defined (FUNCTION_LEVEL_LINKING)
+static int compute_section_strings_size (int string_size_without_digits,int n_sections)
+{
+	int section_strings_size,max_n_digits,power10_max_n_digits;
+
+	section_strings_size=0;
+	max_n_digits=1;
+	power10_max_n_digits=10;
+	while (n_sections>power10_max_n_digits){
+		section_strings_size-=power10_max_n_digits;
+		++max_n_digits;
+		power10_max_n_digits*=10;
+	}
+	section_strings_size+=(string_size_without_digits+max_n_digits+1)*n_sections;
+
+	return section_strings_size;
+}
+
+static int n_digits (int n)
+{
+	int i,power10;
+
+	i=1;
+	power10=10;
+
+	while (n>=power10){
+		++i;
+		power10*=10;
+	}
+
+	return i;
+}
+
+static int n_sections;
+#endif
+
 static void write_file_header_and_section_headers (void)
 {
 #ifndef OMF
@@ -4379,7 +4421,7 @@ static void write_file_header_and_section_headers (void)
 		code_offset=0;
 		code_file_offset=end_section_headers_offset;
 		code_relocations_offset=code_file_offset+code_buffer_offset+data_buffer_offset;
-					
+
 		previous_code_object_label=NULL;
 
 		for_l (object_label,first_object_label,next){
@@ -4479,7 +4521,7 @@ static void write_file_header_and_section_headers (void)
 		data_offset=0;
 		data_file_offset=end_section_headers_offset+code_buffer_offset;
 		data_relocations_offset=data_file_offset+data_buffer_offset+n_code_relocations*10;
-			
+
 		previous_data_object_label=NULL;
 
 		for_l (object_label,first_object_label,next){
@@ -4567,6 +4609,134 @@ static void write_file_header_and_section_headers (void)
 #  endif
 # else
 	unsigned int offset;
+	int n_code_relocation_sections,n_data_relocation_sections;
+	int section_strings_size;
+	
+#  ifdef FUNCTION_LEVEL_LINKING
+	n_sections=n_code_sections+n_data_sections;
+
+	{
+		struct object_label *object_label,*previous_code_object_label,*previous_data_object_label;
+		struct relocation *code_relocation,*data_relocation;
+		int code_offset,data_offset;
+
+		code_relocation=first_code_relocation;		
+		code_offset=0;
+		n_code_relocation_sections=0;
+		previous_code_object_label=NULL;
+
+		data_relocation=first_data_relocation;		
+		data_offset=0;
+		n_data_relocation_sections=0;
+		previous_data_object_label=NULL;
+
+		section_strings_size=0;
+
+		for_l (object_label,first_object_label,next){
+			if (object_label->object_label_kind==CODE_CONTROL_SECTION){
+				if (previous_code_object_label!=NULL){
+					int code_section_length,n_code_relocations_in_section;
+					
+					code_section_length=object_label->object_label_offset-code_offset;
+					
+					n_code_relocations_in_section=0;
+					while (code_relocation!=NULL && 
+						(code_relocation->relocation_offset < code_offset+code_section_length
+						|| (code_relocation->relocation_offset==code_offset+code_section_length && code_relocation->relocation_kind==DUMMY_BRANCH_RELOCATION)))
+					{
+						code_relocation->relocation_offset-=code_offset;
+						++n_code_relocations_in_section;
+						
+						code_relocation=code_relocation->next;
+					}
+					
+					previous_code_object_label->object_label_length=code_section_length;
+					previous_code_object_label->object_label_n_relocations=n_code_relocations_in_section;
+					
+					code_offset+=code_section_length;
+					if (n_code_relocations_in_section>0){
+						section_strings_size+=12+n_digits (previous_code_object_label->object_label_section_n);
+						++n_code_relocation_sections;
+					}
+				}
+				
+				previous_code_object_label=object_label;
+			} else if (object_label->object_label_kind==DATA_CONTROL_SECTION){
+				if (previous_data_object_label!=NULL){
+					int data_section_length,n_data_relocations_in_section;
+					
+					data_section_length=object_label->object_label_offset-data_offset;
+					
+					n_data_relocations_in_section=0;
+					while (data_relocation!=NULL && data_relocation->relocation_offset < data_offset+data_section_length){
+						data_relocation->relocation_offset-=data_offset;
+						++n_data_relocations_in_section;
+						
+						data_relocation=data_relocation->next;
+					}
+					
+					previous_data_object_label->object_label_length=data_section_length;
+					previous_data_object_label->object_label_n_relocations=n_data_relocations_in_section;
+					
+					data_offset+=data_section_length;
+					if (n_data_relocations_in_section>0){
+						section_strings_size+=12+n_digits (previous_data_object_label->object_label_section_n);
+						++n_data_relocation_sections;
+					}
+				}
+				
+				previous_data_object_label=object_label;
+			}
+		}
+
+		if (previous_code_object_label!=NULL){
+			int code_section_length,n_code_relocations_in_section;
+			
+			code_section_length=code_buffer_offset-code_offset;
+			
+			n_code_relocations_in_section=0;
+			while (code_relocation!=NULL){
+				code_relocation->relocation_offset-=code_offset;
+				++n_code_relocations_in_section;
+							
+				code_relocation=code_relocation->next;
+			}
+
+			previous_code_object_label->object_label_n_relocations=n_code_relocations_in_section;
+			previous_code_object_label->object_label_length=code_section_length;
+
+			if (n_code_relocations_in_section>0){
+				section_strings_size+=12+n_digits (previous_code_object_label->object_label_section_n);
+				++n_code_relocation_sections;
+			}
+		}
+
+		if (previous_data_object_label!=NULL){
+			int data_section_length,n_data_relocations_in_section;
+			
+			data_section_length=data_buffer_offset-data_offset;
+			
+			n_data_relocations_in_section=0;
+			while (data_relocation!=NULL){
+				data_relocation->relocation_offset-=data_offset;
+				++n_data_relocations_in_section;
+							
+				data_relocation=data_relocation->next;
+			}
+
+			previous_data_object_label->object_label_n_relocations=n_data_relocations_in_section;
+			previous_data_object_label->object_label_length=data_section_length;
+
+			if (n_data_relocations_in_section>0){
+				section_strings_size+=12+n_digits (previous_data_object_label->object_label_section_n);
+				++n_data_relocation_sections;
+			}
+		}
+	}
+	
+	section_strings_size+=compute_section_strings_size (7,n_code_sections)+
+						  compute_section_strings_size (7,n_data_sections);
+#  endif
 
 	write_l (0x464c457f);
 	write_l (0x00010101);
@@ -4580,7 +4750,11 @@ static void write_file_header_and_section_headers (void)
 	write_l (0);
 	write_l (0x00000034);
 	write_l (0x00280000);
+#  ifdef FUNCTION_LEVEL_LINKING
+	write_l (0x00010000 | (n_sections+n_code_relocation_sections+n_data_relocation_sections+4));
+#  else
 	write_l (0x00010008);
+#  endif
 
 	write_l (0);
 	write_l (0);
@@ -4592,20 +4766,141 @@ static void write_file_header_and_section_headers (void)
 	write_l (0);
 	write_l (0);
 	write_l (0);
+#  ifdef FUNCTION_LEVEL_LINKING
+	offset=0xd4+40*(n_sections+n_code_relocation_sections+n_data_relocation_sections);
+#  else
 	offset=0x174;
+#  endif
 
 	write_l (1);
 	write_l (SHT_STRTAB);
 	write_l (0);
 	write_l (0);
 	write_l (offset);
-	write_l (64);
+#  ifdef FUNCTION_LEVEL_LINKING
+	write_l ((27+section_strings_size+3) & -4);
+#  else
+	write_l (60);
+#  endif
 	write_l (0);
 	write_l (0);
 	write_l (1);
 	write_l (0);
+#  ifdef FUNCTION_LEVEL_LINKING
+	offset+=(27+section_strings_size+3) & -4;
+#  else
 	offset+=60;
+#  endif
+#  ifdef FUNCTION_LEVEL_LINKING
+	{
+		struct object_label *object_label;
+		int code_offset,data_offset,code_relocations_offset,data_relocations_offset,section_string_offset;
 
+		code_offset=0;
+		section_string_offset=11;
+	
+		for_l (object_label,first_object_label,next){
+			if (object_label->object_label_kind==CODE_CONTROL_SECTION){
+				int code_section_length;
+				
+				code_section_length=object_label->object_label_length;
+					
+				write_l (section_string_offset);
+				write_l (SHT_PROGBITS);
+				write_l (SHF_ALLOC | SHF_EXECINSTR);
+				write_l (0);
+				write_l (offset+code_offset);
+				write_l (code_section_length);
+				write_l (0);
+				write_l (0);
+				write_l (4);
+				write_l (0);
+
+				section_string_offset+=8+n_digits (object_label->object_label_section_n);
+				code_offset+=code_section_length;
+			}
+		}
+		offset+=(code_offset+3) & -4;
+
+		data_offset=0;
+
+		for_l (object_label,first_object_label,next){
+			if (object_label->object_label_kind==DATA_CONTROL_SECTION){
+				int data_section_length;
+	
+				data_section_length=object_label->object_label_length;
+					
+				write_l (section_string_offset);
+				write_l (SHT_PROGBITS);
+				write_l (SHF_ALLOC | SHF_WRITE);
+				write_l (0);
+				write_l (offset+data_offset);
+				write_l (data_section_length);
+				write_l (0);
+				write_l (0);
+                write_l (object_label->object_section_align8 ? 8 : 4);
+				write_l (0);
+
+				section_string_offset+=8+n_digits (object_label->object_label_section_n);
+				data_offset+=data_section_length;
+			}
+		}
+
+		offset+=(data_offset+3) & -4;
+
+		code_relocations_offset=0;
+	
+		for_l (object_label,first_object_label,next){
+			if (object_label->object_label_kind==CODE_CONTROL_SECTION){
+				int n_code_relocations_in_section;
+			
+				n_code_relocations_in_section=object_label->object_label_n_relocations;
+				
+				if (n_code_relocations_in_section>0){
+					write_l (section_string_offset);
+					write_l (SHT_REL);
+					write_l (0);
+					write_l (0);
+					write_l (offset+code_relocations_offset);
+					write_l (8*n_code_relocations_in_section);
+					write_l (n_sections+n_code_relocation_sections+n_data_relocation_sections+2);
+					write_l (2+object_label->object_label_section_n);
+					write_l (4);
+					write_l (8);
+					section_string_offset+=12+n_digits (object_label->object_label_section_n);
+					code_relocations_offset+=8*n_code_relocations_in_section;
+				}
+			}
+		}
+		offset+=8*n_code_relocations;
+
+		data_relocations_offset=0;
+	
+		for_l (object_label,first_object_label,next){
+			if (object_label->object_label_kind==DATA_CONTROL_SECTION){
+				int n_data_relocations_in_section;
+			
+				n_data_relocations_in_section=object_label->object_label_n_relocations;
+				
+				if (n_data_relocations_in_section>0){
+					write_l (section_string_offset);
+					write_l (SHT_REL);
+					write_l (0);
+					write_l (0);
+					write_l (offset+data_relocations_offset);
+					write_l (8*n_data_relocations_in_section);
+					write_l (n_sections+n_code_relocation_sections+n_data_relocation_sections+2);
+					write_l (2+n_code_sections+object_label->object_label_section_n);
+					write_l (4);
+					write_l (8);
+					section_string_offset+=12+n_digits (object_label->object_label_section_n);
+					data_relocations_offset+=8*n_data_relocations_in_section;
+				}
+			}
+		}
+		offset+=8*n_data_relocations;
+	}
+#  else
 	write_l (11);
 	write_l (SHT_PROGBITS);
 	write_l (SHF_ALLOC | SHF_EXECINSTR);
@@ -4653,20 +4948,39 @@ static void write_file_header_and_section_headers (void)
 	write_l (4);
 	write_l (8);
 	offset+=8*n_data_relocations;
+#  endif
 
+#  ifdef FUNCTION_LEVEL_LINKING
+	write_l (11+section_strings_size);
+#  else
 	write_l (43);
+#  endif
 	write_l (SHT_SYMTAB);
 	write_l (0);
 	write_l (0);
 	write_l (offset);
+#  ifdef FUNCTION_LEVEL_LINKING
+	write_l (16*(n_object_labels+n_sections));
+	write_l (n_sections+n_code_relocation_sections+n_data_relocation_sections+3);
+	write_l (1+n_sections);
+#  else
 	write_l (16*n_object_labels);
 	write_l (7);
 	write_l (3);
+#  endif
 	write_l (4);
 	write_l (16);
+#  ifdef FUNCTION_LEVEL_LINKING
+	offset+=16*(n_object_labels+n_sections);
+#else
 	offset+=16*n_object_labels;
+#endif
 
+#  ifdef FUNCTION_LEVEL_LINKING
+	write_l (19+section_strings_size);
+#else
 	write_l (51);
+#endif
 	write_l (SHT_STRTAB);
 	write_l (0);
 	write_l (0);
@@ -4676,16 +4990,54 @@ static void write_file_header_and_section_headers (void)
 	write_l (0);
 	write_l (0);
 	write_l (0);
+
 	write_c (0);
 	write_zstring (".shstrtab");
+#  ifdef FUNCTION_LEVEL_LINKING
+	{
+		struct object_label *object_label;
+		int section_n;
+		char section_name[20];
+
+		for (section_n=0; section_n<n_code_sections; ++section_n){
+			sprintf (section_name,".text.m%d",section_n);
+			write_zstring (section_name);
+		}
+
+		for (section_n=0; section_n<n_data_sections; ++section_n){
+			sprintf (section_name,".data.m%d",section_n);
+			write_zstring (section_name);
+		}
+
+		for_l (object_label,first_object_label,next)
+			if (object_label->object_label_kind==CODE_CONTROL_SECTION && object_label->object_label_n_relocations>0){ 
+				sprintf (section_name,".rel.text.m%d",object_label->object_label_section_n);
+				write_zstring (section_name);
+			}
+	
+		for_l (object_label,first_object_label,next)
+			if (object_label->object_label_kind==DATA_CONTROL_SECTION && object_label->object_label_n_relocations>0){ 
+				sprintf (section_name,".rel.data.m%d",object_label->object_label_section_n);
+				write_zstring (section_name);
+			}
+	}
+#  else
 	write_zstring (".text");
 	write_zstring (".data");
 	write_zstring (".rel.text");
 	write_zstring (".rel.data");
+#  endif
 	write_zstring (".symtab");
 	write_zstring (".strtab");
 
-	write_c (0);
+	if (((27+section_strings_size) & 3)!=0){
+		int n;
+
+		n=4-((27+section_strings_size) & 3);
+		do {
+			write_c (0);
+		} while (--n);
+	}
 # endif
 #else
 	int this_module_name_length;
@@ -5358,7 +5710,9 @@ static void relocate_code (void)
 #ifdef FUNCTION_LEVEL_LINKING
 					if (label->label_object_label!=relocation->relocation_object_label){
 						v=label->label_offset-label->label_object_label->object_label_offset;
-					
+# ifdef ELF
+						v-=4;
+# endif	
 						++n_code_relocations;
 						relocation_p=&relocation->next;
 						break;
@@ -5578,7 +5932,7 @@ static void write_object_labels (void)
 	write_l (0);
 	write_l (0);
 	write_l (0);
-
+# ifndef FUNCTION_LEVEL_LINKING
 	write_l (1);
 	write_l (0);
 	write_l (0);
@@ -5592,9 +5946,31 @@ static void write_object_labels (void)
 	write_c (ELF32_ST_INFO (STB_LOCAL,STT_SECTION));
 	write_c (0);
 	write_w (3);
+#else
+	{
+		int section_n;
+
+		for (section_n=0; section_n<n_code_sections; ++section_n){
+			write_l (0);
+			write_l (0);
+			write_l (0);
+			write_c (ELF32_ST_INFO (STB_LOCAL,STT_SECTION));
+			write_c (0);
+			write_w (2+section_n);
+		}
+
+		for (section_n=0; section_n<n_data_sections; ++section_n){
+			write_l (0);
+			write_l (0);
+			write_l (0);
+			write_c (ELF32_ST_INFO (STB_LOCAL,STT_SECTION));
+			write_c (0);
+			write_w (2+n_code_sections+section_n);
+		}
+	}
+# endif
 #endif
 
-	
 	for_l (object_label,first_object_label,next){
 		switch (object_label->object_label_kind){
 			case CODE_CONTROL_SECTION:
@@ -5602,23 +5978,23 @@ static void write_object_labels (void)
 #ifndef ELF
 				write_string_8 (".text");
 				
-#ifdef FUNCTION_LEVEL_LINKING
+# ifdef FUNCTION_LEVEL_LINKING
 				write_l (0);
 				write_w (1+object_label->object_label_section_n);
-#else
+# else
 				write_l (object_label->object_label_offset);
 				write_w (1);
-#endif
+# endif
 				write_w (0);
 				write_c (C_STAT);
 				write_c (1);
 				
 				write_l (object_label->object_label_length);
-#ifdef FUNCTION_LEVEL_LINKING
+# ifdef FUNCTION_LEVEL_LINKING
 				write_w (object_label->object_label_n_relocations);
-#else
+# else
 				write_w (n_code_relocations);
-#endif
+# endif
 				write_w (0);
 				write_l (0);
 				write_l (0);
@@ -5634,23 +6010,23 @@ static void write_object_labels (void)
 #ifndef ELF
 				write_string_8 (".data");
 				
-#ifdef FUNCTION_LEVEL_LINKING
+# ifdef FUNCTION_LEVEL_LINKING
 				write_l (0);
 				write_w (1+n_code_sections+object_label->object_label_section_n);
-#else
+# else
 				write_l (object_label->object_label_offset);
 				write_w (2);
-#endif
+# endif
 				write_w (0);
 				write_c (C_STAT);
 				write_c (1);
 				
 				write_l (object_label->object_label_length);
-#ifdef FUNCTION_LEVEL_LINKING
+# ifdef FUNCTION_LEVEL_LINKING
 				write_w (object_label->object_label_n_relocations);
-#else
+# else
 				write_w (n_data_relocations);
-#endif
+# endif
 				write_w (0);
 				write_l (0);
 				write_l (0);
@@ -5663,7 +6039,6 @@ static void write_object_labels (void)
 				struct label *label;
 				
 				label=object_label->object_label_label;
-				
 #ifdef ELF
 				write_l (object_label->object_label_string_offset);
 				write_l (0);
@@ -5692,14 +6067,21 @@ static void write_object_labels (void)
 				struct label *label;
 				
 				label=object_label->object_label_label;
-			
 #ifdef ELF
 				write_l (object_label->object_label_string_offset);
+# ifdef FUNCTION_LEVEL_LINKING
+				write_l (label->label_offset - label->label_object_label->object_label_offset);
+# else
 				write_l (label->label_offset);
+# endif
 				write_l (0);
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_FUNC));
 				write_c (0);
+# ifdef FUNCTION_LEVEL_LINKING
+				write_w (2+label->label_object_label->object_label_section_n);
+# else
 				write_w (2);
+# endif
 #else
 				if (object_label->object_label_string_offset==0)
 					write_string_8 (label->label_name);
@@ -5726,14 +6108,25 @@ static void write_object_labels (void)
 				struct label *label;
 				
 				label=object_label->object_label_label;
-			
 #ifdef ELF
 				write_l (object_label->object_label_string_offset);
+# ifdef FUNCTION_LEVEL_LINKING
+#  ifdef RELOCATIONS_RELATIVE_TO_EXPORTED_DATA_LABEL
+				write_l (label->label_offset - current_text_or_data_object_label->object_label_offset);
+#  else
+				write_l (label->label_offset - label->label_object_label->object_label_offset);
+# endif
+# else
 				write_l (label->label_offset);
+# endif
 				write_l (0);
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_OBJECT));
 				write_c (0);
+# ifdef FUNCTION_LEVEL_LINKING
+				write_w (2+n_code_sections+label->label_object_label->object_label_section_n);
+# else
 				write_w (3);
+# endif
 #else
 				if (object_label->object_label_string_offset==0)
 					write_string_8 (label->label_name);
@@ -5803,6 +6196,29 @@ static void write_string_table (void)
 #define R_DIR32 6
 #define R_PCLONG 20
 
+#if defined (ELF) && defined (FUNCTION_LEVEL_LINKING)
+static int elf_label_number (struct label *label)
+{
+	int label_n;
+					
+	label_n=label->label_id;
+	if (label_n==TEXT_LABEL_ID){
+		label_n=label->label_object_label->object_label_number;
+		if (label_n==0)
+			return 1+label->label_object_label->object_label_section_n;
+		else
+			return label_n+n_sections;
+	} else if (label_n==DATA_LABEL_ID){
+		label_n=label->label_object_label->object_label_number;
+		if (label_n==0)
+			return 1+n_code_sections+label->label_object_label->object_label_section_n;
+		else
+			return label_n+n_sections;
+	} else
+			return label_n+n_sections;
+}
+#endif
+
 static void write_code_relocations (void)
 {
 	struct relocation *relocation;
@@ -5825,7 +6241,11 @@ static void write_code_relocations (void)
 
 				write_l (relocation->relocation_offset);
 #ifdef ELF
+# ifdef FUNCTION_LEVEL_LINKING
+				write_l (ELF32_R_INFO (elf_label_number (label),R_386_PC32));
+# else
 				write_l (ELF32_R_INFO (label->label_id,R_386_PC32));
+# endif
 #else
 # ifdef FUNCTION_LEVEL_LINKING
 				if (label->label_id==TEXT_LABEL_ID || label->label_id==DATA_LABEL_ID)
@@ -5851,7 +6271,11 @@ static void write_code_relocations (void)
 
 				write_l (relocation->relocation_offset);
 #ifdef ELF
+# ifdef FUNCTION_LEVEL_LINKING
+				write_l (ELF32_R_INFO (elf_label_number (label),R_386_32));
+# else
 				write_l (ELF32_R_INFO (label->label_id,R_386_32));
+# endif
 #else
 # ifdef FUNCTION_LEVEL_LINKING
 				if (label->label_id==TEXT_LABEL_ID || label->label_id==DATA_LABEL_ID)
@@ -5873,14 +6297,18 @@ static void write_code_relocations (void)
 					internal_error_in_function ("write_code_relocations");
 
 				write_l (relocation->relocation_offset - 4);
+#ifdef ELF
+				write_l (ELF32_R_INFO (elf_label_number (label),R_386_NONE));
+#else
 				if (label->label_id==TEXT_LABEL_ID || label->label_id==DATA_LABEL_ID)
 					write_l (label->label_object_label->object_label_number);
 				else
 					write_l (label->label_id);
-#if 1
+# if 1
 				write_w (R_ABS);
-#else
+# else
 				write_w (R_PCLONG);
+# endif
 #endif
 				break;
 			}
@@ -5911,7 +6339,11 @@ static void write_data_relocations (void)
 
 				write_l (relocation->relocation_offset);
 #ifdef ELF
+# ifdef FUNCTION_LEVEL_LINKING
+				write_l (ELF32_R_INFO (elf_label_number (label),R_386_32));
+# else
 				write_l (ELF32_R_INFO (label->label_id,R_386_32));
+# endif
 #else
 # ifdef FUNCTION_LEVEL_LINKING
 				if (label->label_id==TEXT_LABEL_ID || label->label_id==DATA_LABEL_ID)
