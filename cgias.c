@@ -4932,12 +4932,12 @@ static void adjust_label_offsets (void)
 #endif
 			{
 				LABEL *label;
-				int label_offset;
+				int label__offset;
 				
 				label=labels->block_label_label;
-				label_offset=label->label_offset;
+				label__offset=label->label_offset;
 				
-				while (call_and_jump!=NULL && call_and_jump->cj_jump.label_offset<label_offset){
+				while (call_and_jump!=NULL && call_and_jump->cj_jump.label_offset<label__offset){
 					relocation=calculate_new_label_offset
 						(&call_and_jump->cj_jump.label_offset,&offset_difference,&new_offset_difference,relocation);
 										
@@ -4947,7 +4947,7 @@ static void adjust_label_offsets (void)
 #ifdef FUNCTION_LEVEL_LINKING
 				while (object_label!=NULL){
 					if (object_label->object_label_kind==CODE_CONTROL_SECTION){
-						if (object_label->object_label_offset!=label_offset)
+						if (object_label->object_label_offset!=label__offset)
 							break;
 						
 						relocation=calculate_new_label_offset
