@@ -78,7 +78,7 @@ void w_as_internal_label_value (int label_id)
 
 static int in_data_section;
 
-#ifdef _WINDOWS_
+#ifdef FUNCTION_LEVEL_LINKING
 void w_as_new_data_module (void)
 {
 }
