@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #ifdef __MWERKS__
 #	define I486
@@ -1121,6 +1122,13 @@ static void as_r_a (int code,int reg1,LABEL *label)
 	store_label_in_code_section (label);
 }
 
+static void as_sar_i_r (int i,int reg)
+{
+	store_c (0301);
+	store_c (0300 | (7<<3) | reg_num (reg));
+	store_c (i);
+}
+
 static void as_move_parameter_reg (struct parameter *parameter,int reg)
 {
 	switch (parameter->parameter_type){
@@ -1904,6 +1912,188 @@ static void as_parameter (int code1,int code2,struct parameter *parameter)
 	}
 }
 
+static void as_div_rem_i_instruction (struct instruction *instruction,int compute_remainder)
+{
+	int s_reg1,s_reg2,s_reg3,i,sd_reg,i_reg,tmp_reg,abs_i;
+	struct ms ms;
+
+	if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
+		internal_error_in_function ("as_div_rem_i_instruction");
+		
+	i=instruction->instruction_parameters[0].parameter_data.i;
+
+	if (! ((i>1 || (i<-1 && i!=0x80000000))))
+		internal_error_in_function ("as_div_rem_i_instruction");
+	
+	abs_i=abs (i);
+
+	if (compute_remainder)
+		i=abs_i;
+
+	ms=magic (abs_i);
+
+	sd_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	tmp_reg=instruction->instruction_parameters[2].parameter_data.reg.r;
+
+	if (sd_reg==tmp_reg)
+		internal_error_in_function ("as_div_rem_i_instruction");		
+
+	if (sd_reg==REGISTER_A1){
+		if (tmp_reg!=REGISTER_D0)
+			as_move_r_r (REGISTER_D0,tmp_reg);
+		as_move_r_r (REGISTER_A1,REGISTER_O0);
+		
+		s_reg1=sd_reg;
+		s_reg2=REGISTER_O0;
+		i_reg=REGISTER_D0;
+	} else if (sd_reg==REGISTER_D0){
+		if (tmp_reg!=REGISTER_A1)
+			as_move_r_r (REGISTER_A1,tmp_reg);
+		as_move_r_r (REGISTER_D0,REGISTER_O0);
+
+		s_reg1=REGISTER_A1;
+		s_reg2=REGISTER_O0;
+		i_reg=REGISTER_A1;
+	} else {
+		if (tmp_reg==REGISTER_D0)
+			as_move_r_r (REGISTER_A1,REGISTER_O0);			
+		else if (tmp_reg==REGISTER_A1)
+			as_move_r_r (REGISTER_D0,REGISTER_O0);						
+		else {
+			as_move_r_r (REGISTER_D0,REGISTER_O0);
+			as_move_r_r (REGISTER_A1,tmp_reg);			
+		}
+		
+		s_reg1=sd_reg;
+		s_reg2=sd_reg;
+		i_reg=REGISTER_D0;
+	}
+
+	as_move_i_r (ms.m,i_reg);
+
+	as_r (0367,0050,s_reg1); /* imul */
+
+	if (compute_remainder)
+		as_move_r_r (s_reg2,REGISTER_D0);
+
+	if (ms.m<0)
+		as_r_r (0003,s_reg2,REGISTER_A1); /* add */
+
+	if (compute_remainder){
+		if (s_reg2==sd_reg && s_reg2!=REGISTER_D0 && s_reg2!=REGISTER_A1){
+			s_reg3=s_reg2;
+			s_reg2=REGISTER_D0;
+		} else
+			s_reg3=REGISTER_D0;
+	}
+
+	if (i>=0){
+		/* shr */
+		store_c (0301);
+		store_c (0300 | (5<<3) | reg_num (s_reg2));
+		store_c (31);
+	} else
+		as_sar_i_r (31,s_reg2);
+
+	if (ms.s>0)
+		as_sar_i_r (ms.s,REGISTER_A1);
+
+	if (!compute_remainder){
+		if (sd_reg==REGISTER_A1){
+			if (i>=0)
+				as_r_r (0003,s_reg2,REGISTER_A1); /* add */
+			else {
+				as_r_r (0053,REGISTER_A1,s_reg2); /* sub */
+				as_move_r_r (s_reg2,sd_reg);
+			}
+		} else if (sd_reg==REGISTER_D0){
+			struct index_registers index_registers;
+
+			if (i>=0){
+				index_registers.a_reg.r=REGISTER_A1;
+				index_registers.d_reg.r=s_reg2;
+				
+				/* lea */
+				as_x_r (00215,0,&index_registers,sd_reg);
+			} else {
+				as_move_r_r (s_reg2,sd_reg);				
+				as_r_r (0053,REGISTER_A1,sd_reg);/* sub */
+			}
+		} else {
+			if (i>=0)
+				as_r_r (0003,REGISTER_A1,s_reg2); /* add */ /* s_reg2==sd_reg */
+			else
+				as_r_r (0053,REGISTER_A1,s_reg2); /* sub */ /* s_reg2==sd_reg */
+		}
+	} else {
+		int r,i2;
+		
+		as_r_r (0003,s_reg2,REGISTER_A1); /* add */
+
+		i2=i & (i-1);
+		if ((i2 & (i2-1))==0){
+			unsigned int n;
+			int n_shifts;
+
+			n=i;
+			
+			n_shifts=0;
+			while (n>0){
+				while ((n & 1)==0){
+					n>>=1;
+					++n_shifts;
+				}
+				
+				if (n_shifts>0){
+					/* shl */
+					store_c (0301);
+					store_c (0300 | (4<<3) | reg_num (REGISTER_A1));
+					store_c (n_shifts);
+				}
+				
+				as_r_r (0053,REGISTER_A1,s_reg3); /* sub */
+
+				n>>=1;
+				n_shifts=1;
+			}
+		} else {
+			/* imul */
+			r=reg_num (REGISTER_A1);
+			if ((signed char)i==i){
+				store_c (0153);
+				store_c (0300 | (r<<3) | r);
+				store_c (i);
+			} else {
+				store_c (0151);
+				store_c (0300 | (r<<3) | r);
+				store_l (i);
+			}
+
+			as_r_r (0053,REGISTER_A1,s_reg3); /* sub */
+		}
+		
+		if (sd_reg!=s_reg3)
+			as_move_r_r (s_reg3,sd_reg);
+	}
+
+	if (sd_reg==REGISTER_A1){
+		if (tmp_reg!=REGISTER_D0)
+			as_move_r_r (tmp_reg,REGISTER_D0);
+	} else if (sd_reg==REGISTER_D0){
+		if (tmp_reg!=REGISTER_A1)
+			as_move_r_r (tmp_reg,REGISTER_A1);
+	} else {
+		if (tmp_reg==REGISTER_D0)
+			as_move_r_r (REGISTER_O0,REGISTER_A1);
+		else if (tmp_reg==REGISTER_A1)
+			as_move_r_r (REGISTER_O0,REGISTER_D0);						
+		else {
+			as_move_r_r (REGISTER_O0,REGISTER_D0);			
+			as_move_r_r (tmp_reg,REGISTER_A1);			
+		}
+	}
+}
+
 static void as_div_instruction (struct instruction *instruction)
 {
 	int d_reg;
@@ -1932,17 +2122,11 @@ static void as_div_instruction (struct instruction *instruction)
 		as_move_r_r (d_reg,REGISTER_O0);
 
 		if (log2i==1){
-			/* sar */
-			store_c (0301);
-			store_c (0300 | (7<<3) | reg_num (REGISTER_O0));
-			store_c (31);
+			as_sar_i_r (31,REGISTER_O0);
 
 			as_r_r (0053,REGISTER_O0,d_reg); /* sub */
 		} else {
-			/* sar */
-			store_c (0301);
-			store_c (0300 | (7<<3) | reg_num (d_reg));
-			store_c (31);
+			as_sar_i_r (31,d_reg);
 
 			/* and */
 			if (d_reg==EAX)
@@ -1954,10 +2138,7 @@ static void as_div_instruction (struct instruction *instruction)
 			as_r_r (0003,REGISTER_O0,d_reg); /* add */
 		}
 		
-		/* sar */
-		store_c (0301);
-		store_c (0300 | (7<<3) | reg_num (d_reg));
-		store_c (log2i);
+		as_sar_i_r (log2i,d_reg);
 
 		return;
 	}
@@ -2067,6 +2248,9 @@ static void as_rem_instruction (struct instruction *instruction)
 		int i,log2i;
 		
 		i=instruction->instruction_parameters[0].parameter_data.i;
+
+		if (i<0 && i!=0x80000000)
+			i=-i;
 		
 		if (! ((i & (i-1))==0 && i>1)){
 			internal_error_in_function ("as_rem_instruction");
@@ -2089,17 +2273,11 @@ static void as_rem_instruction (struct instruction *instruction)
 				as_r (0201,040,d_reg);
 			store_l (1);
 
-			/* sar */
-			store_c (0301);
-			store_c (0300 | (7<<3) | reg_num (REGISTER_O0));
-			store_c (31);
+			as_sar_i_r (31,REGISTER_O0);
 
 			as_r_r (0063,REGISTER_O0,d_reg); /* xor */
 		} else {
-			/* sar */
-			store_c (0301);
-			store_c (0300 | (7<<3) | reg_num (REGISTER_O0));
-			store_c (31);
+			as_sar_i_r (31,REGISTER_O0);
 
 			/* and */
 			if (REGISTER_O0==EAX)
@@ -3590,8 +3768,14 @@ static void as_instructions (struct instruction *instruction)
 			case IDIV:
 				as_div_instruction (instruction);
 				break;
+			case IDIVI:
+				as_div_rem_i_instruction (instruction,0);
+				break;
 			case IMOD:
 				as_rem_instruction (instruction);
+				break;
+			case IREMI:
+				as_div_rem_i_instruction (instruction,1);
 				break;
 			case IAND:
 				as_logic_instruction (instruction,0043,040,045);

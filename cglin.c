@@ -3384,11 +3384,34 @@ static void linearize_div_mod_operator (int i_instruction_code,INSTRUCTION_GRAPH
 	to_data_addressing_mode (&ad_1);
 
 # ifdef I486
-	if ((ad_1.ad_mode==P_IMMEDIATE && !((ad_1.ad_offset & (ad_1.ad_offset-1))==0 && (i_instruction_code==IMOD ? ad_1.ad_offset>1 : ad_1.ad_offset>0))) || ad_1.ad_mode==P_INDEXED)
-		in_data_register (&ad_1);
+	if (ad_1.ad_mode==P_IMMEDIATE){
+		int i;
+		
+		i=ad_1.ad_offset;
+		if (i_instruction_code==IMOD && i<0 && i!=0x80000000)
+			i=-i;
+		
+		if ((i & (i-1))==0 && (i_instruction_code==IMOD ? i>1 : i>0))
+			instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
+		else if (i>1 || (i<-1 && i!=0x80000000)){
+			int tmp_reg;
+			
+			tmp_reg=get_dregister();
+			instruction_ad_r_r (i_instruction_code==IDIV ? IDIVI : IREMI,&ad_1,ad_2.ad_register,tmp_reg);
+			free_dregister (tmp_reg);
+		} else {
+			in_data_register (&ad_1);
+			instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
+		}
+	} else {
+		if (ad_1.ad_mode==P_INDEXED)
+			in_data_register (&ad_1);
+		instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
+	}
+# else
+	instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
 # endif
 
-	instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
 	--*ad_2.ad_count_p;
 	reg_1=ad_2.ad_register;
 	

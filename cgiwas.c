@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #define FSUB_FDIV_REVERSED
 #undef GENERATIONAL_GC
@@ -18,6 +19,7 @@
 #include "cgiconst.h"
 #include "cgcode.h"
 #include "cginstructions.h"
+#include "cgias.h"
 
 #include "cgiwas.h"
 
@@ -733,6 +735,18 @@ static void w_as_register_register_newline (int reg1,int reg2)
 	w_as_newline();
 }
 
+static void w_as_opcode_register_register_newline (char *opcode,int reg1,int reg2)
+{
+	w_as_opcode (opcode);
+	w_as_register_register_newline (reg1,reg2);
+}
+
+static void w_as_movl_register_register_newline (int reg1,int reg2)
+{
+	w_as_opcode_movl();
+	w_as_register_register_newline (reg1,reg2);
+}
+
 static void w_as_immediate_register_newline (int i,int reg)
 {
 	if (!intel_asm){
@@ -885,8 +899,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 				
 				reg=parameter.parameter_data.reg.r;
 				
-				w_as_opcode ("xchg");
-				w_as_register_register_newline (reg,REGISTER_D0);
+				w_as_opcode_register_register_newline ("xchg",reg,REGISTER_D0);
 
 				reg1=instruction->instruction_parameters[1].parameter_data.reg.r;
 				if (reg1==reg)
@@ -905,8 +918,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 				}
 				w_as_newline();
 
-				w_as_opcode ("xchg");
-				w_as_register_register_newline (reg,REGISTER_D0);
+				w_as_opcode_register_register_newline ("xchg",reg,REGISTER_D0);
 
 				return;
 			}
@@ -996,8 +1008,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 				
 				reg=parameter.parameter_data.reg.r;
 				
-				w_as_opcode ("xchg");
-				w_as_register_register_newline (reg,REGISTER_D0);
+				w_as_opcode_register_register_newline ("xchg",reg,REGISTER_D0);
 
 				reg1=instruction->instruction_parameters[1].parameter_data.ir->a_reg.r;
 				reg2=instruction->instruction_parameters[1].parameter_data.ir->d_reg.r;
@@ -1026,8 +1037,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 				}
 				w_as_newline();
 
-				w_as_opcode ("xchg");
-				w_as_register_register_newline (reg,REGISTER_D0);
+				w_as_opcode_register_register_newline ("xchg",reg,REGISTER_D0);
 
 				return;
 			}
@@ -1135,8 +1145,7 @@ static void w_as_shift_instruction (struct instruction *instruction,char *opcode
 	} else {
 		int r;
 		
-		w_as_opcode_movl();
-		w_as_register_register_newline (REGISTER_A0,REGISTER_O0);
+		w_as_movl_register_register_newline (REGISTER_A0,REGISTER_O0);
 
 		w_as_opcode_movl();
 		if (intel_asm)
@@ -1158,8 +1167,7 @@ static void w_as_shift_instruction (struct instruction *instruction,char *opcode
 			fprintf (assembly_file,",cl");
 		w_as_newline();
 
-		w_as_opcode_movl();
-		w_as_register_register_newline (REGISTER_O0,REGISTER_A0);
+		w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A0);
 	}
 }
 
@@ -1381,13 +1389,11 @@ static void w_as_float_branch_instruction (struct instruction *instruction,int n
 	
 	r=instruction->instruction_parameters[0].parameter_data.reg.r;
 
-	w_as_opcode_movl();
-	w_as_register_register_newline (REGISTER_D0,REGISTER_O0);
+	w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
 
 	as_test_floating_point_condition_code (n);
 
-	w_as_opcode_movl();
-	w_as_register_register_newline (REGISTER_O0,REGISTER_D0);
+	w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);
 
 	switch (n){
 		case 0:
@@ -1421,8 +1427,7 @@ static void w_as_set_condition_instruction (struct instruction *instruction,char
 	r=instruction->instruction_parameters[0].parameter_data.reg.r;
 	
 	if (r==REGISTER_A3 || r==REGISTER_A4){
-		w_as_opcode_movl();
-		w_as_register_register_newline (REGISTER_D0,REGISTER_O0);
+		w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
 		
 		w_as_opcode (opcode);
 		fprintf (assembly_file,intel_asm ? "al" : "%%al");
@@ -1436,8 +1441,7 @@ static void w_as_set_condition_instruction (struct instruction *instruction,char
 			w_as_comma_register (r);
 		w_as_newline();
 
-		w_as_opcode_movl();
-		w_as_register_register_newline (REGISTER_O0,REGISTER_D0);
+		w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);
 	} else {
 		char *reg_s;
 		
@@ -1475,10 +1479,8 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 
 	r=instruction->instruction_parameters[0].parameter_data.reg.r;
 
-	if (r!=REGISTER_D0){	
-		w_as_opcode_movl();
-		w_as_register_register_newline (REGISTER_D0,r);
-	}
+	if (r!=REGISTER_D0)
+		w_as_movl_register_register_newline (REGISTER_D0,r);
 
 	as_test_floating_point_condition_code (n);
 
@@ -1507,9 +1509,229 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 		w_as_comma_register (REGISTER_D0);
 	w_as_newline();
 
-	if (r!=REGISTER_D0){
-		w_as_opcode ("xchg");
-		w_as_register_register_newline (r,REGISTER_D0);
+	if (r!=REGISTER_D0)
+		w_as_opcode_register_register_newline ("xchg",r,REGISTER_D0);
+}
+
+/*
+	From The PowerPC Compiler Writer’s Guide,
+	Warren, Henry S., Jr., IBM Research Report RC 18601 [1992]. Changing Division by a
+	Constant to Multiplication in Two’s Complement Arithmetic, (December 21),
+	Granlund, Torbjorn and Montgomery, Peter L. [1994]. SIGPLAN Notices, 29 (June), 61.
+*/
+
+struct ms magic (int d)
+	/* must have 2 <= d <= 231-1 or -231 <= d <= -2 */
+{
+	int p;
+	unsigned int ad, anc, delta, q1, r1, q2, r2, t;
+	const unsigned int two31 = 2147483648;/* 231 */
+	struct ms mag;
+
+	ad = abs(d);
+	t = two31 + ((unsigned int)d >> 31);
+	anc = t - 1 - t%ad; /* absolute value of nc */
+	p = 31;				/* initialize p */
+	q1 = two31/anc;		/* initialize q1 = 2p/abs(nc) */
+	r1 = two31 - q1*anc;/* initialize r1 = rem(2p,abs(nc)) */
+	q2 = two31/ad;		/* initialize q2 = 2p/abs(d) */
+	r2 = two31 - q2*ad;	/* initialize r2 = rem(2p,abs(d)) */
+
+	do {
+		p = p + 1;
+		q1 = 2*q1; 		/* update q1 = 2p/abs(nc) */
+		r1 = 2*r1;	 	/* update r1 = rem(2p/abs(nc)) */
+		if (r1 >= anc) {/* must be unsigned comparison */
+			q1 = q1 + 1;
+			r1 = r1 - anc;
+		}
+		q2 = 2*q2;		/* update q2 = 2p/abs(d) */
+		r2 = 2*r2;		/* update r2 = rem(2p/abs(d)) */
+		if (r2 >= ad) { /* must be unsigned comparison */
+			q2 = q2 + 1;
+			r2 = r2 - ad;
+		}
+		delta = ad - r2;
+	} while (q1 < delta || (q1 == delta && r1 == 0));
+
+	mag.m = q2 + 1;
+	if (d < 0) mag.m = -mag.m;	/* resulting magic number */
+	mag.s = p - 32;				/* resulting shift */
+
+	return mag;
+}
+
+static void w_as_div_rem_i_instruction (struct instruction *instruction,int compute_remainder)
+{
+	int s_reg1,s_reg2,s_reg3,i,sd_reg,i_reg,tmp_reg,abs_i;
+	struct ms ms;
+
+	if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
+		internal_error_in_function ("w_as_div_rem_i_instruction");
+		
+	i=instruction->instruction_parameters[0].parameter_data.i;
+
+	if (! ((i>1 || (i<-1 && i!=0x80000000))))
+		internal_error_in_function ("w_as_div_rem_i_instruction");
+	
+	abs_i=abs (i);
+
+	if (compute_remainder)
+		i=abs_i;
+
+	ms=magic (abs_i);
+	
+	sd_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	tmp_reg=instruction->instruction_parameters[2].parameter_data.reg.r;
+
+	if (sd_reg==tmp_reg)
+		internal_error_in_function ("w_as_div_rem_i_instruction");		
+
+	if (sd_reg==REGISTER_A1){
+		if (tmp_reg!=REGISTER_D0)
+			w_as_movl_register_register_newline (REGISTER_D0,tmp_reg);
+
+		w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+		
+		s_reg1=sd_reg;
+		s_reg2=REGISTER_O0;
+		i_reg=REGISTER_D0;
+	} else if (sd_reg==REGISTER_D0){
+		if (tmp_reg!=REGISTER_A1)
+			w_as_movl_register_register_newline (REGISTER_A1,tmp_reg);			
+		
+		w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
+
+		s_reg1=REGISTER_A1;
+		s_reg2=REGISTER_O0;
+		i_reg=REGISTER_A1;
+	} else {
+		if (tmp_reg==REGISTER_D0)
+			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);			
+		else if (tmp_reg==REGISTER_A1)
+			w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);						
+		else {
+			w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
+			w_as_movl_register_register_newline (REGISTER_A1,tmp_reg);
+		}
+		
+		s_reg1=sd_reg;
+		s_reg2=sd_reg;
+		i_reg=REGISTER_D0;
+	}
+
+	w_as_opcode_movl();
+	w_as_immediate_register_newline (ms.m,i_reg);
+
+	w_as_opcode (intel_asm ? "imul" : "imull");
+	w_as_register (s_reg1);
+	w_as_newline();
+	
+	if (compute_remainder)
+		w_as_movl_register_register_newline (s_reg2,REGISTER_D0);
+
+	if (ms.m<0)
+		w_as_opcode_register_register_newline ("add",s_reg2,REGISTER_A1);
+
+	if (compute_remainder){
+		if (s_reg2==sd_reg && s_reg2!=REGISTER_D0 && s_reg2!=REGISTER_A1){
+			s_reg3=s_reg2;
+			s_reg2=REGISTER_D0;
+		} else
+			s_reg3=REGISTER_D0;
+	}
+
+	w_as_opcode (i>=0 ? "shr" : "sar");
+	w_as_immediate_register_newline (31,s_reg2);
+
+	if (ms.s>0){
+		w_as_opcode ("sar");
+		w_as_immediate_register_newline (ms.s,REGISTER_A1);
+	}
+
+	if (!compute_remainder){
+		if (sd_reg==REGISTER_A1){
+			if (i>=0)
+				w_as_opcode_register_register_newline ("add",s_reg2,REGISTER_A1);
+			else {
+				w_as_opcode_register_register_newline ("sub",REGISTER_A1,s_reg2);
+				w_as_movl_register_register_newline (s_reg2,sd_reg);
+			}
+		} else if (sd_reg==REGISTER_D0){
+			struct index_registers index_registers;
+
+			if (i>=0){
+				index_registers.a_reg.r=REGISTER_A1;
+				index_registers.d_reg.r=s_reg2;
+						
+				w_as_opcode (intel_asm ? "lea" : "leal");
+				if (!intel_asm)
+					w_as_register_comma (sd_reg);
+				w_as_indexed (0,&index_registers);
+				if (intel_asm)
+					w_as_comma_register (sd_reg);
+				w_as_newline();
+			} else {
+				w_as_movl_register_register_newline (s_reg2,sd_reg);
+				w_as_opcode_register_register_newline ("sub",REGISTER_A1,sd_reg);			
+			}
+		} else
+			w_as_opcode_register_register_newline (i>=0 ? "add" : "sub",REGISTER_A1,s_reg2); /* s_reg2==sd_reg */
+	} else {
+		int i2;
+		
+		w_as_opcode_register_register_newline ("add",s_reg2,REGISTER_A1);
+
+		i2=i & (i-1);
+		if ((i2 & (i2-1))==0){
+			unsigned int n;
+			int n_shifts;
+
+			n=i;
+			
+			n_shifts=0;
+			while (n>0){
+				while ((n & 1)==0){
+					n>>=1;
+					++n_shifts;
+				}
+				
+				if (n_shifts>0){
+					w_as_opcode ("shl");
+					w_as_immediate_register_newline (n_shifts,REGISTER_A1);
+				}
+				
+				w_as_opcode_register_register_newline ("sub",REGISTER_A1,s_reg3);
+
+				n>>=1;
+				n_shifts=1;
+			}
+		} else {
+			w_as_opcode (intel_asm ? "imul" : "imull");
+			w_as_immediate_register_newline (i,REGISTER_A1);
+
+			w_as_opcode_register_register_newline ("sub",REGISTER_A1,s_reg3);
+		}
+		
+		if (sd_reg!=s_reg3)
+			w_as_movl_register_register_newline (s_reg3,sd_reg);
+	}
+
+	if (sd_reg==REGISTER_A1){
+		if (tmp_reg!=REGISTER_D0)
+			w_as_movl_register_register_newline (tmp_reg,REGISTER_D0);
+	} else if (sd_reg==REGISTER_D0){
+		if (tmp_reg!=REGISTER_A1)
+			w_as_movl_register_register_newline (tmp_reg,REGISTER_A1);
+	} else {
+		if (tmp_reg==REGISTER_D0)
+			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
+		else if (tmp_reg==REGISTER_A1)
+			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);						
+		else {
+			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);			
+			w_as_movl_register_register_newline (tmp_reg,REGISTER_A1);			
+		}
 	}
 }
 
@@ -1524,50 +1746,46 @@ static void w_as_div_instruction (struct instruction *instruction)
 		
 		i=instruction->instruction_parameters[0].parameter_data.i;
 		
-		if (! ((i & (i-1))==0 && i>0)){
+		if ((i & (i-1))==0 && i>0){		
+			if (i==1)
+				return;
+			
+			log2i=0;
+			while (i>1){
+				i=i>>1;
+				++log2i;
+			}
+			
+			w_as_movl_register_register_newline (d_reg,REGISTER_O0);
+
+			if (log2i==1){
+				w_as_opcode ("sar");
+				w_as_immediate_register_newline (31,REGISTER_O0);
+
+				w_as_opcode_register_register_newline ("sub",REGISTER_O0,d_reg);
+			} else {
+				w_as_opcode ("sar");
+				w_as_immediate_register_newline (31,d_reg);
+
+				w_as_opcode ("and");
+				w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
+
+				w_as_opcode_register_register_newline ("add",REGISTER_O0,d_reg);
+			}
+			
+			w_as_opcode ("sar");
+			w_as_immediate_register_newline (log2i,d_reg);
+
+			return;
+		} else {
 			internal_error_in_function ("w_as_div_instruction");
 			return;
 		}
-		
-		if (i==1)
-			return;
-		
-		log2i=0;
-		while (i>1){
-			i=i>>1;
-			++log2i;
-		}
-		
-		w_as_opcode_movl();
-		w_as_register_register_newline (d_reg,REGISTER_O0);
-
-		if (log2i==1){
-			w_as_opcode ("sar");
-			w_as_immediate_register_newline (31,REGISTER_O0);
-
-			w_as_opcode ("sub");
-			w_as_register_register_newline (REGISTER_O0,d_reg);
-		} else {
-			w_as_opcode ("sar");
-			w_as_immediate_register_newline (31,d_reg);
-
-			w_as_opcode ("and");
-			w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
-
-			w_as_opcode ("add");
-			w_as_register_register_newline (REGISTER_O0,d_reg);
-		}
-		
-		w_as_opcode ("sar");
-		w_as_immediate_register_newline (log2i,d_reg);
-
-		return;
 	}
 
 	switch (d_reg){
 		case REGISTER_D0:
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
 	
 			w_as_instruction_without_parameters ("cdq");
 	
@@ -1588,15 +1806,12 @@ static void w_as_div_instruction (struct instruction *instruction)
 			}
 			w_as_newline();
 		
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_O0,REGISTER_A1);
+			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
 			break;
 		case REGISTER_A1:
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_D0,REGISTER_O0);
+			w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
 	
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_A1,REGISTER_D0);
+			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
 	
 			w_as_instruction_without_parameters ("cdq");
 	
@@ -1629,18 +1844,14 @@ static void w_as_div_instruction (struct instruction *instruction)
 			}
 			w_as_newline();
 	
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_D0,REGISTER_A1);
+			w_as_movl_register_register_newline (REGISTER_D0,REGISTER_A1);
 		
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_O0,REGISTER_D0);
+			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);
 			break;
 		default:
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
 	
-			w_as_opcode ("xchg");
-			w_as_register_register_newline (REGISTER_D0,d_reg);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
 	
 			w_as_instruction_without_parameters ("cdq");
 
@@ -1677,11 +1888,9 @@ static void w_as_div_instruction (struct instruction *instruction)
 			}
 			w_as_newline();
 	
-			w_as_opcode ("xchg");
-			w_as_register_register_newline (REGISTER_D0,d_reg);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
 		
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_O0,REGISTER_A1);
+			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
 	}
 }
 
@@ -1696,6 +1905,9 @@ static void w_as_rem_instruction (struct instruction *instruction)
 		
 		i=instruction->instruction_parameters[0].parameter_data.i;
 		
+		if (i<0 && i!=0x80000000)
+			i=-i;
+		
 		if (! ((i & (i-1))==0 && i>1)){
 			internal_error_in_function ("w_as_rem_instruction");
 			return;
@@ -1707,8 +1919,7 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			++log2i;
 		}
 		
-		w_as_opcode_movl();
-		w_as_register_register_newline (d_reg,REGISTER_O0);
+		w_as_movl_register_register_newline (d_reg,REGISTER_O0);
 
 		if (log2i==1){
 			w_as_opcode ("and");
@@ -1717,8 +1928,7 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			w_as_opcode ("sar");
 			w_as_immediate_register_newline (31,REGISTER_O0);
 
-			w_as_opcode ("xor");
-			w_as_register_register_newline (REGISTER_O0,d_reg);
+			w_as_opcode_register_register_newline ("xor",REGISTER_O0,d_reg);
 		} else {
 			w_as_opcode ("sar");
 			w_as_immediate_register_newline (31,REGISTER_O0);
@@ -1726,23 +1936,20 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			w_as_opcode ("and");
 			w_as_immediate_register_newline ((1<<log2i)-1,REGISTER_O0);
 
-			w_as_opcode ("add");
-			w_as_register_register_newline (REGISTER_O0,d_reg);
+			w_as_opcode_register_register_newline ("add",REGISTER_O0,d_reg);
 
 			w_as_opcode ("and");
 			w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
 		}
 		
-		w_as_opcode ("sub");
-		w_as_register_register_newline (REGISTER_O0,d_reg);
+		w_as_opcode_register_register_newline ("sub",REGISTER_O0,d_reg);
 
 		return;
 	}
 
 	switch (d_reg){
 		case REGISTER_D0:
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
 
 			w_as_instruction_without_parameters ("cdq");
 
@@ -1763,19 +1970,15 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			}
 			w_as_newline();
 
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_A1,REGISTER_D0);
+			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
 
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_O0,REGISTER_A1);
+			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
 	
 			break;		
 		case REGISTER_A1:
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_D0,REGISTER_O0);
+			w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
 	
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_A1,REGISTER_D0);
+			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
 	
 			w_as_instruction_without_parameters ("cdq");
 	
@@ -1808,15 +2011,12 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			}
 			w_as_newline();
 
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_O0,REGISTER_D0);
+			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);
 			break;
 		default:	
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
 
-			w_as_opcode ("xchg");
-			w_as_register_register_newline (REGISTER_D0,d_reg);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
 	
 			w_as_instruction_without_parameters ("cdq");
 	
@@ -1853,14 +2053,11 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			}
 			w_as_newline();
 
-			w_as_opcode_movl();
-			w_as_register_register_newline (d_reg,REGISTER_D0);
+			w_as_movl_register_register_newline (d_reg,REGISTER_D0);
 
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_A1,d_reg);
+			w_as_movl_register_register_newline (REGISTER_A1,d_reg);
 
-			w_as_opcode_movl();
-			w_as_register_register_newline (REGISTER_O0,REGISTER_A1);
+			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
 	}
 }
 
@@ -2763,8 +2960,14 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IDIV:
 				w_as_div_instruction (instruction);
 				break;
+			case IDIVI:
+				w_as_div_rem_i_instruction (instruction,0);
+				break;
 			case IMOD:
 				w_as_rem_instruction (instruction);
+				break;
+			case IREMI:
+				w_as_div_rem_i_instruction (instruction,1);
 				break;
 			case IAND:
 				w_as_dyadic_instruction (instruction,intel_asm ? "and" : "andl");
