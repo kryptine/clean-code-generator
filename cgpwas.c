@@ -995,18 +995,42 @@ static void w_as_and_instruction (struct instruction *instruction)
 	int reg;
 	
 	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
-		int i;
+		int i,i2;
 
 		i=instruction->instruction_parameters[0].parameter_data.i;
 
 		if (i==(UWORD)i){
 			w_as_opcode ("andi.");
-
 			w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 			w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 			w_as_immediate (i);
 			w_as_newline();
 
+			return;
+		} else if (((UWORD)i)==0){
+			w_as_opcode ("andis.");
+			w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_immediate (((unsigned int)i)>>16);
+			w_as_newline();
+
+			return;
+		} else if (i2=i | (i-1),(i2 & (i2+1))==0){
+			int n_leading_0_bits,n_leading_0_bits_and_1_bits;
+			
+			n_leading_0_bits = __cntlzw (i);
+			n_leading_0_bits_and_1_bits = __cntlzw (i ^ ((unsigned)0xffffffffu>>(unsigned)n_leading_0_bits));
+			
+			w_as_opcode ("rlwinm");
+			w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_immediate (0);
+			w_as_comma();
+			w_as_immediate (n_leading_0_bits);
+			w_as_comma();
+			w_as_immediate (n_leading_0_bits_and_1_bits-1);
+			w_as_newline();
+			
 			return;
 		} else {
 			w_as_opcode ("lis");
@@ -1908,7 +1932,7 @@ static void w_as_seto_condition_instruction (struct instruction *instruction)
 static void w_as_rem_instruction (struct instruction *instruction)
 {
 	int reg;
-
+	
 	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
 		int i,sd_reg;
 				

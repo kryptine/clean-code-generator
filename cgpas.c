@@ -492,6 +492,7 @@ static unsigned char real_reg_num [32] =
 #define as_addze(rd,ra)		store_instruction ((31<<26)|(reg_num(rd)<<21)|(reg_num(ra)<<16)|(202<<1))
 #define as_and(ra,rs,rb)	as_i_sab (rs,ra,rb,28)
 #define as_andi_(ra,rs,si)	as_i_dai (28,rs,ra,si)
+#define as_andis_(ra,rs,si)	as_i_dai (29,rs,ra,si)
 #define as_b()				store_instruction (18<<26)
 #define as_bctr()			store_instruction ((19<<26)|(20<<21)|(528<<1))
 #define as_bctrl()			store_instruction ((19<<26)|(20<<21)|(528<<1)|1)
@@ -1321,7 +1322,7 @@ static void as_rem_instruction (struct instruction *instruction)
 
 	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
 		int i,sd_reg;
-				
+
 		i=instruction->instruction_parameters[0].parameter_data.i;
 		if ((i & (i-1))==0 && i>1){
 			int log2i;
@@ -1364,13 +1365,28 @@ static void as_and_instruction (struct instruction *instruction)
 	int reg;
 	
 	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
-		int i;
+		int i,i2;
 
 		i=instruction->instruction_parameters[0].parameter_data.i;
 
 		if (i==(UWORD)i){
 			as_andi_ (instruction->instruction_parameters[1].parameter_data.reg.r,
 					  instruction->instruction_parameters[1].parameter_data.reg.r,i);
+			return;
+		} else if (((UWORD)i)==0){
+			as_andis_ (	instruction->instruction_parameters[1].parameter_data.reg.r,
+						instruction->instruction_parameters[1].parameter_data.reg.r,
+						((unsigned int)i)>>16);
+			return;
+		} else if (i2=i | (i-1),(i2 & (i2+1))==0){
+			int n_leading_0_bits,n_leading_0_bits_and_1_bits;
+			
+			n_leading_0_bits = __cntlzw (i);
+			n_leading_0_bits_and_1_bits = __cntlzw (i ^ ((unsigned)0xffffffffu>>(unsigned)n_leading_0_bits));
+			
+			as_rlwinm (	instruction->instruction_parameters[1].parameter_data.reg.r,
+						instruction->instruction_parameters[1].parameter_data.reg.r,
+						0,n_leading_0_bits,n_leading_0_bits_and_1_bits-1);
 			return;
 		} else {
 			as_lis (REGISTER_O0,(i-(WORD)i)>>16);
