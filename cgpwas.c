@@ -401,6 +401,7 @@ void w_as_abc_string_and_label_in_data_section (char *string,int length,char *la
 #define REGISTER_O0 (-13)
 #define REGISTER_O1 (-23)
 #define REGISTER_R0 (-24)
+#define RTOC (-22)
 #define REGISTER_R3 (-21)
 #define REGISTER_SP (-12)
 
@@ -1612,9 +1613,30 @@ static void w_as_jsr_instruction (struct instruction *instruction)
 		frame_size=instruction->instruction_parameters[1].parameter_data.i;
 
 		if (parameter0->parameter_type==P_REGISTER){
+#ifdef MACH_O
 			w_as_opcode ("mtctr");
 			w_as_register (parameter0->parameter_data.reg.r);
 			w_as_newline();
+#else
+			w_as_opcode ("lwz");
+			w_as_register_comma (REGISTER_O1);
+			w_as_indirect (0,parameter0->parameter_data.reg.r);
+			w_as_newline();
+			
+			w_as_opcode ("stw");
+			w_as_register_comma (RTOC);
+			w_as_indirect (20-(frame_size+28),B_STACK_POINTER);
+			w_as_newline();
+
+			w_as_opcode ("lwz");
+			w_as_register_comma (RTOC);
+			w_as_indirect (4,parameter0->parameter_data.reg.r);
+			w_as_newline();
+
+			w_as_opcode ("mtctr");
+			w_as_register (REGISTER_O1);
+			w_as_newline();
+#endif
 		}
 
 		if (!(instruction->instruction_arity & NO_MFLR)){
@@ -1638,27 +1660,35 @@ static void w_as_jsr_instruction (struct instruction *instruction)
 # endif
 		w_as_opcode ("stw");
 		w_as_register_comma (REGISTER_R0);
-		w_as_indirect (-28-4,REGISTER_SP);
+		w_as_indirect (-28-4,B_STACK_POINTER);
 		w_as_newline();
 
 		w_as_opcode ("stwu");
 		w_as_register_comma (REGISTER_O0);
-		w_as_indirect (-(frame_size+28),REGISTER_SP);
+		w_as_indirect (-(frame_size+28),B_STACK_POINTER);
 		w_as_newline();		
 #else
 		w_as_opcode ("stw");
 		w_as_register_comma (REGISTER_R0);
-		w_as_indirect (-4,REGISTER_SP);
+		w_as_indirect (-4,B_STACK_POINTER);
 		w_as_newline();
 
 		w_as_opcode ("stwu");
-		w_as_register_comma (REGISTER_SP);
-		w_as_indirect (-frame_size,REGISTER_SP);
+		w_as_register_comma (B_STACK_POINTER);
+		w_as_indirect (-frame_size,B_STACK_POINTER);
 		w_as_newline();
 #endif
 	
 		if (parameter0->parameter_type==P_REGISTER){
 			w_as_instruction_without_parameters ("bctrl");
+#ifdef MACH_O
+			w_as_instruction_without_parameters ("nop");
+#else
+			w_as_opcode ("lwz");
+			w_as_register_comma (RTOC);
+			w_as_indirect (20,B_STACK_POINTER);
+			w_as_newline();
+#endif
 		} else {
 			w_as_opcode ("bl");
 			if (parameter0->parameter_data.l->label_number!=0)
@@ -1700,29 +1730,28 @@ static void w_as_jsr_instruction (struct instruction *instruction)
 				w_as_label (parameter0->parameter_data.l->label_name);
 #endif
 			w_as_newline();
+			w_as_instruction_without_parameters ("nop");
 		}
 	
-		w_as_instruction_without_parameters ("nop");
-
 #ifdef ALIGN_C_CALLS
 		w_as_opcode ("lwz");
 		w_as_register_comma (REGISTER_R0);
-		w_as_indirect (frame_size-4,REGISTER_SP);
+		w_as_indirect (frame_size-4,B_STACK_POINTER);
 		w_as_newline();
 
 		w_as_opcode ("lwz");
-		w_as_register_comma (REGISTER_SP);
-		w_as_indirect (0,REGISTER_SP);
+		w_as_register_comma (B_STACK_POINTER);
+		w_as_indirect (0,B_STACK_POINTER);
 		w_as_newline();
 #else
 		w_as_opcode ("lwz");
 		w_as_register_comma (REGISTER_R0);
-		w_as_indirect (frame_size-4,REGISTER_SP);
+		w_as_indirect (frame_size-4,B_STACK_POINTER);
 		w_as_newline();
 
 		w_as_opcode ("addi");
-		w_as_register_comma (REGISTER_SP);
-		w_as_register_comma (REGISTER_SP);
+		w_as_register_comma (B_STACK_POINTER);
+		w_as_register_comma (B_STACK_POINTER);
 		w_as_immediate (frame_size);
 		w_as_newline();
 #endif

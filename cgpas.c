@@ -1849,8 +1849,16 @@ static void as_jsr_instruction (struct instruction *instruction)
 		
 		frame_size=instruction->instruction_parameters[1].parameter_data.i;
 		
-		if (parameter0->parameter_type==P_REGISTER)
+		if (parameter0->parameter_type==P_REGISTER){
+#ifdef G_MACH_O
 			as_mtctr (parameter0->parameter_data.reg.r);
+#else
+			as_lwz (REGISTER_O1,0,parameter0->parameter_data.reg.r);
+			as_stw (RTOC,20-(frame_size+28),B_STACK_POINTER);
+			as_lwz (RTOC,4,parameter0->parameter_data.reg.r);
+			as_mtctr (REGISTER_O1);
+#endif
+		}
 
 		if (!(instruction->instruction_arity & NO_MFLR))
 			as_mflr (REGISTER_R0);			
@@ -1868,6 +1876,11 @@ static void as_jsr_instruction (struct instruction *instruction)
 #endif
 		if (parameter0->parameter_type==P_REGISTER){
 			as_bctrl();
+#ifdef G_MACH_O
+			as_nop();
+#else
+			as_lwz (RTOC,20,B_STACK_POINTER);
+#endif
 		} else {
 			struct label *label;
 			
@@ -1908,10 +1921,9 @@ static void as_jsr_instruction (struct instruction *instruction)
 			}
 #endif
 			as_branch_label (label,BRANCH_RELOCATION);
+			as_nop();
 		}
 	
-		as_nop();
-
 #ifdef ALIGN_C_CALLS
 		as_lwz (REGISTER_R0,frame_size-4,B_STACK_POINTER);
 		as_lwz (B_STACK_POINTER,0,B_STACK_POINTER);
