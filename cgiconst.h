@@ -1,5 +1,7 @@
 
-#define FMADD
+#ifdef G_POWER
+# define FMADD
+#endif
 
 #ifdef I486
 # define FP_STACK_OPTIMIZATIONS
