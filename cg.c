@@ -399,32 +399,19 @@ char *this_module_name;
 #if defined (POWER) && defined (GNU_C)
 static FILE *fopen_with_file_name_conversion (char *file_name,char *mode)
 {
-	FSSpec fs_spec;
-	FSRef fs_ref;
-	CFURLRef CFURL_ref;
+	CFURLRef hfs_url;
+	CFStringRef	hfs_string, posix_string;
 	char buffer[512+1];
-	int string_size;
-	Boolean r;
-	OSErr e;
-
-	buffer[0]=strlen (file_name);
-	strcpy (&buffer[1],file_name);
-
-	e=FSMakeFSSpec (0/*vRefNum*/,0/*dirID*/,buffer,&fs_spec);
-	if (e!=noErr)
-		return NULL;
 	
-	e=FSpMakeFSRef (&fs_spec,&fs_ref);
-	if (e!=noErr)
+	hfs_string = CFStringCreateWithCString (NULL/*kCFAllocatorDefault*/,file_name,kCFStringEncodingMacRoman);
+	hfs_url = CFURLCreateWithFileSystemPath (NULL/*kCFAllocatorDefault*/,hfs_string,kCFURLHFSPathStyle,/*isDirectory*/false);
+	CFRelease (hfs_string);
+	posix_string = CFURLCopyFileSystemPath (hfs_url,kCFURLPOSIXPathStyle);
+	CFRelease (hfs_url);
+	if (! CFStringGetCString (posix_string,buffer,512,kCFStringEncodingMacRoman)){
+		CFRelease (posix_string);
 		return NULL;
-
-	CFURL_ref=CFURLCreateFromFSRef (NULL,&fs_ref);
-
-	string_size=512;
-	r=CFURLGetFileSystemRepresentation (CFURL_ref,1,buffer,string_size);
-	
-	if (!r)
-		return NULL;
+	}
 	
 	file_name=buffer;
 
