@@ -1513,54 +1513,6 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 		w_as_opcode_register_register_newline ("xchg",r,REGISTER_D0);
 }
 
-/*
-	From The PowerPC Compiler Writer’s Guide,
-	Warren, Henry S., Jr., IBM Research Report RC 18601 [1992]. Changing Division by a
-	Constant to Multiplication in Two’s Complement Arithmetic, (December 21),
-	Granlund, Torbjorn and Montgomery, Peter L. [1994]. SIGPLAN Notices, 29 (June), 61.
-*/
-
-struct ms magic (int d)
-	/* must have 2 <= d <= 231-1 or -231 <= d <= -2 */
-{
-	int p;
-	unsigned int ad, anc, delta, q1, r1, q2, r2, t;
-	const unsigned int two31 = 2147483648;/* 231 */
-	struct ms mag;
-
-	ad = abs(d);
-	t = two31 + ((unsigned int)d >> 31);
-	anc = t - 1 - t%ad; /* absolute value of nc */
-	p = 31;				/* initialize p */
-	q1 = two31/anc;		/* initialize q1 = 2p/abs(nc) */
-	r1 = two31 - q1*anc;/* initialize r1 = rem(2p,abs(nc)) */
-	q2 = two31/ad;		/* initialize q2 = 2p/abs(d) */
-	r2 = two31 - q2*ad;	/* initialize r2 = rem(2p,abs(d)) */
-
-	do {
-		p = p + 1;
-		q1 = 2*q1; 		/* update q1 = 2p/abs(nc) */
-		r1 = 2*r1;	 	/* update r1 = rem(2p/abs(nc)) */
-		if (r1 >= anc) {/* must be unsigned comparison */
-			q1 = q1 + 1;
-			r1 = r1 - anc;
-		}
-		q2 = 2*q2;		/* update q2 = 2p/abs(d) */
-		r2 = 2*r2;		/* update r2 = rem(2p/abs(d)) */
-		if (r2 >= ad) { /* must be unsigned comparison */
-			q2 = q2 + 1;
-			r2 = r2 - ad;
-		}
-		delta = ad - r2;
-	} while (q1 < delta || (q1 == delta && r1 == 0));
-
-	mag.m = q2 + 1;
-	if (d < 0) mag.m = -mag.m;	/* resulting magic number */
-	mag.s = p - 32;				/* resulting shift */
-
-	return mag;
-}
-
 static void w_as_div_rem_i_instruction (struct instruction *instruction,int compute_remainder)
 {
 	int s_reg1,s_reg2,s_reg3,i,sd_reg,i_reg,tmp_reg,abs_i;

@@ -97,7 +97,8 @@ struct object_label {
 	int						object_label_n_relocations;	/* CODE_CONTROL_SECTION,DATA_CONTROL_SECTION */
 	short					object_label_section_n;		/* CODE_CONTROL_SECTION,DATA_CONTROL_SECTION */
 #endif
-	short					object_label_kind;
+	unsigned char			object_label_kind;
+	unsigned char			object_section_align8;
 };
 
 #define object_label_offset object_label_u1.offset
@@ -505,6 +506,7 @@ void initialize_assembler (FILE *output_file_d)
 	data_object_label->object_label_offset=0;
 	data_object_label->object_label_length=0;
 	data_object_label->object_label_kind=DATA_CONTROL_SECTION;
+	data_object_label->object_section_align8=0;
 #endif
 
 #ifdef OMF
@@ -679,6 +681,7 @@ void as_new_data_module (void)
 	++n_data_sections;
 	new_object_label->object_label_length=0;
 	new_object_label->object_label_kind=DATA_CONTROL_SECTION;
+	new_object_label->object_section_align8=0;
 }
 
 static void as_new_code_module (void)
@@ -1910,6 +1913,54 @@ static void as_parameter (int code1,int code2,struct parameter *parameter)
 	}
 }
 
+/*
+	From The PowerPC Compiler Writer’s Guide,
+	Warren, Henry S., Jr., IBM Research Report RC 18601 [1992]. Changing Division by a
+	Constant to Multiplication in Two’s Complement Arithmetic, (December 21),
+	Granlund, Torbjorn and Montgomery, Peter L. [1994]. SIGPLAN Notices, 29 (June), 61.
+*/
+
+struct ms magic (int d)
+	/* must have 2 <= d <= 231-1 or -231 <= d <= -2 */
+{
+	int p;
+	unsigned int ad, anc, delta, q1, r1, q2, r2, t;
+	const unsigned int two31 = 2147483648;/* 231 */
+	struct ms mag;
+
+	ad = abs(d);
+	t = two31 + ((unsigned int)d >> 31);
+	anc = t - 1 - t%ad; /* absolute value of nc */
+	p = 31;				/* initialize p */
+	q1 = two31/anc;		/* initialize q1 = 2p/abs(nc) */
+	r1 = two31 - q1*anc;/* initialize r1 = rem(2p,abs(nc)) */
+	q2 = two31/ad;		/* initialize q2 = 2p/abs(d) */
+	r2 = two31 - q2*ad;	/* initialize r2 = rem(2p,abs(d)) */
+
+	do {
+		p = p + 1;
+		q1 = 2*q1; 		/* update q1 = 2p/abs(nc) */
+		r1 = 2*r1;	 	/* update r1 = rem(2p/abs(nc)) */
+		if (r1 >= anc) {/* must be unsigned comparison */
+			q1 = q1 + 1;
+			r1 = r1 - anc;
+		}
+		q2 = 2*q2;		/* update q2 = 2p/abs(d) */
+		r2 = 2*r2;		/* update r2 = rem(2p/abs(d)) */
+		if (r2 >= ad) { /* must be unsigned comparison */
+			q2 = q2 + 1;
+			r2 = r2 - ad;
+		}
+		delta = ad - r2;
+	} while (q1 < delta || (q1 == delta && r1 == 0));
+
+	mag.m = q2 + 1;
+	if (d < 0) mag.m = -mag.m;	/* resulting magic number */
+	mag.s = p - 32;				/* resulting shift */
+
+	return mag;
+}
+
 static void as_div_rem_i_instruction (struct instruction *instruction,int compute_remainder)
 {
 	int s_reg1,s_reg2,s_reg3,i,sd_reg,i_reg,tmp_reg,abs_i;
@@ -2627,6 +2678,10 @@ static void as_f_i (int code1,int code2,DOUBLE *r_p)
 	new_label=allocate_memory_from_heap (sizeof (struct label));
 
 	new_label->label_flags=DATA_LABEL;
+
+	data_object_label->object_section_align8=1;
+	if ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 4)
+		store_long_word_in_data_section (0);
 
 	define_data_label (new_label);
 	store_long_word_in_data_section (((LONG*)r_p)[0]);
@@ -4458,7 +4513,7 @@ static void write_file_header_and_section_headers (void)
 					write_l (0);
 					write_w (n_data_relocations_in_section);
 					write_w (0);
-					write_l ((3<<20)+0x40);
+					write_l (previous_data_object_label->object_section_align8 ? (4<<20)+0x40 : (3<<20)+0x40);
 					
 					data_relocations_offset+=10*n_data_relocations_in_section;
 				}
@@ -4494,7 +4549,7 @@ static void write_file_header_and_section_headers (void)
 			write_l (0);
 			write_w (n_data_relocations_in_section);
 			write_w (0);
-			write_l ((3<<20)+0x40);
+			write_l (previous_data_object_label->object_section_align8 ? (4<<20)+0x40 : (3<<20)+0x40);
 		}
 	}
 #  else
