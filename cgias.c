@@ -5449,6 +5449,7 @@ static void write_string_table (void)
 	}
 }
 
+#define R_ABS 0
 #define R_DIR32 6
 #define R_PCLONG 20
 
@@ -5527,7 +5528,7 @@ static void write_code_relocations (void)
 				else
 					write_l (label->label_id);
 #if 1
-				write_w (0);
+				write_w (R_ABS);
 #else
 				write_w (R_PCLONG);
 #endif
