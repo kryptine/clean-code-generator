@@ -1,13 +1,7 @@
 
 #define FINALIZERS
 
-#undef PROJECT_BUILDER
-
-#ifdef PROJECT_BUILDER
-# define GNU_C
-#endif
-
-#if defined (__MWERKS__) || defined (__MRC__) || defined (PROJECT_BUILDER)
+#if defined (__MWERKS__) || defined (__MRC__)
 # define POWER
 # ifdef __cplusplus
 #  include "cgrenameglobals.h"

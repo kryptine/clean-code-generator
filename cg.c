@@ -396,25 +396,37 @@ char *this_module_name;
 #	define FOLDER_SEPARATOR ':'
 #endif
 
-#ifdef PROJECT_BUILDER
+#if defined (POWER) && defined (GNU_C)
 static FILE *fopen_with_file_name_conversion (char *file_name,char *mode)
 {
-	static char file_name_s[257];
-	char *p;
+	FSSpec fs_spec;
+	FSRef fs_ref;
+	CFURLRef CFURL_ref;
+	char buffer[512+1];
+	int string_size;
+	Boolean r;
+	OSErr e;
 
-	for (p=file_name; *p!='\0' && *p!=':'; ++p)
-		;
+	buffer[0]=strlen (file_name);
+	strcpy (&buffer[1],file_name);
+
+	e=FSMakeFSSpec (0/*vRefNum*/,0/*dirID*/,buffer,&fs_spec);
+	if (e!=noErr)
+		return NULL;
 	
-	if (*p==':'){
-		strcpy (file_name_s,"/Volumes/");
-		strcat (file_name_s,file_name);
-		
-		for (p=file_name_s; *p!='\0'; ++p)
-			if (*p==':')
-				*p='/';
-		
-		file_name=file_name_s;
-	}
+	e=FSpMakeFSRef (&fs_spec,&fs_ref);
+	if (e!=noErr)
+		return NULL;
+
+	CFURL_ref=CFURLCreateFromFSRef (NULL,&fs_ref);
+
+	string_size=512;
+	r=CFURLGetFileSystemRepresentation (CFURL_ref,1,buffer,string_size);
+	
+	if (!r)
+		return NULL;
+	
+	file_name=buffer;
 
 	return fopen (file_name,mode);
 }

@@ -410,7 +410,7 @@ static int parse_string_character (char *c_p)
 			switch (last_char){
 				case 'b':	*c_p='\b';	break;
 				case 'f':	*c_p='\f';	break;
-#if (defined (M68000) && !defined (SUN)) || defined (__MWERKS__) || defined (__MRC__)
+#if (defined (M68000) && !defined (SUN)) || defined (__MWERKS__) || defined (__MRC__) || defined (POWER)
 				case 'n':	*c_p='\xd';	break;
 				case 'r':	*c_p='\xa';	break;
 #else

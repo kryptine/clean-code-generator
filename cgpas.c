@@ -17,7 +17,7 @@
 #if defined (LINUX_ELF)
 #   define ELF
 #	include <elf.h>
-#elif defined (PROJECT_BUILDER) || defined (MACH_O)
+#elif defined (MACH_O) || defined (GNU_C)
 #	define G_MACH_O
 #	define G_MACH_O_SCATTERED
 #	include </usr/include/mach-o/loader.h>
@@ -25,6 +25,10 @@
 #	include </usr/include/mach-o/ppc/reloc.h>
 #else
 #	define XCOFF
+#endif
+
+#ifdef GNU_C
+# include <ppc_intrinsics.h>
 #endif
 
 #define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)

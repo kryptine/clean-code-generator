@@ -48,6 +48,10 @@
 #include "cgptoc.h"
 #include "cgpwas.h"
 
+#ifdef GNU_C
+# include <ppc_intrinsics.h>
+#endif
+
 #define FP_REVERSE_SUB_DIV_OPERANDS 1
 
 #define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
