@@ -185,6 +185,10 @@ int no_time_profiling;
 #define g_fkeep(g1,g2) g_instruction_2(GFKEEP,(g1),(g2))
 #define g_sub(g1,g2) g_instruction_2(GSUB,(g1),(g2))
 
+#ifdef G_POWER
+# define g_umulh(g1,g2) g_instruction_2(GUMULH,(g1),(g2))
+#endif
+
 #define MAX_YET_ARGS_NEEDED_ARITY 4
 
 LABEL *INT_label,*BOOL_label,*CHAR_label,*REAL_label;
@@ -4141,6 +4145,22 @@ void code_mulI (VOID)
 	}
 #endif
 }
+
+#ifdef G_POWER
+void code_umulIIL (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
+	
+	graph_1=s_get_b (1);
+	graph_2=s_get_b (0);
+
+	graph_3=g_mul (graph_1,graph_2);
+	graph_4=g_umulh (graph_1,graph_2);
+
+	s_put_b (1,graph_3);
+	s_put_b (0,graph_4);
+}
+#endif
 
 #ifndef M68000
 void code_mulIo (VOID)

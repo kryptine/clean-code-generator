@@ -7600,6 +7600,11 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GTEST_O:
 			linearize_test_o_operator (graph,ad_p);
 			return;
+#ifdef G_POWER
+		case GUMULH:
+			linearize_dyadic_commutative_data_operator (IUMULH,graph,ad_p);
+			return;
+#endif
 		default:
 			/* printf ("%d %d\n",(int)graph,graph->instruction_code); */
 			internal_error_in_function ("linearize_graph");

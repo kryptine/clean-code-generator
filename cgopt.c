@@ -211,6 +211,7 @@ IF_G_SPARC (case IADDO: case ISUBO: )
 #ifdef I486
 		case IDIVI:		case REMI:
 #endif
+IF_G_POWER ( case IUMULH: )
 			return 4;
 		case IFADD:		case IFCMP:		case IFDIV:		case IFMUL:
 		case IFREM:		case IFSUB:		case IFTST:		case IFMOVE:
@@ -1312,6 +1313,7 @@ IF_G_SPARC (case IADDO: case ISUBO:)
 #if defined (I486) && defined (FP_STACK_OPTIMIZATIONS)
 			case IFEXG:
 #endif
+IF_G_POWER ( case IUMULH: )
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
@@ -3581,6 +3583,7 @@ static void allocate_registers (struct basic_block *basic_block)
 			case IFADD:	case IFCMP:	case IFDIV:	case IFMUL:	case IFREM:	case IFSUB:
 			case IMUL:	case IOR:	case ISUB:
 IF_G_SPARC (case IADDO: case ISUBO:)
+IF_G_POWER ( case IUMULH: )
 				instruction_use_2 (instruction,USE_DEF);
 				break;
 #ifdef I486_USE_SCRATCH_REGISTER

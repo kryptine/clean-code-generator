@@ -1952,6 +1952,9 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("updatepop_b",	parse_instruction_n_n,		code_updatepop_b );
 	put_instruction_name ("updateS",		parse_instruction_n_n,		code_updateS );
 	put_instruction_name ("update",			parse_instruction_a_n_n,	code_update );
+#ifdef G_POWER
+	put_instruction_name ("umulIIL",		parse_instruction,			code_umulIIL );
+#endif
 	put_instruction_name ("xor%",			parse_instruction,			code_xor );
 	put_instruction_name (".caf",			parse_instruction_a_n_n,	code_caf );
 	put_instruction_name (".code",			parse_directive_n_n_n,		code_dummy	);

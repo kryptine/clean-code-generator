@@ -2258,6 +2258,9 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 		case GOR:
 		case GMUL:
 		case GMUL_O:
+#ifdef G_POWER
+		case GUMULH:
+#endif
 			calculate_dyadic_commutative_data_operator (graph);
 			return;
 		case GCMP_EQ:
@@ -2488,6 +2491,9 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GASR:
 		case GCOPY:
 		case GBOUNDS:
+#ifdef G_POWER
+		case GUMULH:
+#endif
 			if (++graph->node_count==1){
 				count_graph (graph->instruction_parameters[0].p);
 				count_graph (graph->instruction_parameters[1].p);
@@ -2637,6 +2643,9 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GASR:
 		case GCOPY:
 		case GBOUNDS:
+#ifdef G_POWER
+		case GUMULH:
+#endif
 			if (graph->node_mark<2){
 				graph->node_mark=2;
 				mark_graph_2 (graph->instruction_parameters[0].p);
@@ -2801,6 +2810,9 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GASR:
 		case GCOPY:
 		case GBOUNDS:
+#ifdef G_POWER
+		case GUMULH:
+#endif
 			if (!graph->node_mark){
 				graph->node_mark=1;
 				mark_graph_2 (graph->instruction_parameters[0].p);

@@ -243,6 +243,9 @@ void code_updatepop_a (int a_offset_1,int a_offset_2);
 void code_update_b (int b_offset_1,int b_offset_2);
 void code_updatepop_b (int b_offset_1,int b_offset_2);
 void code_updateS (int source_offset,int destination_offset);
+#ifdef G_POWER
+void code_umulIIL (VOID);
+#endif
 void code_xor (VOID);
 
 void code_caf (char *label_name,int a_size,int b_size);

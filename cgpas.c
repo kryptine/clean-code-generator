@@ -547,6 +547,7 @@ static unsigned char real_reg_num [32] =
 #define as_mtctr(rs)		as_mtspr (9,rs)
 #define as_mtspr(spr,rs)	store_instruction ((31<<26)|(reg_num(rs)<<21)|(spr<<16)|(467<<1));
 #define as_mulhw(rd,ra,rb)	as_i_dab (rd,ra,rb,75)
+#define as_mulhwu(rd,ra,rb)	as_i_dab (rd,ra,rb,11)
 #define as_mulli(rd,ra,si)	as_i_dai (7,rd,ra,si)
 #define as_mullw(rd,ra,rb)	as_i_dab (rd,ra,rb,235)
 #define as_mullwo_(rd,ra,rb)as_i_dabo_ (rd,ra,rb,235)
@@ -1276,6 +1277,17 @@ static void as_mul_instruction (struct instruction *instruction)
 	}
 	
 	as_mullw (r,r,reg);
+}
+
+static void as_umulh_instruction (struct instruction *instruction)
+{
+	int r,reg;
+	
+	r=instruction->instruction_parameters[1].parameter_data.reg.r;
+
+	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	
+	as_mulhwu (r,r,reg);
 }
 
 static void as_mulo_instruction (struct instruction *instruction)
@@ -2835,6 +2847,9 @@ static void write_instructions (struct instruction *instructions)
 				break;
 			case IMULO:
 				as_mulo_instruction (instruction);
+				break;
+			case IUMULH:
+				as_umulh_instruction (instruction);
 				break;
 			default:
 				internal_error_in_function ("write_instructions");

@@ -15,7 +15,7 @@ enum {
 	GMUL,			GMUL_O,			GOR,			GREGISTER,		GSTORE,			GSTORE_R,
 	GSTORE_B_X,		GSTORE_X,		GSUB,			GSUB_O,			GTEST_O,		GEXIT_IF
 #ifdef G_POWER
-	,GCREATE_S
+	,GCREATE_S,		GUMULH
 #endif
 };
 

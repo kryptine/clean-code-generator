@@ -2259,6 +2259,21 @@ static void w_as_mul_instruction (struct instruction *instruction)
 	w_as_newline();
 }
 
+static void w_as_umulh_instruction (struct instruction *instruction)
+{
+	int r,reg;
+	
+	r=instruction->instruction_parameters[1].parameter_data.reg.r;
+	
+	reg=w_as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	
+	w_as_opcode ("mulhwu");	
+	w_as_register_comma (r);
+	w_as_register_comma (r);
+	w_as_register (reg);
+	w_as_newline();
+}
+
 static void w_as_mulo_instruction (struct instruction *instruction)
 {
 	int r,reg;
@@ -3182,6 +3197,9 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case IMULO:
 				w_as_mulo_instruction (instruction);
+				break;
+			case IUMULH:
+				w_as_umulh_instruction (instruction);
 				break;
 			case IFTST:
 			default:
