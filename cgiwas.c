@@ -10,7 +10,6 @@
 #include <stdlib.h>
 
 #define FSUB_FDIV_REVERSED
-#undef GENERATIONAL_GC
 
 #include "cgport.h"
 #include "cgrconst.h"
@@ -3379,7 +3378,7 @@ void initialize_write_assembly (FILE *ass_file)
 	}
 }
 
-#ifndef GENERATIONAL_GC
+#if 0
 static void w_as_indirect_node_entry_jump (LABEL *label)
 {
 	register char *new_label_name;
@@ -3517,66 +3516,13 @@ void write_assembly (VOID)
 	first_float_constant=NULL;
 #endif
 
-/*
-#ifndef GENERATIONAL_GC
+	/*
 	w_as_indirect_node_entry_jumps (labels);
-#endif
-*/
+	*/
 
 	for_l (block,first_block,block_next){
 		if (block->block_n_node_arguments>-100){
 			w_as_align (2);
-
-#ifdef GENERATIONAL_GC
-				if (block->block_ea_label!=NULL){
-					int n_node_arguments;
-					extern LABEL *eval_fill_label,*eval_upd_labels[];
-					
-					n_node_arguments=block->block_n_node_arguments;
-					
-					if (n_node_arguments<-2)
-						n_node_arguments=1;
-					
-					if (n_node_arguments>=0 && block->block_ea_label!=eval_fill_label){
-						w_as_opcode_movl();
-						w_as_immediate_label (eval_upd_labels[n_node_arguments]->label_name);
-						fprintf (assembly_file,"_push");
-						w_as_comma_register (REGISTER_D0);
-						w_as_newline();
-			
-						w_as_opcode_movl();
-						w_as_immediate_label (block->block_ea_label->label_name);
-						w_as_comma(); w_as_register (REGISTER_A2); w_as_newline();
-					
-						w_as_opcode ("jmp");
-						w_as_register (REGISTER_D0);
-						w_as_newline();
-					} else {
-						w_as_opcode_movl();
-						w_as_immediate_label (block->block_ea_label->label_name);
-						fprintf (assembly_file,"_push");
-						w_as_comma(); w_as_register (REGISTER_D0); w_as_newline();
-					
-						w_as_opcode ("jmp"); w_as_register (REGISTER_D0); w_as_newline();
-					
-						w_as_space (5);
-					}
-					
-					if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
-						w_as_label_in_code_section (block->block_descriptor->label_name);
-					else
-						w_as_number_of_arguments (0);
-				} else
-				if (block->block_descriptor!=NULL)
-					w_as_label_in_code_section (block->block_descriptor->label_name);
-				else
-					w_as_number_of_arguments (0);
-					
-				w_as_number_of_arguments (block->block_n_node_arguments);
-				w_as_opcode (intel_asm ? "push" : "pushl"); fprintf (assembly_file,intel_asm ? "offset push_updated_node" : "$push_updated_node"); w_as_newline();
-				w_as_opcode ("jmp"); fprintf (assembly_file,".+23"); w_as_newline();
-				w_as_space (1);
-#endif /* GENERATIONAL_GC */
 
 			if (block->block_ea_label!=NULL){
 				int n_node_arguments;
@@ -3675,22 +3621,9 @@ void write_assembly (VOID)
 					w_as_number_of_arguments (0);
 			} else
 
-#ifdef GENERATIONAL_GC
-			{
-			w_as_space (12);
-
-			if (block->block_descriptor!=NULL)
-#else
 			if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
-#endif
 				w_as_label_in_code_section (block->block_descriptor->label_name);
-#ifdef GENERATIONAL_GC
-			else
-				w_as_number_of_arguments (0);
-#endif			
-#ifdef GENERATIONAL_GC
-			}
-#endif
+
 			w_as_number_of_arguments (block->block_n_node_arguments);
 		}
 
