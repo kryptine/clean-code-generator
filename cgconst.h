@@ -16,7 +16,7 @@ enum {
 	GREGISTER,		GSTORE, 		GSTORE_R,		GSTORE_B_X,		GSTORE_X,		GSUB,
 	GSUB_O, 		GTEST_O, 		GEXIT_IF
 #if defined (I486) || defined (G_POWER)
-	GNOT
+	,GNOT
 #endif
 #ifdef G_POWER
 	,GCREATE_S,		GUMULH

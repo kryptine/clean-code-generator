@@ -5611,7 +5611,7 @@ static INSTRUCTION_GRAPH g_lsl_3_add_12 (INSTRUCTION_GRAPH graph_1)
 		if (graph_1_arg_2->instruction_code==GLOAD_I)
 			return g_sub (g_lsl_3 (graph_1_arg_1),g_load_i (12+(graph_1_arg_2->instruction_parameters[0].i<<3)));
 	}
-	graph_2=g_add (g_load_i (REAL_ARRAY_ELEMENTS_OFFSET,g_lsl_3 (graph_1));
+	graph_2=g_add (g_load_i (REAL_ARRAY_ELEMENTS_OFFSET),g_lsl_3 (graph_1));
 #endif
 
 #ifdef INDEX_CSE
