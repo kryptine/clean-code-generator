@@ -2638,6 +2638,7 @@ static void as_f_i (int code1,int code2,DOUBLE *r_p)
 }
 
 #ifdef FP_STACK_OPTIMIZATIONS
+#define FP_REVERSE_SUB_DIV_OPERANDS 1
 #define FP_REG_ON_TOP 2
 #define FP_REG_LAST_USE 4
 
@@ -2749,7 +2750,7 @@ int next_instruction_is_fld_reg (int reg0,struct instruction *instruction)
 											next2_fp_instruction->instruction_parameters[0].parameter_flags=flags2;
 											
 											if (next2_fp_instruction->instruction_icode==IFSUB || next2_fp_instruction->instruction_icode==IFDIV)
-												next_fp_instruction->instruction_parameters[1].parameter_flags ^= 1;
+												next2_fp_instruction->instruction_parameters[1].parameter_flags ^= FP_REVERSE_SUB_DIV_OPERANDS;
 											
 											if (!(flags1 & FP_REG_LAST_USE))
 												return 1;
@@ -2861,7 +2862,7 @@ static void fstpl_instruction (int reg0,struct instruction *instruction)
 											next2_fp_instruction->instruction_parameters[0].parameter_flags=flags2;
 																						
 											if (next2_fp_instruction->instruction_icode==IFSUB || next2_fp_instruction->instruction_icode==IFDIV)
-												next_fp_instruction->instruction_parameters[1].parameter_flags ^= 1;
+												next2_fp_instruction->instruction_parameters[1].parameter_flags ^= FP_REVERSE_SUB_DIV_OPERANDS;
 											
 											if (!(flags1 & FP_REG_LAST_USE))
 												as_f_r (0xdd,0xd0,reg0+1); /* fst reg0+1 */
@@ -2952,7 +2953,7 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 											break;
 										case IFSUB:
 #ifdef FSUB_FDIV_REVERSED
-											if (next_instruction->instruction_parameters[1].parameter_flags & 1)
+											if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 												code2=0xe8;
 											else
 #endif
@@ -2963,7 +2964,7 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 											break;
 										case IFDIV:
 #ifdef FSUB_FDIV_REVERSED
-											if (next_instruction->instruction_parameters[1].parameter_flags & 1)
+											if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 												code2=0xf8;
 											else
 #endif
@@ -2981,7 +2982,7 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 											break;
 										case IFSUB:
 #ifdef FSUB_FDIV_REVERSED
-											if (next_instruction->instruction_parameters[1].parameter_flags & 1)
+											if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 												code2=5;
 											else
 #endif
@@ -2992,7 +2993,7 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 											break;
 										case IFDIV:
 #ifdef FSUB_FDIV_REVERSED
-											if (next_instruction->instruction_parameters[1].parameter_flags & 1)
+											if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 												code2=7;
 											else
 #endif
@@ -3839,7 +3840,7 @@ static void as_instructions (struct instruction *instruction)
 				break;
 			case IFSUB:
 #ifdef FSUB_FDIV_REVERSED
-				if (instruction->instruction_parameters[1].parameter_flags & 1)
+				if (instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 					as_dyadic_float_instruction (instruction,5,0xe8,0xe0); /*fsubrl fsubr fsubp*/
 				else
 #endif
@@ -3850,7 +3851,7 @@ static void as_instructions (struct instruction *instruction)
 				break;
 			case IFDIV:
 #ifdef FSUB_FDIV_REVERSED
-				if (instruction->instruction_parameters[1].parameter_flags & 1)
+				if (instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 					as_dyadic_float_instruction (instruction,7,0xf8,0xf0); /*fdivrl fdivr fdivp*/
 				else
 #endif
