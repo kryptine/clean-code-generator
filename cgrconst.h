@@ -1,0 +1,58 @@
+
+enum {
+#ifdef G_POWER
+	REGISTER_A11=-12,	REGISTER_A10,	REGISTER_A9,	REGISTER_A8,
+#endif
+	REGISTER_A7=-8,		REGISTER_A6,	REGISTER_A5,	REGISTER_A4,
+	REGISTER_A3,		REGISTER_A2,	REGISTER_A1,	REGISTER_A0,
+	REGISTER_D0,		REGISTER_D1,	REGISTER_D2,	REGISTER_D3,
+	REGISTER_D4,		REGISTER_D5,	REGISTER_D6,	REGISTER_D7
+
+};
+
+enum {	REGISTER_FP0, REGISTER_FP1, REGISTER_FP2, REGISTER_FP3,
+		REGISTER_FP4, REGISTER_FP5, REGISTER_FP6, REGISTER_FP7 };
+
+#define is_a_register(r) ((r)<0)
+#define is_d_register(r) ((r)>=0)
+
+#define a_reg_num(r) (~(r))	/* ~n is -(n+1) */
+#define d_reg_num(r) (r)
+
+#define num_to_a_reg(r) (~(r))
+#define num_to_d_reg(r) (r)
+
+#ifdef I486
+#	define A_STACK_POINTER				REGISTER_A3
+#	define HEAP_POINTER					REGISTER_A4
+#	define B_STACK_POINTER				REGISTER_A5
+#	define N_ADDRESS_PARAMETER_REGISTERS	2
+#	define N_DATA_PARAMETER_REGISTERS		2
+#	define N_FLOAT_PARAMETER_REGISTERS		7
+#else
+#	define A_STACK_POINTER				REGISTER_A4
+#	if !(defined (sparc) || defined (G_POWER))
+#		define GLOBAL_DATA_REGISTER		REGISTER_A5
+#	else
+#		define RESERVE_CODE_REGISTER	REGISTER_A5
+#	endif
+#	define HEAP_POINTER					REGISTER_A6
+#	ifdef G_POWER
+#		define B_STACK_POINTER			REGISTER_A11
+#	else
+#		define B_STACK_POINTER			REGISTER_A7
+#	endif
+#	define N_ADDRESS_PARAMETER_REGISTERS	3
+#	define N_DATA_PARAMETER_REGISTERS		7
+#	define N_FLOAT_PARAMETER_REGISTERS		8
+#endif
+
+#ifdef G_POWER
+#	define N_REAL_A_REGISTERS 12
+#	define INT_REGISTER					REGISTER_A7
+#	define CHAR_REGISTER				REGISTER_A8
+#	define REAL_REGISTER				REGISTER_A9
+#	define BOOL_REGISTER				REGISTER_A10
+#else
+#	define N_REAL_A_REGISTERS 8
+#endif
