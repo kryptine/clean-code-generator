@@ -2909,6 +2909,7 @@ static void linearize_dyadic_commutative_data_operator (int i_instruction_code,I
 		register_node (graph,reg_1);
 }
 
+#ifdef M68000
 static void linearize_eor_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	register INSTRUCTION_GRAPH graph_1,graph_2;
@@ -2949,6 +2950,7 @@ static void linearize_eor_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 	if (*ad_p->ad_count_p>1)
 		register_node (graph,reg_1);
 }
+#endif
 
 static int compare_node (INSTRUCTION_GRAPH graph,int i_test_1,int i_test_2)
 {
@@ -7499,7 +7501,11 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			linearize_dyadic_commutative_data_operator (IOR,graph,ad_p);
 			return;
 		case GEOR:
+#ifdef M68000
 			linearize_eor_operator (graph,ad_p);
+#else
+			linearize_dyadic_commutative_data_operator (IEOR,graph,ad_p);
+#endif
 			return;
 		case GSUB:
 			linearize_dyadic_non_commutative_operator (ISUB,graph,ad_p);
