@@ -15,7 +15,7 @@
 #include "cgopt.h"
 
 #ifdef I486
-# undef I486_USE_SCRATCH_REGISTER
+# define I486_USE_SCRATCH_REGISTER
 #endif
 
 #ifndef M68000
