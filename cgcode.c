@@ -208,10 +208,8 @@ int no_time_profiling;
 #define g_fcmp_gt(g1,g2) g_instruction_2(GFCMP_GT,(g1),(g2))
 #define g_fcmp_lt(g1,g2) g_instruction_2(GFCMP_LT,(g1),(g2))
 #define g_fdiv(g1,g2) g_instruction_2(GFDIV,(g1),(g2))
-#define g_fexp(g1) g_instruction_1(GFEXP,(g1))
 
 #define g_fitor(g1) g_instruction_1(GFITOR,(g1))
-#define g_fln(g1) g_instruction_1(GFLN,(g1))
 
 #define g_fmul(g1,g2) g_instruction_2(GFMUL,(g1),(g2))
 #define g_frem(g1,g2) g_instruction_2(GFREM,(g1),(g2))
@@ -272,10 +270,13 @@ static LABEL	*halt_label,*cmp_string_label,*eqD_label,
 LABEL			*new_int_reducer_label,*channelP_label,*stop_reducer_label,*send_request_label,
 				*send_graph_label,*string_to_string_node_label,*cat_string_label;
 
-static LABEL	*add_real,*sub_real,*mul_real,*div_real,*eq_real,*gt_real,*lt_real,
-				*i_to_r_real,*r_to_i_real,*sqrt_real,*exp_real,*ln_real,*log10_real,
-				*cos_real,*sin_real,*tan_real,*acos_real,*asin_real,*atan_real,
-				*pow_real,*entier_real_label;
+#ifdef M68000
+static LABEL	*add_real,*sub_real,*mul_real,*div_real,*eq_real,*gt_real,*lt_real;
+#endif
+
+static LABEL	*i_to_r_real,*r_to_i_real,*sqrt_real,*exp_real,*ln_real,*log10_real,
+				*cos_real,*sin_real,*tan_real,*acos_real,*asin_real,*atan_real,*pow_real,
+				*entier_real_label;
 
 LABEL 			*copy_graph_label,*CHANNEL_label,*create_channel_label,*currentP_label,*newP_label,
 				*randomP_label,*suspend_label;
@@ -287,6 +288,10 @@ static LABEL	*neg_real;
 static LABEL	*small_integers_label,*static_characters_label;
 
 LABEL			*eval_fill_label,*eval_upd_labels[33];
+
+#ifdef NEW_APPLY
+LABEL			*add_empty_node_labels[33];
+#endif
 
 static LABEL	*print_r_arg_label,*push_t_r_args_label,*push_a_r_args_label;
 LABEL			*index_error_label;
@@ -491,16 +496,15 @@ void code_absR (void)
 void code_acosR (VOID)
 {
 #ifdef M68000
-	if (!mc68881_flag){
-#endif
-		if (acos_real==NULL)
-			acos_real=enter_label ("acos_real",IMPORT_LABEL);
-		code_monadic_sane_operator (acos_real);
-		init_b_stack (2,r_vector);
-#ifdef M68000
-	} else
+	if (mc68881_flag){
 		code_monadic_real_operator (GFACOS);
+		return
+	}
 #endif
+	if (acos_real==NULL)
+		acos_real=enter_label ("acos_real",IMPORT_LABEL);
+	code_monadic_sane_operator (acos_real);
+	init_b_stack (2,r_vector);
 }
 
 void code_addI (VOID)
@@ -595,16 +599,15 @@ void code_and (VOID)
 void code_asinR (VOID)
 {
 #ifdef M68000
-	if (!mc68881_flag){
-#endif
-		if (asin_real==NULL)
-			asin_real=enter_label ("asin_real",IMPORT_LABEL);
-		code_monadic_sane_operator (asin_real);
-		init_b_stack (2,r_vector);
-#ifdef M68000
-	} else
+	if (mc68881_flag){
 		code_monadic_real_operator (GFASIN);
+		return;
+	}
 #endif
+	if (asin_real==NULL)
+		asin_real=enter_label ("asin_real",IMPORT_LABEL);
+	code_monadic_sane_operator (asin_real);
+	init_b_stack (2,r_vector);
 }
 
 void code_atanR (VOID)
@@ -1840,6 +1843,30 @@ void code_divU (VOID)
 }
 #endif
 
+#ifdef I486
+void code_divLU (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
+	
+	graph_3=s_get_b (2);
+	graph_2=s_get_b (1);
+	graph_1=s_pop_b();
+
+	graph_4=g_new_node (GDIVDU,3,3*sizeof (union instruction_parameter));
+	graph_4->instruction_parameters[0].p=graph_1;
+	graph_4->instruction_parameters[1].p=graph_2;
+	graph_4->instruction_parameters[2].p=graph_3;
+
+	graph_5=g_instruction_2 (GRESULT1,graph_4,NULL);
+	graph_6=g_instruction_2 (GRESULT0,graph_4,NULL);
+	graph_5->instruction_parameters[1].p=graph_6;
+	graph_6->instruction_parameters[1].p=graph_5;
+
+	s_put_b (1,graph_5);
+	s_put_b (0,graph_6);
+}
+#endif
+
 void code_entierR (VOID)
 {
 	if (entier_real_label==NULL)
@@ -2238,16 +2265,15 @@ void code_exit_false (char label_name[])
 void code_expR (VOID)
 {
 #ifdef M68000
-	if (!mc68881_flag){
-#endif
-		if (exp_real==NULL)
-			exp_real=enter_label ("exp_real",IMPORT_LABEL);
-		code_monadic_sane_operator (exp_real);
-		init_b_stack (2,r_vector);
-#ifdef M68000
-	} else
+	if (mc68881_flag){
 		code_monadic_real_operator (GFEXP);
+		return;
+	}
 #endif
+	if (exp_real==NULL)
+		exp_real=enter_label ("exp_real",IMPORT_LABEL);
+	code_monadic_sane_operator (exp_real);
+	init_b_stack (2,r_vector);
 }
 
 void code_fill_r (char descriptor_name[],int a_size,int b_size,int root_offset,int a_offset,int b_offset)
@@ -3441,63 +3467,70 @@ static struct basic_block *profile_function_block;
 
 int profile_flag=PROFILE_NORMAL;
 
-static void code_jmp_ap_ (void)
+static void code_jmp_ap_ (int n_apply_args)
 {
+    if (n_apply_args==1){
 #if defined (I486)
-	end_basic_block_with_registers (2,0,e_vector);
-	i_move_id_r (0,REGISTER_A1,REGISTER_A2);
+		end_basic_block_with_registers (2,0,e_vector);
+		i_move_id_r (0,REGISTER_A1,REGISTER_A2);
 # ifdef PROFILE
-	if (profile_function_label!=NULL)
-		i_jmp_id_profile (4-2,REGISTER_A2,0);
-	else
+		if (profile_function_label!=NULL)
+			i_jmp_id_profile (4-2,REGISTER_A2,0);
+		else
 # endif
-	i_jmp_id (4-2,REGISTER_A2,0);
+		i_jmp_id (4-2,REGISTER_A2,0);
 #else
-	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
+		INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
 
-	graph_1=s_get_a (0);
+		graph_1=s_get_a (0);
 
 # if defined (sparc) || defined (G_POWER)
 #  pragma unused (graph_3,graph_4)
-	graph_2=g_load_id (0,graph_1);
-	graph_5=g_load_id (4-2,graph_2);
+		graph_2=g_load_id (0,graph_1);
+		graph_5=g_load_id (4-2,graph_2);
 # else
-	graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
-	graph_3=g_g_register (GLOBAL_DATA_REGISTER);
+		graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
+		graph_3=g_g_register (GLOBAL_DATA_REGISTER);
 
-	graph_4=g_add (graph_3,graph_2);
+		graph_4=g_add (graph_3,graph_2);
 
 #  if defined (M68000) && !defined (SUN)
-	graph_5=g_load_des_id (2,graph_4);
+		graph_5=g_load_des_id (2,graph_4);
 #  else
-	graph_5=g_load_id (4,graph_4);
+		graph_5=g_load_id (4,graph_4);
 #  endif
 # endif
 
-	s_push_a (graph_5);
+		s_push_a (graph_5);
 
-	end_basic_block_with_registers (3,0,e_vector);
+		end_basic_block_with_registers (3,0,e_vector);
 # if defined (M68000) && !defined (SUN)
-	i_add_r_r (GLOBAL_DATA_REGISTER,REGISTER_A2);
+		i_add_r_r (GLOBAL_DATA_REGISTER,REGISTER_A2);
 # endif
 # ifdef PROFILE
-	if (profile_function_label!=NULL)
-		i_jmp_id_profile (0,REGISTER_A2,2<<4);
-	else
+		if (profile_function_label!=NULL)
+			i_jmp_id_profile (0,REGISTER_A2,2<<4);
+		else
 # endif
-		i_jmp_id (0,REGISTER_A2,2<<4);
+			i_jmp_id (0,REGISTER_A2,2<<4);
 #endif
-	demand_flag=0;
+		demand_flag=0;
 	
-	reachable=0;
+		reachable=0;
 	
-	begin_new_basic_block();
+		begin_new_basic_block();
+	} else {
+		char ap_label_name[32];
+
+		sprintf (ap_label_name,"ap_%d",n_apply_args);
+		code_jmp (ap_label_name);
+	}
 }
 
 void code_jmp (char label_name[])
 {
 	if (!strcmp (label_name,"e__system__sAP"))
-		code_jmp_ap_();
+		code_jmp_ap_(1);
 	else {
 		LABEL *label;
 		int a_stack_size,b_stack_size,n_a_and_f_registers;
@@ -3581,10 +3614,10 @@ void code_jmp (char label_name[])
 	}
 }
 
-void code_jmp_ap (void)
+void code_jmp_ap (int n_apply_args)
 {
-	code_d (2,0,e_vector);
-	code_jmp_ap_();
+	code_d (1+n_apply_args,0,e_vector);
+	code_jmp_ap_ (n_apply_args);
 }
 
 void code_label (char *label_name);
@@ -3864,46 +3897,53 @@ static int too_many_b_stack_parameters_for_registers (int b_stack_size,int n_dat
 }
 #endif
 
-static void code_jsr_ap_ (void)
+static void code_jsr_ap_ (int n_apply_args)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
 
+	if (n_apply_args==1){
 #if !defined (I486)
-	graph_1=s_get_a (0);
+		graph_1=s_get_a (0);
 # if defined (sparc) || defined (G_POWER)
 #  pragma unused (graph_3,graph_4)
-	graph_2=g_load_id (0,graph_1);
-	graph_5=g_load_id (4-2,graph_2);
+		graph_2=g_load_id (0,graph_1);
+		graph_5=g_load_id (4-2,graph_2);
 # else
-	graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
-	graph_3=g_g_register (GLOBAL_DATA_REGISTER);
-	graph_4=g_add (graph_3,graph_2);
+		graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
+		graph_3=g_g_register (GLOBAL_DATA_REGISTER);
+		graph_4=g_add (graph_3,graph_2);
 
 #  if defined (M68000) && !defined (SUN)	
-	graph_5=g_load_des_id (2,graph_4);
+		graph_5=g_load_des_id (2,graph_4);
 #  else
-	graph_5=g_load_id (4,graph_4);
+		graph_5=g_load_id (4,graph_4);
 #  endif
 # endif
-	s_push_a (graph_5);
+		s_push_a (graph_5);
 #endif
 
-	if (demand_flag)
-		offered_after_jsr=1;
-	demand_flag=0;
+		if (demand_flag)
+			offered_after_jsr=1;
+		demand_flag=0;
 
 #if defined (I486)
-	insert_basic_block (APPLY_BLOCK,2,0,e_vector,NULL);
+		insert_basic_block (APPLY_BLOCK,2,0,e_vector,NULL);
 #else
-	insert_basic_block (APPLY_BLOCK,3,0,e_vector,NULL);
+		insert_basic_block (APPLY_BLOCK,3,0,e_vector,NULL);
 #endif
-	init_a_stack (1);
+		init_a_stack (1);
+	} else {
+		char ap_label_name[32];
+
+		sprintf (ap_label_name,"ap_%d",n_apply_args);
+		code_jsr (ap_label_name);
+	}
 }
 
 void code_jsr (char label_name[])
 {
 	if (!strcmp (label_name,"e__system__sAP"))
-		code_jsr_ap_();
+		code_jsr_ap_ (1);
 	else {
 		LABEL *label;
 		INSTRUCTION_GRAPH graph;
@@ -3953,10 +3993,10 @@ void code_jsr (char label_name[])
 	}
 }
 
-void code_jsr_ap (void)
+void code_jsr_ap (int n_apply_args)
 {
-	code_d (2,0,e_vector);
-	code_jsr_ap_();
+	code_d (1+n_apply_args,0,e_vector);
+	code_jsr_ap_ (n_apply_args);
 	code_o (1,0,e_vector);
 }
 
@@ -4064,31 +4104,29 @@ void code_keep (int a_offset_1,int a_offset_2)
 void code_lnR (VOID)
 {
 #ifdef M68000
-	if (!mc68881_flag){
-#endif
-		if (ln_real==NULL)
-			ln_real=enter_label ("ln_real",IMPORT_LABEL);
-		code_monadic_sane_operator (ln_real);
-		init_b_stack (2,r_vector);
-#ifdef M68000
-	} else
+	if (mc68881_flag){
 		code_monadic_real_operator (GFLN);
+		return;
+	}
 #endif
+	if (ln_real==NULL)
+		ln_real=enter_label ("ln_real",IMPORT_LABEL);
+	code_monadic_sane_operator (ln_real);
+	init_b_stack (2,r_vector);
 }
 
 void code_log10R (VOID)
 {
 #ifdef M68000
-	if (!mc68881_flag){
-#endif
-		if (log10_real==NULL)
-			log10_real=enter_label ("log10_real",IMPORT_LABEL);
-		code_monadic_sane_operator (log10_real);
-		init_b_stack (2,r_vector);
-#ifdef M68000
-	} else
+	if (mc68881_flag){
 		code_monadic_real_operator (GFLOG10);
+		return;
+	}
 #endif
+	if (log10_real==NULL)
+		log10_real=enter_label ("log10_real",IMPORT_LABEL);
+	code_monadic_sane_operator (log10_real);
+	init_b_stack (2,r_vector);
 }
 
 void code_ltC (VOID)
@@ -4291,17 +4329,27 @@ void code_mulI (VOID)
 #endif
 }
 
-#ifdef G_POWER
-void code_umulIIL (VOID)
+#if defined (I486) || defined (G_POWER)
+void code_mulUUL (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
+# ifdef I486
+	INSTRUCTION_GRAPH graph_5;
+# endif
 	
-	graph_1=s_get_b (1);
-	graph_2=s_get_b (0);
+	graph_1=s_get_b (0);
+	graph_2=s_get_b (1);
 
+# ifdef G_POWER
 	graph_3=g_mul (graph_1,graph_2);
 	graph_4=g_umulh (graph_1,graph_2);
-
+# else
+	graph_5=g_instruction_2 (GMULUD,graph_1,graph_2);
+	graph_3=g_instruction_2 (GRESULT1,graph_5,NULL);
+	graph_4=g_instruction_2 (GRESULT0,graph_5,NULL);
+	graph_3->instruction_parameters[1].p=graph_4;
+	graph_4->instruction_parameters[1].p=graph_3;
+#endif
 	s_put_b (1,graph_3);
 	s_put_b (0,graph_4);
 }
@@ -4344,6 +4392,22 @@ void code_mulR (VOID)
 	}
 #endif
 }
+
+#ifdef NEW_APPLY
+void code_a (int n_apply_args,char *ea_label_name)
+{
+	LABEL *label;
+	char add_empty_node_label_name[32];
+
+	last_block->block_n_node_arguments=-200+n_apply_args;
+	last_block->block_ea_label=enter_label (ea_label_name,0);
+	
+	if (n_apply_args>0 && add_empty_node_labels[n_apply_args]==NULL){
+		sprintf (add_empty_node_label_name,"add_empty_node_%d",n_apply_args);
+		add_empty_node_labels[n_apply_args]=enter_label (add_empty_node_label_name,IMPORT_LABEL);
+	}
+}
+#endif
 
 void code_n (int number_of_arguments,char *descriptor_name,char *ea_label_name)
 {
@@ -8598,6 +8662,11 @@ void initialize_coding (VOID)
 	eval_fill_label=NULL;
 	for (n=0; n<=32; ++n)
 		eval_upd_labels[n]=NULL;
+
+#ifdef NEW_APPLY
+	for (n=0; n<=32; ++n)
+		add_empty_node_labels[n]=NULL;
+#endif
 
 	for (n=0; n<=MAX_YET_ARGS_NEEDED_ARITY; ++n)
 		yet_args_needed_labels[n]=NULL;

@@ -2425,7 +2425,7 @@ static void as_rem_instruction (struct instruction *instruction,int unsigned_rem
 		
 			as_move_r_r (REGISTER_O0,REGISTER_D0);
 			break;
-		default:	
+		default:
 			as_move_r_r (REGISTER_A1,REGISTER_O0);
 			store_c (0x90+reg_num (d_reg)); /* xchg d_reg,D0 */
 	
@@ -2464,6 +2464,177 @@ static void as_rem_instruction (struct instruction *instruction,int unsigned_rem
 			as_move_r_r (d_reg,REGISTER_D0);
 			as_move_r_r (REGISTER_A1,d_reg);
 			as_move_r_r (REGISTER_O0,REGISTER_A1);
+	}
+}
+
+static void as_2move_registers (int reg1,int reg2,int reg3)
+{
+	as_move_r_r (reg2,reg3);
+	as_move_r_r (reg1,reg2);
+}
+
+static void as_3move_registers (int reg1,int reg2,int reg3,int reg4)
+{
+	as_move_r_r (reg3,reg4);
+	as_move_r_r (reg2,reg3);
+	as_move_r_r (reg1,reg2);
+}
+
+static void as_mulud_instruction (struct instruction *instruction)
+{
+	int reg_1,reg_2;
+	
+	reg_1=instruction->instruction_parameters[0].parameter_data.reg.r;
+	reg_2=instruction->instruction_parameters[1].parameter_data.reg.r;
+
+	if (reg_2==REGISTER_D0){
+		if (reg_1==REGISTER_A1)
+			as_r (0367,040,reg_1); /* mul */
+		else {
+			as_move_r_r (REGISTER_A1,REGISTER_O0);
+			as_r (0367,040,reg_1); /* mul */
+			as_2move_registers (REGISTER_O0,REGISTER_A1,reg_1);
+		}
+	} else if (reg_1==REGISTER_A1){
+		as_2move_registers (reg_2,REGISTER_D0,REGISTER_O0);
+		as_r (0367,040,reg_1); /* mul */
+		as_2move_registers (REGISTER_O0,REGISTER_D0,reg_2);
+	} else if (reg_1==REGISTER_D0){
+		if (reg_2==REGISTER_A1){
+			as_r (0367,040,REGISTER_A1); /* mul */
+			store_c (0x90+reg_num (REGISTER_A1)); /* xchg A1,D0 */
+		} else {
+			as_move_r_r (REGISTER_A1,REGISTER_O0);
+			as_r (0367,040,reg_2); /* mul */
+			as_3move_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_2);
+		}
+	} else if (reg_2==REGISTER_A1){
+		as_2move_registers (reg_2,REGISTER_D0,REGISTER_O0);
+		as_r (0367,040,reg_1); /* mul */
+		as_3move_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_1);
+	} else {
+		store_c (0x90+reg_num (reg_2)); /* xchg reg_2,D0 */
+		as_move_r_r (REGISTER_A1,REGISTER_O0);
+		as_r (0367,040,reg_1); /* mul */
+		store_c (0x90+reg_num (reg_2)); /* xchg reg_2,D0 */
+		as_2move_registers (REGISTER_O0,REGISTER_A1,reg_1);
+	}
+}
+
+static void as_divdu_instruction (struct instruction *instruction)
+{
+	int reg_1,reg_2,reg_3;
+	
+	reg_1=instruction->instruction_parameters[0].parameter_data.reg.r;
+	reg_2=instruction->instruction_parameters[1].parameter_data.reg.r;
+	reg_3=instruction->instruction_parameters[2].parameter_data.reg.r;
+
+	if (reg_1==REGISTER_D0){
+		if (reg_3==REGISTER_D0){
+			if (reg_2==REGISTER_A1)
+				as_r (0367,0060,reg_1); /* div */
+			else {
+				as_2move_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				as_r (0367,0060,reg_1); /* div */
+				as_2move_registers (REGISTER_O0,REGISTER_A1,reg_2);
+			}
+		} else if (reg_3==REGISTER_A1){
+			if (reg_2==REGISTER_D0){
+				store_c (0x90+reg_num (REGISTER_A1)); /* xchg A1,D0 */
+				as_r (0367,0060,REGISTER_A1); /* div */
+				store_c (0x90+reg_num (REGISTER_A1)); /* xchg A1,D0 */
+			} else {
+				as_3move_registers (reg_2,REGISTER_A1,REGISTER_D0,REGISTER_O0);
+				as_r (0367,0060,REGISTER_O0); /* div */
+				as_3move_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_2);
+			}
+		} else {
+			if (reg_2==REGISTER_A1){
+				as_2move_registers (reg_3,REGISTER_D0,REGISTER_O0);
+				as_r (0367,0060,REGISTER_O0); /* div */
+				as_2move_registers (REGISTER_O0,REGISTER_D0,reg_3);
+			} else if (reg_2==REGISTER_D0){
+				as_3move_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
+				as_r (0367,0060,REGISTER_A1); /* div */
+				as_3move_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
+			} else {
+				store_c (0x90+reg_num (reg_3)); /* xchg reg_3,D0 */
+				as_2move_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				as_r (0367,0060,reg_3); /* div */
+				as_2move_registers (REGISTER_O0,REGISTER_A1,reg_2);
+				store_c (0x90+reg_num (reg_3)); /* xchg reg_3,D0 */
+			}
+		}
+	} else if (reg_1==REGISTER_A1){
+		if (reg_2==REGISTER_A1){
+			if (reg_3==REGISTER_D0)
+				as_r (0367,0060,reg_1); /* div */
+			else {
+				as_2move_registers (reg_3,REGISTER_D0,REGISTER_O0);
+				as_r (0367,0060,reg_1); /* div */
+				as_2move_registers (REGISTER_O0,REGISTER_D0,reg_3);
+			}
+		} else if (reg_2==REGISTER_D0){
+			if (reg_3==REGISTER_A1){
+				store_c (0x90+reg_num (REGISTER_A1)); /* xchg A1,D0 */
+				as_r (0367,0060,REGISTER_D0); /* div */
+				store_c (0x90+reg_num (REGISTER_A1)); /* xchg A1,D0 */
+			} else {
+				as_3move_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
+				as_r (0367,0060,REGISTER_O0); /* div */
+				as_3move_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
+			}
+		} else {
+			if (reg_3==REGISTER_D0){
+				as_2move_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				as_r (0367,0060,REGISTER_O0); /* div */
+				as_2move_registers (REGISTER_O0,REGISTER_A1,reg_2);
+			} else if (reg_3==REGISTER_A1){
+				as_3move_registers (reg_2,REGISTER_A1,REGISTER_D0,REGISTER_O0);
+				as_r (0367,0060,REGISTER_D0); /* div */
+				as_3move_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_2);
+			} else {
+				as_r_r (0207,reg_2,REGISTER_A1); /* xchg */
+				as_2move_registers (reg_3,REGISTER_D0,REGISTER_O0);
+				as_r (0367,0060,reg_2); /* div */
+				as_2move_registers (REGISTER_O0,REGISTER_D0,reg_3);
+				as_r_r (0207,reg_2,REGISTER_A1); /* xchg */
+			}
+		}
+	} else {
+		if (reg_3==REGISTER_D0){
+			if (reg_2==REGISTER_A1){
+				as_r (0367,0060,reg_1); /* div */
+			} else {
+				as_2move_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				as_r (0367,0060,reg_1); /* div */
+				as_2move_registers (REGISTER_O0,REGISTER_A1,reg_2);
+			}
+		} else if (reg_2==REGISTER_A1){
+			as_2move_registers (reg_3,REGISTER_D0,REGISTER_O0);
+			as_r (0367,0060,reg_1); /* div */
+			as_2move_registers (REGISTER_O0,REGISTER_D0,reg_3);
+		} else if (reg_2==REGISTER_D0){
+			if (reg_3==REGISTER_A1){
+				store_c (0x90+reg_num (REGISTER_A1)); /* xchg A1,D0 */
+				as_r (0367,0060,reg_1); /* div */
+				store_c (0x90+reg_num (REGISTER_A1)); /* xchg A1,D0 */
+			} else {
+				as_3move_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
+				as_r (0367,0060,reg_1); /* div */
+				as_3move_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
+			}
+		} else if (reg_2==REGISTER_A1){
+			as_3move_registers (reg_3,REGISTER_A1,REGISTER_D0,REGISTER_O0);
+			as_r (0367,0060,reg_1); /* div */
+			as_3move_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_3);
+		} else {
+			store_c (0x90+reg_num (reg_3)); /* xchg reg_3,D0 */
+			as_2move_registers (reg_2,REGISTER_A1,REGISTER_O0);
+			as_r (0367,0060,reg_1); /* div */
+			as_2move_registers (REGISTER_O0,REGISTER_A1,reg_2);
+			store_c (0x90+reg_num (reg_3)); /* xchg reg_3,D0 */
+		}
 	}
 }
 
@@ -3970,6 +4141,12 @@ static void as_instructions (struct instruction *instruction)
 			case INOT:
 				as_not_instruction (instruction);
 				break;
+			case IMULUD:
+				as_mulud_instruction (instruction);
+				break;
+			case IDIVDU:
+				as_divdu_instruction (instruction);
+				break;
 			case IWORD:
 				store_c (instruction->instruction_parameters[0].parameter_data.i);
 				break;
@@ -4179,6 +4356,135 @@ static void as_check_stack (struct basic_block *block)
 	}
 }
 
+static void as_profile_call (struct basic_block *block)
+{
+	LABEL *profile_label;
+	
+	as_move_d_r (block->block_profile_function_label,0,REGISTER_A2);
+	
+	if (block->block_n_node_arguments>-100)
+		profile_label=block->block_profile==2 ? profile_n2_label : profile_n_label;
+	else {
+		switch (block->block_profile){
+			case 2:  profile_label=profile_s2_label; break;
+			case 4:  profile_label=profile_l_label;  break;
+			case 5:  profile_label=profile_l2_label; break;
+			default: profile_label=profile_s_label;
+		}
+	}
+	store_c (0350);
+	store_l (0);
+	as_branch_label (profile_label,CALL_RELOCATION);
+}
+
+#ifdef NEW_APPLY
+extern LABEL *add_empty_node_labels[];
+
+static void as_apply_update_entry (struct basic_block *block)
+{
+	if (block->block_profile)
+		as_profile_call (block);
+
+	if (block->block_n_node_arguments==-200){
+		store_c (0351);
+		store_l (0);
+		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
+
+		store_c (0x90);
+		store_c (0x90);
+		store_c (0x90);
+		store_c (0x90);
+		store_c (0x90);
+	} else {
+		store_c (0350); /* call */
+		store_l (0);
+		as_branch_label (add_empty_node_labels[block->block_n_node_arguments+200],CALL_RELOCATION);
+
+		store_c (0351);
+		store_l (0);
+		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
+	}
+	
+	if (!block->block_profile){
+		store_c (0x90);
+		store_c (0x90);
+	}
+}
+#endif
+
+static void as_node_entry_info (struct basic_block *block)
+{
+	if (block->block_ea_label!=NULL){
+		extern LABEL *eval_fill_label,*eval_upd_labels[];
+		int n_node_arguments;
+
+		n_node_arguments=block->block_n_node_arguments;
+		if (n_node_arguments<-2)
+			n_node_arguments=1;
+
+		if (n_node_arguments>=0 && block->block_ea_label!=eval_fill_label){
+#if 1
+			if (!block->block_profile){
+				as_move_l_r (block->block_ea_label,REGISTER_A2);
+
+				store_c (0351);
+				store_l (0);
+				as_branch_label (eval_upd_labels[n_node_arguments],JUMP_RELOCATION);
+
+				store_c (0x90);
+				store_c (0x90);
+			} else {
+				store_c (0351);
+				store_l (-7);
+				as_branch_label (eval_upd_labels[n_node_arguments],JUMP_RELOCATION);
+
+				store_c (0x90);
+				store_c (0x90);
+				store_c (0x90);
+
+				as_move_l_r (block->block_ea_label,REGISTER_D0);
+				as_move_l_r (block->block_profile_function_label,REGISTER_A2);
+
+				store_c (0xeb);
+				store_c (-20);
+			}
+#else
+			as_move_l_r (eval_upd_labels[n_node_arguments],REGISTER_D0);
+			as_move_l_r (block->block_ea_label,REGISTER_A2);
+
+			store_c (0377);
+			store_c (0340 | reg_num (REGISTER_D0)); /* jmp d0 */
+#endif
+		} else {
+			as_move_l_r (block->block_ea_label,REGISTER_D0);
+		
+			store_c (0377);
+			store_c (0340 | reg_num (REGISTER_D0)); /* jmp d0 */
+		
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+		}
+		
+		if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
+			store_l (0);
+			store_label_in_code_section (block->block_descriptor);
+		} else
+			store_l (0);
+	} else
+	if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
+		store_l (0);
+		store_label_in_code_section (block->block_descriptor);
+	}
+	/* else
+		store_l (0);
+	*/
+	
+	store_l (block->block_n_node_arguments);
+}
+
 static void write_code (void)
 {
 	struct basic_block *block;
@@ -4294,98 +4600,17 @@ static void write_code (void)
 				store_c (0x90);
 #endif
 
-			if (block->block_ea_label!=NULL){
-				extern LABEL *eval_fill_label,*eval_upd_labels[];
-				int n_node_arguments;
-
-				n_node_arguments=block->block_n_node_arguments;
-				if (n_node_arguments<-2)
-					n_node_arguments=1;
-
-				if (n_node_arguments>=0 && block->block_ea_label!=eval_fill_label){
-#if 1
-					if (!block->block_profile){
-						as_move_l_r (block->block_ea_label,REGISTER_A2);
-
-						store_c (0351);
-						store_l (0);
-						as_branch_label (eval_upd_labels[n_node_arguments],JUMP_RELOCATION);
-
-						store_c (0x90);
-						store_c (0x90);
-					} else {
-						store_c (0351);
-						store_l (-7);
-						as_branch_label (eval_upd_labels[n_node_arguments],JUMP_RELOCATION);
-
-						store_c (0x90);
-						store_c (0x90);
-						store_c (0x90);
-
-						as_move_l_r (block->block_ea_label,REGISTER_D0);
-						as_move_l_r (block->block_profile_function_label,REGISTER_A2);
-
-						store_c (0xeb);
-						store_c (-20);
-					}
-#else
-					as_move_l_r (eval_upd_labels[n_node_arguments],REGISTER_D0);
-					as_move_l_r (block->block_ea_label,REGISTER_A2);
-
-					store_c (0377);
-					store_c (0340 | reg_num (REGISTER_D0)); /* jmp d0 */
-#endif
-				} else {
-					as_move_l_r (block->block_ea_label,REGISTER_D0);
-				
-					store_c (0377);
-					store_c (0340 | reg_num (REGISTER_D0)); /* jmp d0 */
-				
-					store_c (0x90);
-					store_c (0x90);
-					store_c (0x90);
-					store_c (0x90);
-					store_c (0x90);
-				}
-				
-				if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
-					store_l (0);
-					store_label_in_code_section (block->block_descriptor);
-				} else
-					store_l (0);
-			} else
-			if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
-				store_l (0);
-				store_label_in_code_section (block->block_descriptor);
-			}
-			/* else
-				store_l (0);
-			*/
-						
-			store_l (block->block_n_node_arguments);
+			as_node_entry_info (block);
 		}
+#ifdef NEW_APPLY
+		else if (block->block_n_node_arguments<-100)
+			as_apply_update_entry (block);
+#endif
 
 		as_labels (block->block_labels);
 
-		if (block->block_profile){
-			LABEL *profile_label;
-			
-			as_move_d_r (block->block_profile_function_label,0,REGISTER_A2);
-			
-			if (block->block_n_node_arguments>-100)
-				profile_label=block->block_profile==2 ? profile_n2_label : profile_n_label;
-			else {
-				switch (block->block_profile){
-					case 2:  profile_label=profile_s2_label; break;
-					case 4:  profile_label=profile_l_label;  break;
-					case 5:  profile_label=profile_l2_label; break;
-					default: profile_label=profile_s_label;
-				}
-			}
-			store_c (0350);
-			store_l (0);
-			as_branch_label (profile_label,CALL_RELOCATION);
-		}
+		if (block->block_profile)
+			as_profile_call (block);
 
 		if (block->block_n_new_heap_cells>0)
 			as_garbage_collect_test (block);

@@ -78,7 +78,7 @@ static struct instruction *i_new_instruction (int instruction_code,int arity,int
 
 static struct instruction *i_new_instruction1 (int instruction_code)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+sizeof (struct parameter));
 	
@@ -98,7 +98,7 @@ static struct instruction *i_new_instruction1 (int instruction_code)
 
 static struct instruction *i_new_instruction2 (int instruction_code)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
 	
@@ -106,6 +106,26 @@ static struct instruction *i_new_instruction2 (int instruction_code)
 					instruction_prev=last_instruction,
 					instruction_icode=instruction_code,
 					instruction_arity=2);
+	
+	if (last_block->block_instructions==NULL)
+		last_block->block_instructions=instruction;
+	else 
+		last_instruction->instruction_next=instruction;
+	last_instruction=instruction;
+	
+	return instruction;
+}
+
+static struct instruction *i_new_instruction3 (int instruction_code)
+{
+	struct instruction *instruction;
+	
+	instruction=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+3*sizeof (struct parameter));
+	
+	U4(instruction,	instruction_next=NULL,
+					instruction_prev=last_instruction,
+					instruction_icode=instruction_code,
+					instruction_arity=3);
 	
 	if (last_block->block_instructions==NULL)
 		last_block->block_instructions=instruction;
@@ -804,6 +824,24 @@ void i_call_r (int register_1,int frame_size)
 # ifdef G_POWER
 	instruction->instruction_parameters[1].parameter_data.i=frame_size;
 # endif
+}
+#endif
+
+#ifdef I486
+void i_divdu_r_r_r (int register_1,int register_2,int register_3)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction3 (IDIVDU);
+	
+	S2 (instruction->instruction_parameters[0],	parameter_type=P_REGISTER,
+												parameter_data.i=register_1);
+	
+	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
+												parameter_data.i=register_2);
+
+	S2 (instruction->instruction_parameters[2],	parameter_type=P_REGISTER,
+												parameter_data.i=register_3);
 }
 #endif
 
@@ -1574,6 +1612,21 @@ void i_movew_r_pd (int register_1,int register_2)
 }
 #endif
 
+#ifdef I486
+void i_mulud_r_r (int register_1,int register_2)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction2 (IMULUD);
+	
+	S2 (instruction->instruction_parameters[0],	parameter_type=P_REGISTER,
+												parameter_data.i=register_1);
+	
+	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
+												parameter_data.i=register_2);
+}
+#endif
+
 #ifdef G_POWER
 void i_or_i_r (LONG value,int register_1)
 {
@@ -2256,7 +2309,7 @@ static void instruction_ad_pi (int instruction_code,ADDRESS *ad_p,int register_1
 
 static void instruction_ad_r (int instruction_code,ADDRESS *ad_p,int register_1)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction2 (instruction_code);
 	
@@ -2314,7 +2367,7 @@ static void instruction_l (int instruction_code,LABEL *label)
 
 static void instruction_ad_r_r (int instruction_code,ADDRESS *ad_p,int register_1,int register_2)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction (instruction_code,3,3*sizeof (struct parameter));
 	
@@ -2329,7 +2382,7 @@ static void instruction_ad_r_r (int instruction_code,ADDRESS *ad_p,int register_
 
 static void instruction_r (int instruction_code,int register_1)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 
 	instruction=i_new_instruction1 (instruction_code);
 	
@@ -2522,7 +2575,7 @@ static void in_data_register (register ADDRESS *ad_p)
 	ad_p->ad_count=1;
 }
 
-static void in_alterable_data_register (register ADDRESS *ad_p)
+static void in_alterable_data_register (ADDRESS *ad_p)
 {
 	int dreg;
 	
@@ -2614,6 +2667,119 @@ static void in_alterable_data_register (register ADDRESS *ad_p)
 	ad_p->ad_count_p=&ad_p->ad_count;
 	ad_p->ad_count=1;
 }
+
+#ifdef I486
+static void in_preferred_alterable_register (ADDRESS *ad_p,int preferred_reg)
+{
+	int dreg;
+	
+	switch (ad_p->ad_mode){
+		case P_REGISTER:
+			if (*ad_p->ad_count_p==1)
+				return;
+			
+			--*ad_p->ad_count_p;
+			if (try_allocate_register_number (preferred_reg))
+				dreg=preferred_reg;
+			else
+				dreg=get_dregister();
+			i_move_r_r (ad_p->ad_register,dreg);
+			break;
+		case P_IMMEDIATE:
+			if (try_allocate_register_number (preferred_reg))
+				dreg=preferred_reg;
+			else
+				dreg=get_dregister();
+			i_move_i_r (ad_p->ad_offset,dreg);
+			break;
+		case P_INDIRECT:
+			if (--*ad_p->ad_count_p==0)
+				free_aregister (ad_p->ad_register);
+			if (try_allocate_register_number (preferred_reg))
+				dreg=preferred_reg;
+			else
+				dreg=get_dregister();
+			i_move_id_r (ad_p->ad_offset,ad_p->ad_register,dreg);
+			break;
+		case P_DESCRIPTOR_NUMBER:
+			if (try_allocate_register_number (preferred_reg))
+				dreg=preferred_reg;
+			else
+				dreg=get_dregister();
+			i_move_d_r (ad_p->ad_label,ad_p->ad_offset,dreg);
+			break;
+		case P_INDEXED:
+		{
+			INSTRUCTION_GRAPH load_x_graph;
+			ADDRESS *i_ad_p;
+
+			load_x_graph=(INSTRUCTION_GRAPH)ad_p->ad_offset;
+			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
+			
+			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
+				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
+				if (i_ad_p->ad_mode==P_INDEXED){
+					if (--*i_ad_p->ad_count_p==0)
+						free_aregister (i_ad_p->ad_areg);
+					if (--*i_ad_p->ad_count_p2==0)
+						free_dregister (i_ad_p->ad_dreg);
+
+					if (try_allocate_register_number (preferred_reg))
+						dreg=preferred_reg;
+					else
+						dreg=get_dregister();
+					i_move_x_r (i_ad_p->ad_offset,i_ad_p->ad_areg,i_ad_p->ad_dreg,dreg);
+				} else {
+					if (--*i_ad_p->ad_count_p==0)
+						free_aregister (i_ad_p->ad_register);
+					if (try_allocate_register_number (preferred_reg))
+						dreg=preferred_reg;
+					else
+						dreg=get_dregister();
+					i_move_id_r (i_ad_p->ad_offset,i_ad_p->ad_register,dreg);
+				}
+				i_ad_p->ad_register=dreg;
+			} else {
+				dreg=i_ad_p->ad_register;
+
+				if (is_d_register (dreg)){
+					if (*i_ad_p->ad_count_p>1){
+						int old_dreg;
+						
+						old_dreg=dreg;
+						if (try_allocate_register_number (preferred_reg))
+							dreg=preferred_reg;
+						else
+							dreg=get_dregister();
+						i_move_r_r (old_dreg,dreg);
+						--*i_ad_p->ad_count_p;
+					}		
+				} else {
+					int areg;
+					
+					areg=dreg;
+					if (try_allocate_register_number (preferred_reg))
+						dreg=preferred_reg;
+					else
+						dreg=get_dregister();
+					i_move_r_r (areg,dreg);
+					if (--*i_ad_p->ad_count_p==0)
+						free_aregister (areg);
+				}
+			}
+			break;
+		}
+		default:
+			internal_error_in_function ("in_alterable_data register");
+			return;
+	}
+	
+	ad_p->ad_mode=P_REGISTER;
+	ad_p->ad_register=dreg;
+	ad_p->ad_count_p=&ad_p->ad_count;
+	ad_p->ad_count=1;
+}
+#endif
 
 static void in_address_register (register ADDRESS *ad_p)
 {
@@ -2924,7 +3090,7 @@ static void linearize_dyadic_commutative_operator (int i_instruction_code,INSTRU
 
 static void linearize_dyadic_commutative_data_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
-	register INSTRUCTION_GRAPH graph_1,graph_2;
+	INSTRUCTION_GRAPH graph_1,graph_2;
 	ADDRESS ad_1,ad_2;
 	int reg_1;
 	
@@ -3597,6 +3763,87 @@ static void linearize_mod_operator (int i_instruction_code,INSTRUCTION_GRAPH gra
 	ad_p->ad_count_p=&graph->node_count;
 	if (*ad_p->ad_count_p>1)
 		register_node (graph,reg_1);
+}
+#endif
+
+#ifdef I486
+static void linearize_mulud_or_divdu_operator (INSTRUCTION_GRAPH result_graph,ADDRESS *ad_p)
+{
+	INSTRUCTION_GRAPH graph,result_graph2;
+	ADDRESS ad_1,ad_2;
+	int reg_1,reg_2;
+	
+	graph=result_graph->instruction_parameters[0].p;
+	
+	if (graph->instruction_code==GMULUD){
+		INSTRUCTION_GRAPH graph_1,graph_2;
+
+		graph_1=graph->instruction_parameters[0].p;
+		graph_2=graph->instruction_parameters[1].p;
+
+		if (graph->order_left){
+			linearize_graph (graph_1,&ad_1);
+			linearize_graph (graph_2,&ad_2);
+		} else {
+			linearize_graph (graph_2,&ad_2);
+			linearize_graph (graph_1,&ad_1);
+		}
+
+		in_preferred_alterable_register (&ad_2,REGISTER_D0);
+		in_preferred_alterable_register (&ad_1,REGISTER_A1);
+
+		reg_1=ad_1.ad_register;
+		reg_2=ad_2.ad_register;
+		i_mulud_r_r (reg_1,reg_2);
+	} else {
+		INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+		ADDRESS ad_3;
+
+		graph_1=graph->instruction_parameters[0].p;
+		graph_2=graph->instruction_parameters[1].p;
+		graph_3=graph->instruction_parameters[2].p;
+
+		linearize_graph (graph_1,&ad_1);
+		linearize_graph (graph_2,&ad_2);
+		linearize_graph (graph_3,&ad_3);
+		
+		in_preferred_alterable_register (&ad_2,REGISTER_D0);
+		in_preferred_alterable_register (&ad_1,REGISTER_A1);
+		in_register (&ad_3);
+		
+		reg_1=ad_1.ad_register;
+		reg_2=ad_2.ad_register;
+		if (--*ad_3.ad_count_p==0)
+			free_register (ad_3.ad_register);
+		i_divdu_r_r_r (ad_3.ad_register,reg_1,reg_2);
+	}
+
+	result_graph2=result_graph->instruction_parameters[1].p;
+
+	ad_p->ad_mode=P_REGISTER;
+	ad_p->ad_count_p=&result_graph->node_count;
+
+	if (result_graph->instruction_code==GRESULT0){
+		ad_p->ad_register=reg_1;
+		if (result_graph->node_count>1)
+			register_node (result_graph,reg_1);
+		if (result_graph2->node_count>0)
+			register_node (result_graph2,reg_2);
+		else {
+			--*ad_2.ad_count_p;
+			free_register (reg_2);
+		}
+	} else {
+		ad_p->ad_register=reg_2;
+		if (result_graph->node_count>1)
+			register_node (result_graph,reg_2);
+		if (result_graph2->node_count>0)
+			register_node (result_graph2,reg_1);
+		else {
+			--*ad_1.ad_count_p;
+			free_register (reg_1);
+		}
+	}
 }
 #endif
 
@@ -7793,6 +8040,12 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 #ifdef G_POWER
 		case GUMULH:
 			linearize_dyadic_commutative_data_operator (IUMULH,graph,ad_p);
+			return;
+#endif
+#ifdef I486
+		case GRESULT0:
+		case GRESULT1:
+			linearize_mulud_or_divdu_operator (graph,ad_p);
 			return;
 #endif
 		default:

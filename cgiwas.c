@@ -734,6 +734,13 @@ static void w_as_register_register_newline (int reg1,int reg2)
 	w_as_newline();
 }
 
+static void w_as_opcode_register_newline (char *opcode,int reg1)
+{
+	w_as_opcode (opcode);
+	w_as_register (reg1);
+	w_as_newline();
+}
+
 static void w_as_opcode_register_register_newline (char *opcode,int reg1,int reg2)
 {
 	w_as_opcode (opcode);
@@ -2045,6 +2052,177 @@ static void w_as_rem_instruction (struct instruction *instruction,int unsigned_r
 	}
 }
 
+static void w_as_2movl_registers (int reg1,int reg2,int reg3)
+{
+	w_as_movl_register_register_newline (reg2,reg3);
+	w_as_movl_register_register_newline (reg1,reg2);
+}
+
+static void w_as_3movl_registers (int reg1,int reg2,int reg3,int reg4)
+{
+	w_as_movl_register_register_newline (reg3,reg4);
+	w_as_movl_register_register_newline (reg2,reg3);
+	w_as_movl_register_register_newline (reg1,reg2);
+}
+
+static void w_as_mulud_instruction (struct instruction *instruction)
+{
+	int reg_1,reg_2;
+	
+	reg_1=instruction->instruction_parameters[0].parameter_data.reg.r;
+	reg_2=instruction->instruction_parameters[1].parameter_data.reg.r;
+
+	if (reg_2==REGISTER_D0){
+		if (reg_1==REGISTER_A1){
+			w_as_opcode_register_newline ("mul",reg_1);
+		} else {
+			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_opcode_register_newline ("mul",reg_1);
+			w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_1);
+		}
+	} else if (reg_1==REGISTER_A1){
+		w_as_2movl_registers (reg_2,REGISTER_D0,REGISTER_O0);
+		w_as_opcode_register_newline ("mul",reg_1);
+		w_as_2movl_registers (REGISTER_O0,REGISTER_D0,reg_2);
+	} else if (reg_1==REGISTER_D0){
+		if (reg_2==REGISTER_A1){
+			w_as_opcode_register_newline ("mul",REGISTER_A1);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);
+		} else {
+			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_opcode_register_newline ("mul",reg_2);
+			w_as_3movl_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_2);
+		}
+	} else if (reg_2==REGISTER_A1){
+		w_as_2movl_registers (reg_2,REGISTER_D0,REGISTER_O0);		
+		w_as_opcode_register_newline ("mul",reg_1);
+		w_as_3movl_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_1);
+	} else {
+		w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_D0);
+		w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+		w_as_opcode_register_newline ("mul",reg_1);
+		w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_D0);
+		w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_1);
+	}
+}
+
+static void w_as_divdu_instruction (struct instruction *instruction)
+{
+	int reg_1,reg_2,reg_3;
+	
+	reg_1=instruction->instruction_parameters[0].parameter_data.reg.r;
+	reg_2=instruction->instruction_parameters[1].parameter_data.reg.r;
+	reg_3=instruction->instruction_parameters[2].parameter_data.reg.r;
+
+	if (reg_1==REGISTER_D0){
+		if (reg_3==REGISTER_D0){
+			if (reg_2==REGISTER_A1)
+				w_as_opcode_register_newline ("div",reg_1);
+			else {
+				w_as_2movl_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				w_as_opcode_register_newline ("div",reg_1);
+				w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_2);
+			}
+		} else if (reg_3==REGISTER_A1){
+			if (reg_2==REGISTER_D0){
+				w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);
+				w_as_opcode_register_newline ("div",REGISTER_A1);
+				w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);							
+			} else {
+				w_as_3movl_registers (reg_2,REGISTER_A1,REGISTER_D0,REGISTER_O0);
+				w_as_opcode_register_newline ("div",REGISTER_O0);
+				w_as_3movl_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_2);
+			}
+		} else {
+			if (reg_2==REGISTER_A1){
+				w_as_2movl_registers (reg_3,REGISTER_D0,REGISTER_O0);
+				w_as_opcode_register_newline ("div",REGISTER_O0);
+				w_as_2movl_registers (REGISTER_O0,REGISTER_D0,reg_3);
+			} else if (reg_2==REGISTER_D0){
+				w_as_3movl_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
+				w_as_opcode_register_newline ("div",REGISTER_A1);
+				w_as_3movl_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
+			} else {
+				w_as_opcode_register_register_newline ("xchg",reg_3,REGISTER_D0);
+				w_as_2movl_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				w_as_opcode_register_newline ("div",reg_3);
+				w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_2);
+				w_as_opcode_register_register_newline ("xchg",reg_3,REGISTER_D0);
+			}
+		}
+	} else if (reg_1==REGISTER_A1){
+		if (reg_2==REGISTER_A1){
+			if (reg_3==REGISTER_D0)
+				w_as_opcode_register_newline ("div",reg_1);
+			else {
+				w_as_2movl_registers (reg_3,REGISTER_D0,REGISTER_O0);
+				w_as_opcode_register_newline ("div",reg_1);
+				w_as_2movl_registers (REGISTER_O0,REGISTER_D0,reg_3);
+			}
+		} else if (reg_2==REGISTER_D0){
+			if (reg_3==REGISTER_A1){
+				w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);
+				w_as_opcode_register_newline ("div",REGISTER_D0);
+				w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);							
+			} else {
+				w_as_3movl_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
+				w_as_opcode_register_newline ("div",REGISTER_O0);
+				w_as_3movl_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
+			}
+		} else {
+			if (reg_3==REGISTER_D0){
+				w_as_2movl_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				w_as_opcode_register_newline ("div",REGISTER_O0);
+				w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_2);
+			} else if (reg_3==REGISTER_A1){
+				w_as_3movl_registers (reg_2,REGISTER_A1,REGISTER_D0,REGISTER_O0);
+				w_as_opcode_register_newline ("div",REGISTER_D0);
+				w_as_3movl_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_2);
+			} else {
+				w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_A1);
+				w_as_2movl_registers (reg_3,REGISTER_D0,REGISTER_O0);
+				w_as_opcode_register_newline ("div",reg_2);
+				w_as_2movl_registers (REGISTER_O0,REGISTER_D0,reg_3);
+				w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_A1);
+			}
+		}
+	} else {
+		if (reg_3==REGISTER_D0){
+			if (reg_2==REGISTER_A1){
+				w_as_opcode_register_newline ("div",reg_1);
+			} else {
+				w_as_2movl_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				w_as_opcode_register_newline ("div",reg_1);
+				w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_2);
+			}
+		} else if (reg_2==REGISTER_A1){
+			w_as_2movl_registers (reg_3,REGISTER_D0,REGISTER_O0);
+			w_as_opcode_register_newline ("div",reg_1);
+			w_as_2movl_registers (REGISTER_O0,REGISTER_D0,reg_3);
+		} else if (reg_2==REGISTER_D0){
+			if (reg_3==REGISTER_A1){
+				w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);
+				w_as_opcode_register_newline ("div",reg_1);
+				w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);
+			} else {
+				w_as_3movl_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
+				w_as_opcode_register_newline ("div",reg_1);
+				w_as_3movl_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
+			}
+		} else if (reg_2==REGISTER_A1){
+			w_as_3movl_registers (reg_3,REGISTER_A1,REGISTER_D0,REGISTER_O0);
+			w_as_opcode_register_newline ("div",reg_1);
+			w_as_3movl_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_3);
+		} else {
+			w_as_opcode_register_register_newline ("xchg",reg_3,REGISTER_D0);
+			w_as_2movl_registers (reg_2,REGISTER_A1,REGISTER_O0);
+			w_as_opcode_register_newline ("div",reg_1);
+			w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_2);
+			w_as_opcode_register_register_newline ("xchg",reg_3,REGISTER_D0);
+		}
+	}
+}
+
 static void w_as_word_instruction (struct instruction *instruction)
 {
 	fprintf (assembly_file,"\t.byte\t%d\n",
@@ -3071,6 +3249,12 @@ static void w_as_instructions (register struct instruction *instruction)
 			case INOT:
 				w_as_monadic_instruction (instruction,intel_asm ? "not" : "notl");
 				break;
+			case IMULUD:
+				w_as_mulud_instruction (instruction);
+				break;
+			case IDIVDU:
+				w_as_divdu_instruction (instruction);
+				break;
 			case IFMOVE:
 				instruction=w_as_fmove_instruction (instruction);
 				break;
@@ -3501,6 +3685,170 @@ static void w_as_import_labels (struct label_node *label_node)
 	w_as_import_labels (label_node->label_node_right);
 }
 
+static void w_as_node_entry_info (struct basic_block *block)
+{
+	if (block->block_ea_label!=NULL){
+		int n_node_arguments;
+
+		n_node_arguments=block->block_n_node_arguments;
+		if (n_node_arguments<-2)
+			n_node_arguments=1;
+
+		if (n_node_arguments>=0 && block->block_ea_label!=eval_fill_label){
+#if 1
+			if (!block->block_profile){
+				w_as_opcode_movl();
+				if (intel_asm)
+					w_as_register_comma (REGISTER_A2);
+				w_as_immediate_label (block->block_ea_label->label_name);
+				if (!intel_asm)
+					w_as_comma_register (REGISTER_A2);
+				w_as_newline();
+
+				w_as_opcode ("jmp");
+				w_as_label (eval_upd_labels[n_node_arguments]->label_name);
+				w_as_newline();
+
+				w_as_instruction_without_parameters ("nop");
+				w_as_instruction_without_parameters ("nop");
+			} else {
+				w_as_opcode ("jmp");
+				w_as_label (eval_upd_labels[n_node_arguments]->label_name);
+				fprintf (assembly_file,"-7");
+				w_as_newline();						
+
+				w_as_instruction_without_parameters ("nop");
+				w_as_instruction_without_parameters ("nop");
+				w_as_instruction_without_parameters ("nop");
+
+				w_as_opcode_movl();
+				if (intel_asm)
+					w_as_register_comma (REGISTER_D0);
+				w_as_immediate_label (block->block_ea_label->label_name);
+				if (!intel_asm)
+					w_as_comma_register (REGISTER_D0);
+				w_as_newline();
+
+				w_as_opcode_movl();
+				if (intel_asm)
+					w_as_register_comma (REGISTER_A2);
+				w_as_descriptor (block->block_profile_function_label,0);
+				if (!intel_asm)
+					w_as_comma_register (REGISTER_A2);
+				w_as_newline();
+
+				w_as_opcode ("jmp");
+				fprintf (assembly_file,".-18");
+				w_as_newline();
+			}
+#else
+			w_as_opcode_movl();
+			if (intel_asm)
+				w_as_register_comma (REGISTER_D0);
+			w_as_immediate_label (eval_upd_labels[n_node_arguments]->label_name);
+			if (!intel_asm)
+				w_as_comma_register (REGISTER_D0);
+			w_as_newline();
+
+			w_as_opcode_movl();
+			if (intel_asm)
+				w_as_register_comma (REGISTER_A2);
+			w_as_immediate_label (block->block_ea_label->label_name);
+			if (!intel_asm)
+				w_as_comma_register (REGISTER_A2);
+			w_as_newline();
+		
+			w_as_opcode ("jmp");
+			w_as_register (REGISTER_D0);
+			w_as_newline();
+#endif
+		} else {
+			w_as_opcode_movl();
+			if (intel_asm)
+				w_as_register_comma (REGISTER_D0);
+			w_as_immediate_label (block->block_ea_label->label_name);
+			if (!intel_asm)
+				w_as_comma_register (REGISTER_D0);
+			w_as_newline();
+		
+			w_as_opcode ("jmp");
+			w_as_register (REGISTER_D0);
+			w_as_newline();
+		
+			w_as_space (5);
+		}
+		
+		if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
+			w_as_label_in_code_section (block->block_descriptor->label_name);
+		else
+			w_as_number_of_arguments (0);
+	} else
+	if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
+		w_as_label_in_code_section (block->block_descriptor->label_name);
+
+	w_as_number_of_arguments (block->block_n_node_arguments);
+}
+
+static void w_as_profile_call (struct basic_block *block)
+{
+	w_as_opcode_movl();
+	if (intel_asm)
+		w_as_scratch_register_comma();
+	w_as_descriptor (block->block_profile_function_label,0);
+	if (!intel_asm)
+		w_as_comma_scratch_register();
+	w_as_newline();
+
+	w_as_opcode ("call");
+	
+	if (block->block_n_node_arguments>-100)
+		w_as_label (block->block_profile==2 ? "profile_n2" : "profile_n");
+	else {
+		switch (block->block_profile){
+			case 2:  w_as_label ("profile_s2"); break;
+			case 4:  w_as_label ("profile_l"); break;
+			case 5:  w_as_label ("profile_l2"); break;
+			default: w_as_label ("profile_s");
+		}
+	}
+	w_as_newline();
+}
+
+#ifdef NEW_APPLY
+extern LABEL *add_empty_node_labels[];
+
+static void w_as_apply_update_entry (struct basic_block *block)
+{
+	if (block->block_profile)
+		w_as_profile_call (block);
+	
+	if (block->block_n_node_arguments==-200){
+		w_as_opcode ("jmp");
+		w_as_label (block->block_ea_label->label_name);
+		w_as_newline();
+
+		w_as_instruction_without_parameters ("nop");
+		w_as_instruction_without_parameters ("nop");
+		w_as_instruction_without_parameters ("nop");
+		w_as_instruction_without_parameters ("nop");
+		w_as_instruction_without_parameters ("nop");
+	} else {
+		w_as_opcode ("call");
+		w_as_label (add_empty_node_labels[block->block_n_node_arguments+200]->label_name);
+		w_as_newline();
+
+		w_as_opcode ("jmp");
+		w_as_label (block->block_ea_label->label_name);
+		w_as_newline();
+	}
+	
+	if (!block->block_profile){
+		w_as_instruction_without_parameters ("nop");
+		w_as_instruction_without_parameters ("nop");
+	}
+}
+#endif
+
 void write_assembly (VOID)
 {
 	struct basic_block *block;
@@ -3523,135 +3871,17 @@ void write_assembly (VOID)
 	for_l (block,first_block,block_next){
 		if (block->block_n_node_arguments>-100){
 			w_as_align (2);
-
-			if (block->block_ea_label!=NULL){
-				int n_node_arguments;
-
-				n_node_arguments=block->block_n_node_arguments;
-				if (n_node_arguments<-2)
-					n_node_arguments=1;
-
-				if (n_node_arguments>=0 && block->block_ea_label!=eval_fill_label){
-#if 1
-					if (!block->block_profile){
-						w_as_opcode_movl();
-						if (intel_asm)
-							w_as_register_comma (REGISTER_A2);
-						w_as_immediate_label (block->block_ea_label->label_name);
-						if (!intel_asm)
-							w_as_comma_register (REGISTER_A2);
-						w_as_newline();
-
-						w_as_opcode ("jmp");
-						w_as_label (eval_upd_labels[n_node_arguments]->label_name);
-						w_as_newline();
-
-						w_as_instruction_without_parameters ("nop");
-						w_as_instruction_without_parameters ("nop");
-					} else {
-						w_as_opcode ("jmp");
-						w_as_label (eval_upd_labels[n_node_arguments]->label_name);
-						fprintf (assembly_file,"-7");
-						w_as_newline();						
-
-						w_as_instruction_without_parameters ("nop");
-						w_as_instruction_without_parameters ("nop");
-						w_as_instruction_without_parameters ("nop");
-
-						w_as_opcode_movl();
-						if (intel_asm)
-							w_as_register_comma (REGISTER_D0);
-						w_as_immediate_label (block->block_ea_label->label_name);
-						if (!intel_asm)
-							w_as_comma_register (REGISTER_D0);
-						w_as_newline();
-
-						w_as_opcode_movl();
-						if (intel_asm)
-							w_as_register_comma (REGISTER_A2);
-						w_as_descriptor (block->block_profile_function_label,0);
-						if (!intel_asm)
-							w_as_comma_register (REGISTER_A2);
-						w_as_newline();
-
-						w_as_opcode ("jmp");
-						fprintf (assembly_file,".-18");
-						w_as_newline();
-					}
-#else
-					w_as_opcode_movl();
-					if (intel_asm)
-						w_as_register_comma (REGISTER_D0);
-					w_as_immediate_label (eval_upd_labels[n_node_arguments]->label_name);
-					if (!intel_asm)
-						w_as_comma_register (REGISTER_D0);
-					w_as_newline();
-		
-					w_as_opcode_movl();
-					if (intel_asm)
-						w_as_register_comma (REGISTER_A2);
-					w_as_immediate_label (block->block_ea_label->label_name);
-					if (!intel_asm)
-						w_as_comma_register (REGISTER_A2);
-					w_as_newline();
-				
-					w_as_opcode ("jmp");
-					w_as_register (REGISTER_D0);
-					w_as_newline();
-#endif
-				} else {
-					w_as_opcode_movl();
-					if (intel_asm)
-						w_as_register_comma (REGISTER_D0);
-					w_as_immediate_label (block->block_ea_label->label_name);
-					if (!intel_asm)
-						w_as_comma_register (REGISTER_D0);
-					w_as_newline();
-				
-					w_as_opcode ("jmp");
-					w_as_register (REGISTER_D0);
-					w_as_newline();
-				
-					w_as_space (5);
-				}
-				
-				if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
-					w_as_label_in_code_section (block->block_descriptor->label_name);
-				else
-					w_as_number_of_arguments (0);
-			} else
-
-			if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
-				w_as_label_in_code_section (block->block_descriptor->label_name);
-
-			w_as_number_of_arguments (block->block_n_node_arguments);
+			w_as_node_entry_info (block);
 		}
+#ifdef NEW_APPLY
+		else if (block->block_n_node_arguments<-100)
+			w_as_apply_update_entry (block);
+#endif
 
 		w_as_labels (block->block_labels);
 
-		if (block->block_profile){
-			w_as_opcode_movl();
-			if (intel_asm)
-				w_as_scratch_register_comma();
-			w_as_descriptor (block->block_profile_function_label,0);
-			if (!intel_asm)
-				w_as_comma_scratch_register();
-			w_as_newline();
-		
-			w_as_opcode ("call");
-			
-			if (block->block_n_node_arguments>-100)
-				w_as_label (block->block_profile==2 ? "profile_n2" : "profile_n");
-			else {
-				switch (block->block_profile){
-					case 2:  w_as_label ("profile_s2"); break;
-					case 4:  w_as_label ("profile_l"); break;
-					case 5:  w_as_label ("profile_l2"); break;
-					default: w_as_label ("profile_s");
-				}
-			}
-			w_as_newline();
-		}
+		if (block->block_profile)
+			w_as_profile_call (block);
 
 		if (block->block_n_new_heap_cells>0)
 			w_as_garbage_collect_test (block);

@@ -415,10 +415,10 @@ static int get_argument_size (int instruction_code)
 IF_G_RISC (case IADDI: case ILSLI:)
 IF_G_SPARC (case IADDO: case ISUBO: )
 #ifdef I486
-		case IDIVI:		case IREMI:		case IREMU:
+		case IDIVI:		case IREMI:		case IREMU:		case IMULUD:	case IDIVDU:
 #endif
 #if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
-		case IDIVU:		
+		case IDIVU:
 #endif
 IF_G_POWER ( case IUMULH: )
 			return 4;
@@ -669,7 +669,8 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 #ifdef I486
 					instruction->instruction_icode!=IDIVI &&
 					instruction->instruction_icode!=IREMI &&
-					instruction->instruction_icode!=IREMU &&					
+					instruction->instruction_icode!=IREMU &&
+					instruction->instruction_icode!=IDIVDU &&
 #endif
 					instruction->instruction_icode!=IMOD)
 #ifdef M68000
@@ -904,6 +905,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 				if (instruction->instruction_icode!=IDIVI && 
 					instruction->instruction_icode!=IREMI &&
 					instruction->instruction_icode!=IREMU &&
+					instruction->instruction_icode!=IDIVDU &&
 					instruction->instruction_icode!=IMOD)
 					internal_error_in_function ("optimize_stack_access");
 				/* only first argument of mod might be register indirect */
@@ -1516,6 +1518,9 @@ static void store_next_uses (struct instruction *instruction)
 			case IDIV:
 			case ICMPW:
 #endif
+#if defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)
+			case IMULUD:
+#endif
 #if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
 			case IDIVU:
 #endif
@@ -1546,7 +1551,7 @@ IF_G_POWER ( case IUMULH: )
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
-			case IDIV:	case IMOD:	case IDIVU:	case IREMU:
+			case IDIV:	case IMOD:	case IDIVU:	case IREMU:	case IMULUD:
 				define_scratch_register();
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
@@ -1636,6 +1641,16 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				break;
 			}
 			case IBMOVE:
+				use_parameter (&instruction->instruction_parameters[2]);
+				use_parameter (&instruction->instruction_parameters[1]);
+				use_parameter (&instruction->instruction_parameters[0]);
+				break;
+#endif
+#ifdef I486
+			case IDIVDU:
+# ifdef I486_USE_SCRATCH_REGISTER
+				define_scratch_register();
+# endif
 				use_parameter (&instruction->instruction_parameters[2]);
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
@@ -3054,7 +3069,7 @@ static void use_3_same_type_registers
 			reg_alloc=f_reg_alloc;
 			break;
 		default:
-			internal_error_in_function ("use_2_same_type_registers");
+			internal_error_in_function ("use_3_same_type_registers");
 			return;
 	}
 	
@@ -3600,7 +3615,7 @@ static void instruction_def (struct instruction *instruction)
 	}
 }
 
-static void instruction_exg_usedef_usedef (struct instruction *instruction)
+static void instruction_usedef_usedef (struct instruction *instruction)
 {
 	register_use_2 (	&instruction->instruction_parameters[0].parameter_data.reg,USE_DEF,
 						&instruction->instruction_parameters[1].parameter_data.reg,USE_DEF);
@@ -3917,8 +3932,19 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #endif
 				break;
 			case IEXG:
-				instruction_exg_usedef_usedef (instruction);
+				instruction_usedef_usedef (instruction);
 				break;
+#ifdef I486
+			case IMULUD:
+# ifdef I486_USE_SCRATCH_REGISTER
+				use_scratch_register();
+# endif
+				instruction_usedef_usedef (instruction);				
+# ifdef I486_USE_SCRATCH_REGISTER
+				allocate_scratch_register=1;
+# endif
+				break;
+#endif
 #if defined (I486) && defined (FP_STACK_OPTIMIZATIONS)
 			case IFEXG:
 				instruction_fexg_usedef_usedef (instruction);
@@ -3955,6 +3981,20 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				break;
 			case IBMOVE:
 				instruction_bmove_use_use_use (instruction);
+				break;
+#endif
+#ifdef I486
+			case IDIVDU:
+# ifdef I486_USE_SCRATCH_REGISTER
+				use_scratch_register();
+# endif
+				use_3_same_type_registers
+					(&instruction->instruction_parameters[0].parameter_data.reg,USE,
+					 &instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,
+					 &instruction->instruction_parameters[2].parameter_data.reg,USE_DEF,D_REGISTER);
+# ifdef I486_USE_SCRATCH_REGISTER
+				allocate_scratch_register=1;
+# endif
 				break;
 #endif
 #ifdef I486_USE_SCRATCH_REGISTER

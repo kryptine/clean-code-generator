@@ -1,5 +1,6 @@
 
 #define FINALIZERS
+#undef NEW_APPLY
 
 #if defined (__MWERKS__) || defined (__MRC__)
 # define POWER

@@ -1168,6 +1168,22 @@ static int parse_directive (InstructionP instruction)
 	return 1;
 }
 
+#ifdef NEW_APPLY
+static int parse_directive_a (InstructionP instruction)
+{
+	LONG n;
+	STRING s;
+
+	if (!parse_integer (&n))
+		return 0;
+	
+	parse_label (s);
+	instruction->instruction_code_function ((int)n,s);
+
+	return 1;
+}
+#endif
+
 static int parse_directive_n (InstructionP instruction)
 {
 	LONG n;
@@ -1761,6 +1777,9 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("decI",			parse_instruction,			code_decI );
 	put_instruction_name ("del_args",		parse_instruction_n_n_n,	code_del_args );
 	put_instruction_name ("divI",			parse_instruction,			code_divI );
+#ifdef I486
+	put_instruction_name ("divLU",			parse_instruction,			code_divLU );
+#endif
 	put_instruction_name ("divR",			parse_instruction,			code_divR );
 #if defined (I486) || defined (G_POWER)
 	put_instruction_name ("divU",			parse_instruction,			code_divU );
@@ -1832,13 +1851,13 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("ItoP",			parse_instruction,			code_ItoP );
 	put_instruction_name ("ItoR",			parse_instruction,			code_ItoR );
 	put_instruction_name ("jmp",			parse_instruction_a,		code_jmp );
-	put_instruction_name ("jmp_ap",			parse_instruction,			code_jmp_ap );
+	put_instruction_name ("jmp_ap",			parse_instruction_n,			code_jmp_ap );
 	put_instruction_name ("jmp_eval",		parse_instruction,			code_jmp_eval );
 	put_instruction_name ("jmp_eval_upd",	parse_instruction,			code_jmp_eval_upd );
 	put_instruction_name ("jmp_false",		parse_instruction_a,		code_jmp_false );
 	put_instruction_name ("jmp_true",		parse_instruction_a,		code_jmp_true );
 	put_instruction_name ("jsr",			parse_instruction_a,		code_jsr );
-	put_instruction_name ("jsr_ap",			parse_instruction,			code_jsr_ap );
+	put_instruction_name ("jsr_ap",			parse_instruction_n,			code_jsr_ap );
 	put_instruction_name ("jsr_eval",		parse_instruction_n,		code_jsr_eval );
 	put_instruction_name ("lnR",			parse_instruction,			code_lnR );
 	put_instruction_name ("log10R",			parse_instruction,			code_log10R );
@@ -1851,6 +1870,9 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("modI",			parse_instruction,			code_remI );
 	put_instruction_name ("mulI",			parse_instruction,			code_mulI );
 	put_instruction_name ("mulR",			parse_instruction,			code_mulR );
+#if defined (I486) || defined (G_POWER)
+	put_instruction_name ("mulUUL",			parse_instruction,			code_mulUUL );
+#endif
 	put_instruction_name ("negI",			parse_instruction,			code_negI );
 	put_instruction_name ("negR",			parse_instruction,			code_negR );
 	put_instruction_name ("new_ext_reducer",parse_instruction_a_n,		code_new_ext_reducer );
@@ -1970,13 +1992,13 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("updatepop_b",	parse_instruction_n_n,		code_updatepop_b );
 	put_instruction_name ("updateS",		parse_instruction_n_n,		code_updateS );
 	put_instruction_name ("update",			parse_instruction_a_n_n,	code_update );
-#ifdef G_POWER
-	put_instruction_name ("umulIIL",		parse_instruction,			code_umulIIL );
-#endif
 	put_instruction_name ("xor%",			parse_instruction,			code_xor );
 	put_instruction_name (".caf",			parse_instruction_a_n_n,	code_caf );
 	put_instruction_name (".code",			parse_directive_n_n_n,		code_dummy	);
 	put_instruction_name (".comp",			parse_directive_n_l,		code_comp	);
+#ifdef NEW_APPLY
+	put_instruction_name (".a",				parse_directive_a,			code_a );
+#endif
 	put_instruction_name (".d",				parse_directive_n_n_t,		code_d );
 	put_instruction_name (".depend",		parse_directive_depend,		code_depend );
 	put_instruction_name (".desc",			parse_directive_desc,		code_desc );

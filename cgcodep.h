@@ -62,6 +62,9 @@ void code_create_channel (char *label_name);
 void code_decI (VOID);
 void code_del_args (int source_offset,int n_arguments,int destination_offset);
 void code_divI (VOID);
+#ifdef I486
+void code_divLU (VOID);
+#endif
 void code_divR (VOID);
 #if defined (I486) || defined (G_POWER)
  void code_divU (VOID);
@@ -129,13 +132,13 @@ void code_ItoC (VOID);
 void code_ItoP (VOID);
 void code_ItoR (VOID);
 void code_jmp (char label_name[]);
-void code_jmp_ap (void);
+void code_jmp_ap (int n_args);
 void code_jmp_eval (VOID);
 void code_jmp_eval_upd (VOID);
 void code_jmp_false (char label_name[]);
 void code_jmp_true (char label_name[]);
 void code_jsr (char label_name[]);
-void code_jsr_ap (void);
+void code_jsr_ap (int n_args);
 void code_jsr_eval (int a_offset);
 void code_lnR (VOID);
 void code_log10R (VOID);
@@ -154,6 +157,9 @@ void code_mulI (VOID);
 void code_mulIo (VOID);
 #endif
 void code_mulR (VOID);
+#if defined (I486) || defined (G_POWER)
+void code_mulUUL (VOID);
+#endif
 void code_negI (void);
 void code_negR (VOID);
 void code_new_ext_reducer (char descriptor_name[],int a_offset);
@@ -260,11 +266,11 @@ void code_updatepop_a (int a_offset_1,int a_offset_2);
 void code_update_b (int b_offset_1,int b_offset_2);
 void code_updatepop_b (int b_offset_1,int b_offset_2);
 void code_updateS (int source_offset,int destination_offset);
-#ifdef G_POWER
-void code_umulIIL (VOID);
-#endif
 void code_xor (VOID);
 
+#ifdef NEW_APPLY
+void code_a (int number_of_arguments,char *ea_label_name);
+#endif
 void code_caf (char *label_name,int a_size,int b_size);
 void code_comp (int version,char *options);
 void code_d (int da,int db,ULONG vector[]);

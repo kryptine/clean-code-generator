@@ -241,8 +241,115 @@ static void calculate_eor_operator (INSTRUCTION_GRAPH graph)
 	graph->i_dregs=i_dregs;
 	
 	graph->order_alterable=graph->node_count<=1;
-	return;
 }
+
+#ifdef I486
+static void calculate_mulud_operator (INSTRUCTION_GRAPH graph)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+	int i_aregs,i_dregs,l_aregs,r_aregs,l_dregs,r_dregs;	
+
+	graph_1=graph->instruction_parameters[0].p;
+	graph_2=graph->instruction_parameters[1].p;
+	
+	calculate_graph_register_uses (graph_1);
+	calculate_graph_register_uses (graph_2);
+	
+	i_aregs=graph_1->i_aregs+graph_2->i_aregs;
+	i_dregs=graph_1->i_dregs+graph_2->i_dregs;
+	
+	l_aregs=MAX (graph_1->u_aregs,graph_1->i_aregs+graph_2->u_aregs);
+	l_dregs=MAX (graph_1->u_dregs,graph_1->i_dregs+graph_2->u_dregs);
+		
+	r_aregs=MAX (graph_2->u_aregs,graph_2->i_aregs+graph_1->u_aregs);
+	r_dregs=MAX (graph_2->u_dregs,graph_2->i_dregs+graph_1->u_dregs);
+	
+	if (graph_1->order_mode==R_DREGISTER)
+		i_dregs-=graph_1->order_alterable;
+	else
+		i_aregs-=graph_1->order_alterable;
+		
+	if (graph_2->order_mode==R_DREGISTER)
+		i_dregs-=graph_2->order_alterable;
+	else
+		i_aregs-=graph_2->order_alterable;
+	
+	i_dregs+=2;
+
+	if (l_dregs<i_dregs)
+		l_dregs=i_dregs;
+	if (r_dregs<i_dregs)
+		r_dregs=i_dregs;
+	
+	graph->order_mode=R_DREGISTER;
+	
+	if (AD_REG_WEIGHT (l_aregs,l_dregs) < AD_REG_WEIGHT (r_aregs,r_dregs)){
+		graph->u_aregs=l_aregs;
+		graph->u_dregs=l_dregs;
+		graph->order_left=1;
+	} else {
+		graph->u_aregs=r_aregs;
+		graph->u_dregs=r_dregs;
+		graph->order_left=0;
+	}
+		
+	graph->i_aregs=i_aregs;
+	graph->i_dregs=i_dregs;
+	
+	graph->order_alterable=0;
+}
+
+static void calculate_divdu_operator (INSTRUCTION_GRAPH graph)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+	int i_aregs,i_dregs,aregs,dregs;
+
+	graph_1=graph->instruction_parameters[0].p;
+	graph_2=graph->instruction_parameters[1].p;
+	graph_3=graph->instruction_parameters[2].p;
+	
+	calculate_graph_register_uses (graph_1);
+	calculate_graph_register_uses (graph_2);
+	calculate_graph_register_uses (graph_3);
+	
+	i_aregs=graph_1->i_aregs+graph_2->i_aregs+graph_3->i_aregs;
+	i_dregs=graph_1->i_dregs+graph_2->i_dregs+graph_3->i_dregs;
+	
+	aregs=MAX (	MAX (graph_1->u_aregs,graph_1->i_aregs+graph_2->u_aregs),
+				graph_1->i_aregs+graph_2->i_aregs+graph_3->u_aregs);
+	dregs=MAX (	MAX (graph_1->u_dregs,graph_1->i_dregs+graph_2->u_dregs),
+				graph_1->i_dregs+graph_2->i_dregs+graph_3->u_dregs);
+	
+	if (graph_1->order_mode==R_DREGISTER)
+		i_dregs-=graph_1->order_alterable;
+	else
+		i_aregs-=graph_1->order_alterable;
+		
+	if (graph_2->order_mode==R_DREGISTER)
+		i_dregs-=graph_2->order_alterable;
+	else
+		i_aregs-=graph_2->order_alterable;
+
+	if (graph_3->order_mode==R_DREGISTER)
+		i_dregs-=graph_3->order_alterable;
+	else
+		i_aregs-=graph_3->order_alterable;
+	
+	i_dregs+=2;
+
+	if (dregs<i_dregs)
+		dregs=i_dregs;
+
+	graph->order_mode=R_DREGISTER;
+	
+	graph->u_aregs=aregs;
+	graph->u_dregs=dregs;
+	graph->i_aregs=i_aregs;
+	graph->i_dregs=i_dregs;
+	
+	graph->order_alterable=0;
+}
+#endif
 
 static void calculate_dyadic_float_operator (INSTRUCTION_GRAPH graph)
 {
@@ -2334,15 +2441,17 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 		case GFCOS:
 		case GFSIN:
 		case GFTAN:
-		case GFASIN:
-		case GFACOS:
 		case GFATAN:
-		case GFLN:
-		case GFLOG10:
-		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
 		case GFABS:
+#ifdef M68000
+		case GFASIN:
+		case GFACOS:
+		case GFLN:
+		case GFLOG10:
+		case GFEXP:
+#endif
 			calculate_monadic_float_operator (graph);
 			return;
 		case GFLOAD_ID:
@@ -2433,6 +2542,29 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			graph->order_alterable=graph_2->order_alterable;
 			return;
 		}
+#ifdef I486
+		case GRESULT0:
+		case GRESULT1:
+		{
+			INSTRUCTION_GRAPH graph_0;
+			
+			graph_0=graph->instruction_parameters[0].p;
+			if (graph_0->order_mode==R_NOMODE)
+				if (graph->instruction_code==GMULUD)
+					calculate_mulud_operator (graph_0);
+				else
+					calculate_divdu_operator (graph_0);
+			
+			graph->order_mode=R_DREGISTER;
+			graph->u_aregs=graph_0->u_aregs;
+			graph->u_dregs=graph_0->u_dregs;
+			graph->i_aregs=graph_0->i_aregs;
+			graph->i_dregs=graph_0->i_dregs;
+	
+			graph->order_alterable=graph->node_count<=1;		
+			return;
+		}
+#endif
 		default:
 			/* printf ("%d\n",graph->instruction_code); */
 			internal_error_in_function ("calculate_graph_register_uses");
@@ -2515,6 +2647,9 @@ void count_graph (INSTRUCTION_GRAPH graph)
 #ifdef G_POWER
 		case GUMULH:
 #endif
+#ifdef I486
+		case GMULUD:
+#endif
 			if (++graph->node_count==1){
 				count_graph (graph->instruction_parameters[0].p);
 				count_graph (graph->instruction_parameters[1].p);
@@ -2528,21 +2663,27 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GFCOS:
 		case GFSIN:
 		case GFTAN:
-		case GFASIN:
-		case GFACOS:
 		case GFATAN:
-		case GFLN:
-		case GFLOG10:
-		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
 		case GFABS:
+#ifdef M68000
+		case GFASIN:
+		case GFACOS:
+		case GFLN:
+		case GFLOG10:
+		case GFEXP:
+#endif
 		case GNEG:
 #if defined (I486) || defined (G_POWER)
 		case GNOT:
 #endif
 		case GBEFORE0:
 		case GTEST_O:
+#ifdef I486
+		case GRESULT0:
+		case GRESULT1:
+#endif
 			if (++graph->node_count==1)
 				count_graph (graph->instruction_parameters[0].p);
 			break;
@@ -2633,6 +2774,15 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GREGISTER:
 			++graph->node_count;
 			break;
+#ifdef I486
+		case GDIVDU:
+			if (++graph->node_count==1){
+				count_graph (graph->instruction_parameters[0].p);
+				count_graph (graph->instruction_parameters[1].p);
+				count_graph (graph->instruction_parameters[2].p);
+			}
+			break;
+#endif
 		default:
 			internal_error_in_function ("count_graph");
 	}
@@ -2680,6 +2830,9 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 #ifdef G_POWER
 		case GUMULH:
 #endif
+#ifdef I486
+		case GMULUD:
+#endif
 			if (graph->node_mark<2){
 				graph->node_mark=2;
 				mark_graph_2 (graph->instruction_parameters[0].p);
@@ -2694,21 +2847,27 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GFCOS:
 		case GFSIN:
 		case GFTAN:
-		case GFASIN:
-		case GFACOS:
 		case GFATAN:
-		case GFLN:
-		case GFLOG10:
-		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
 		case GFABS:
+#ifdef M68000
+		case GFASIN:
+		case GFACOS:
+		case GFLN:
+		case GFLOG10:
+		case GFEXP:
+#endif
 		case GNEG:
 #if defined (I486) || defined (G_POWER)
 		case GNOT:
 #endif
 		case GBEFORE0:
 		case GTEST_O:
+#ifdef I486
+		case GRESULT0:
+		case GRESULT1:
+#endif
 			if (graph->node_mark<2){
 				graph->node_mark=2;
 				mark_graph_2 (graph->instruction_parameters[0].p);
@@ -2813,6 +2972,16 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GREGISTER:
 			graph->node_mark=2;
 			break;
+#ifdef I486
+		case GDIVDU:
+			if (graph->node_mark<2){
+				graph->node_mark=2;
+				mark_graph_2 (graph->instruction_parameters[0].p);
+				mark_graph_2 (graph->instruction_parameters[1].p);
+				mark_graph_2 (graph->instruction_parameters[2].p);
+			}
+			break;
+#endif
 		default:
 			internal_error_in_function ("mark_graph_2");
 	}
@@ -2860,6 +3029,9 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 #ifdef G_POWER
 		case GUMULH:
 #endif
+#ifdef I486
+		case GMULUD:
+#endif
 			if (!graph->node_mark){
 				graph->node_mark=1;
 				mark_graph_2 (graph->instruction_parameters[0].p);
@@ -2872,21 +3044,27 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GFCOS:
 		case GFSIN:
 		case GFTAN:
-		case GFASIN:
-		case GFACOS:
 		case GFATAN:
-		case GFLN:
-		case GFLOG10:
-		case GFEXP:
 		case GFSQRT:
 		case GFNEG:
 		case GFABS:
+#ifdef M68000
+		case GFASIN:
+		case GFACOS:
+		case GFLN:
+		case GFLOG10:
+		case GFEXP:
+#endif
 #if defined (I486) || defined (G_POWER)
 		case GNEG:
 		case GNOT:
 #endif
 		case GBEFORE0:
 		case GTEST_O:
+#ifdef I486
+		case GRESULT0:
+		case GRESULT1:
+#endif
 			if (!graph->node_mark){
 				graph->node_mark=1;
 				mark_graph_2 (graph->instruction_parameters[0].p);
@@ -2999,6 +3177,16 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 				mark_graph_1 (graph->instruction_parameters[0].p);
 			}
 			break;
+#ifdef I486
+		case GDIVDU:
+			if (!graph->node_mark){
+				graph->node_mark=1;
+				mark_graph_2 (graph->instruction_parameters[0].p);
+				mark_graph_2 (graph->instruction_parameters[1].p);
+				mark_graph_2 (graph->instruction_parameters[2].p);
+			}
+			break;
+#endif
 		default:
 			internal_error_in_function ("mark_graph_1");
 	}
