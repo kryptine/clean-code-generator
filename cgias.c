@@ -108,8 +108,6 @@ struct object_label {
 
 static struct object_label *first_object_label,**last_object_label_l;
 
-#define label_offset label_small_vector
-
 struct object_buffer {
 	struct object_buffer *next;
 	int size;
