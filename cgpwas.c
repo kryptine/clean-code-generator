@@ -2052,6 +2052,71 @@ static void w_as_div_instruction (struct instruction *instruction)
 			w_as_register_newline (sd_reg);
 			
 			return;
+		} else if (i>1 || i<-1){
+			struct ms ms;
+
+			ms=magic (i);
+			
+			sd_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+
+			w_as_opcode ("lis");
+			w_as_register_comma (REGISTER_O0);
+			w_as_immediate ((ms.m-(WORD)ms.m)>>16);
+			w_as_newline();
+		
+			w_as_opcode ("addi");
+			w_as_register_comma (REGISTER_O0);
+			w_as_register_comma (REGISTER_O0);
+			w_as_immediate ((WORD)ms.m);
+			w_as_newline();
+
+			w_as_opcode ("mulhw");
+			w_as_register_comma (REGISTER_O0);
+			w_as_register_comma (REGISTER_O0);
+			w_as_register_newline (sd_reg);
+			
+			if (i>=0){
+				if (ms.m<0){
+					w_as_opcode ("add");
+					w_as_register_comma (REGISTER_O0);
+					w_as_register_comma (REGISTER_O0);
+					w_as_register_newline (sd_reg);
+				}
+
+				w_as_opcode ("srwi");
+				w_as_register_comma (sd_reg);
+				w_as_register_comma (sd_reg);
+				w_as_immediate (31);
+				w_as_newline();
+			} else {
+				if (ms.m>=0){
+					w_as_opcode ("sub");
+					w_as_register_comma (REGISTER_O0);
+					w_as_register_comma (REGISTER_O0);
+					w_as_register_newline (sd_reg);
+				}
+
+				w_as_opcode ("srwi");
+				w_as_register_comma (sd_reg);
+				w_as_register_comma (REGISTER_O0);
+				w_as_immediate (31);
+				w_as_newline();
+			}
+
+			if (ms.s>0){
+				w_as_opcode ("srawi");
+				w_as_register_comma (REGISTER_O0);
+				w_as_register_comma (REGISTER_O0);
+				w_as_immediate (ms.s);
+				w_as_newline();
+			}
+						
+			w_as_opcode ("add");
+			w_as_register_comma (sd_reg);
+			w_as_register_comma (sd_reg);
+			w_as_register_newline (REGISTER_O0);
+
+			return;
 		}
 	}
 			

@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #include "cgport.h"
 
@@ -539,6 +540,7 @@ static unsigned char real_reg_num [32] =
 #define as_mtlr(rs)			as_mtspr (8,rs)
 #define as_mtctr(rs)		as_mtspr (9,rs)
 #define as_mtspr(spr,rs)	store_instruction ((31<<26)|(reg_num(rs)<<21)|(spr<<16)|(467<<1));
+#define as_mulhw(rd,ra,rb)	as_i_dab (rd,ra,rb,75)
 #define as_mulli(rd,ra,si)	as_i_dai (7,rd,ra,si)
 #define as_mullw(rd,ra,rb)	as_i_dab (rd,ra,rb,235)
 #define as_mullwo_(rd,ra,rb)as_i_dabo_ (rd,ra,rb,235)
@@ -1281,6 +1283,54 @@ static void as_mulo_instruction (struct instruction *instruction)
 	as_mullwo_ (r,r,reg);
 }
 
+/*
+	From The PowerPC Compiler WriterÕs Guide,
+	Warren, Henry S., Jr., IBM Research Report RC 18601 [1992]. Changing Division by a
+	Constant to Multiplication in TwoÕs Complement Arithmetic, (December 21),
+	Granlund, Torbjorn and Montgomery, Peter L. [1994]. SIGPLAN Notices, 29 (June), 61.
+*/
+
+struct ms magic (int d)
+	/* must have 2 <= d <= 231-1 or -231 <= d <= -2 */
+{
+	int p;
+	unsigned int ad, anc, delta, q1, r1, q2, r2, t;
+	const unsigned int two31 = 2147483648;/* 231 */
+	struct ms mag;
+
+	ad = abs(d);
+	t = two31 + ((unsigned int)d >> 31);
+	anc = t - 1 - t%ad; /* absolute value of nc */
+	p = 31;				/* initialize p */
+	q1 = two31/anc;		/* initialize q1 = 2p/abs(nc) */
+	r1 = two31 - q1*anc;/* initialize r1 = rem(2p,abs(nc)) */
+	q2 = two31/ad;		/* initialize q2 = 2p/abs(d) */
+	r2 = two31 - q2*ad;	/* initialize r2 = rem(2p,abs(d)) */
+
+	do {
+		p = p + 1;
+		q1 = 2*q1; 		/* update q1 = 2p/abs(nc) */
+		r1 = 2*r1;	 	/* update r1 = rem(2p/abs(nc)) */
+		if (r1 >= anc) {/* must be unsigned comparison */
+			q1 = q1 + 1;
+			r1 = r1 - anc;
+		}
+		q2 = 2*q2;		/* update q2 = 2p/abs(d) */
+		r2 = 2*r2;		/* update r2 = rem(2p/abs(d)) */
+		if (r2 >= ad) { /* must be unsigned comparison */
+			q2 = q2 + 1;
+			r2 = r2 - ad;
+		}
+		delta = ad - r2;
+	} while (q1 < delta || (q1 == delta && r1 == 0));
+
+	mag.m = q2 + 1;
+	if (d < 0) mag.m = -mag.m;	/* resulting magic number */
+	mag.s = p - 32;				/* resulting shift */
+
+	return mag;
+}
+
 static void as_div_instruction (struct instruction *instruction)
 {
 	int reg;
@@ -1305,6 +1355,30 @@ static void as_div_instruction (struct instruction *instruction)
 			
 			as_srawi (sd_reg,sd_reg,log2i);
 			as_addze (sd_reg,sd_reg);			
+
+			return;
+		} else if (i>1 || i<-1){
+			struct ms ms;
+
+			ms=magic (i);
+			
+			sd_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+
+			as_lis (REGISTER_O0,(ms.m-(WORD)ms.m)>>16);
+			as_addi (REGISTER_O0,REGISTER_O0,(WORD)ms.m);
+			as_mulhw (REGISTER_O0,REGISTER_O0,sd_reg);
+			if (i>=0){
+				if (ms.m<0)
+					as_add (REGISTER_O0,REGISTER_O0,sd_reg);
+				as_srwi (sd_reg,sd_reg,31);
+			} else {
+				if (ms.m>=0)
+					as_sub (REGISTER_O0,REGISTER_O0,sd_reg);
+				as_srwi (sd_reg,REGISTER_O0,31);
+			}
+			if (ms.s>0)
+				as_srawi (REGISTER_O0,REGISTER_O0,ms.s);
+			as_add (sd_reg,sd_reg,REGISTER_O0);			
 
 			return;
 		}
