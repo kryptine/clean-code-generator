@@ -1375,6 +1375,17 @@ static int parse_directive_descn (InstructionP instruction)
 	return 1;
 }
 
+static int parse_directive_pb (InstructionP instruction)
+{
+	STRING s;
+	int length;
+	
+	if (!parse_descriptor_string (s,&length))
+		return 0;
+	instruction->instruction_code_function (s,length);
+	return 1;
+}
+
 static int parse_directive_record (InstructionP instruction)
 {
 	STRING a1,a2,s;
@@ -1966,7 +1977,7 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name (".n_string",		parse_directive_n_string,	code_n_string );
 	put_instruction_name (".o",				parse_directive_n_n_t,		code_o );
 
-	put_instruction_name (".pb",			parse_instruction_s,		IF_PROFILING (code_pb,code_dummy) );
+	put_instruction_name (".pb",			parse_directive_pb,			IF_PROFILING (code_pb,code_dummy) );
 	put_instruction_name (".pd",			parse_directive,			IF_PROFILING (code_pd,code_dummy) );
 	put_instruction_name (".pe",			parse_directive,			IF_PROFILING (code_pe,code_dummy) );
 	put_instruction_name (".pl",			parse_directive,			IF_PROFILING (code_pl,code_dummy) );
