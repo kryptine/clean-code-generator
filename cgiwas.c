@@ -733,6 +733,18 @@ static void w_as_register_register_newline (int reg1,int reg2)
 	w_as_newline();
 }
 
+static void w_as_immediate_register_newline (int i,int reg)
+{
+	if (!intel_asm){
+		w_as_immediate (i);
+		w_as_comma_register (reg);
+	} else {
+		w_as_register_comma (reg);
+		w_as_immediate (i);
+	}
+	w_as_newline();
+}
+
 static void w_as_move_instruction (struct instruction *instruction,int size_flag)
 {
 	switch (instruction->instruction_parameters[1].parameter_type){
@@ -1531,43 +1543,23 @@ static void w_as_div_instruction (struct instruction *instruction)
 
 		if (log2i==1){
 			w_as_opcode ("sar");
-			if (intel_asm)
-				w_as_register_comma (REGISTER_O0);
-			w_as_immediate (31);
-			if (!intel_asm)
-				w_as_comma_register (REGISTER_O0);
-			w_as_newline();
+			w_as_immediate_register_newline (31,REGISTER_O0);
 
 			w_as_opcode ("sub");
 			w_as_register_register_newline (REGISTER_O0,d_reg);
 		} else {
 			w_as_opcode ("sar");
-			if (intel_asm)
-				w_as_register_comma (d_reg);
-			w_as_immediate (31);
-			if (!intel_asm)
-				w_as_comma_register (d_reg);
-			w_as_newline();
+			w_as_immediate_register_newline (31,d_reg);
 
 			w_as_opcode ("and");
-			if (intel_asm)
-				w_as_register_comma (d_reg);
-			w_as_immediate ((1<<log2i)-1);
-			if (!intel_asm)
-				w_as_comma_register (d_reg);
-			w_as_newline();
+			w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
 
 			w_as_opcode ("add");
 			w_as_register_register_newline (REGISTER_O0,d_reg);
 		}
 		
 		w_as_opcode ("sar");
-		if (intel_asm)
-			w_as_register_comma (d_reg);
-		w_as_immediate (log2i);
-		if (!intel_asm)
-			w_as_comma_register (d_reg);
-		w_as_newline();
+		w_as_immediate_register_newline (log2i,d_reg);
 
 		return;
 	}
@@ -1693,11 +1685,59 @@ static void w_as_div_instruction (struct instruction *instruction)
 	}
 }
 
-static void w_as_mod_instruction (struct instruction *instruction)
+static void w_as_rem_instruction (struct instruction *instruction)
 {
 	int d_reg;
 
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+		int i,log2i;
+		
+		i=instruction->instruction_parameters[0].parameter_data.i;
+		
+		if (! ((i & (i-1))==0 && i>1)){
+			internal_error_in_function ("w_as_rem_instruction");
+			return;
+		}
+				
+		log2i=0;
+		while (i>1){
+			i=i>>1;
+			++log2i;
+		}
+		
+		w_as_opcode_movl();
+		w_as_register_register_newline (d_reg,REGISTER_O0);
+
+		if (log2i==1){
+			w_as_opcode ("and");
+			w_as_immediate_register_newline (1,d_reg);
+
+			w_as_opcode ("sar");
+			w_as_immediate_register_newline (31,REGISTER_O0);
+
+			w_as_opcode ("xor");
+			w_as_register_register_newline (REGISTER_O0,d_reg);
+		} else {
+			w_as_opcode ("sar");
+			w_as_immediate_register_newline (31,REGISTER_O0);
+
+			w_as_opcode ("and");
+			w_as_immediate_register_newline ((1<<log2i)-1,REGISTER_O0);
+
+			w_as_opcode ("add");
+			w_as_register_register_newline (REGISTER_O0,d_reg);
+
+			w_as_opcode ("and");
+			w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
+		}
+		
+		w_as_opcode ("sub");
+		w_as_register_register_newline (REGISTER_O0,d_reg);
+
+		return;
+	}
 
 	switch (d_reg){
 		case REGISTER_D0:
@@ -2724,7 +2764,7 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_div_instruction (instruction);
 				break;
 			case IMOD:
-				w_as_mod_instruction (instruction);
+				w_as_rem_instruction (instruction);
 				break;
 			case IAND:
 				w_as_dyadic_instruction (instruction,intel_asm ? "and" : "andl");

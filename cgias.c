@@ -1954,6 +1954,7 @@ static void as_div_instruction (struct instruction *instruction)
 			as_r_r (0003,REGISTER_O0,d_reg); /* add */
 		}
 		
+		/* sar */
 		store_c (0301);
 		store_c (0300 | (7<<3) | reg_num (d_reg));
 		store_c (log2i);
@@ -2056,11 +2057,71 @@ static void as_div_instruction (struct instruction *instruction)
 	}
 }
 
-static void as_mod_instruction (struct instruction *instruction)
+static void as_rem_instruction (struct instruction *instruction)
 {
 	int d_reg;
 
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+		int i,log2i;
+		
+		i=instruction->instruction_parameters[0].parameter_data.i;
+		
+		if (! ((i & (i-1))==0 && i>1)){
+			internal_error_in_function ("as_rem_instruction");
+			return;
+		}
+				
+		log2i=0;
+		while (i>1){
+			i=i>>1;
+			++log2i;
+		}
+
+		as_move_r_r (d_reg,REGISTER_O0);
+
+		if (log2i==1){
+			/* and */
+			if (d_reg==EAX)
+				store_c (045);
+			else
+				as_r (0201,040,d_reg);
+			store_l (1);
+
+			/* sar */
+			store_c (0301);
+			store_c (0300 | (7<<3) | reg_num (REGISTER_O0));
+			store_c (31);
+
+			as_r_r (0063,REGISTER_O0,d_reg); /* xor */
+		} else {
+			/* sar */
+			store_c (0301);
+			store_c (0300 | (7<<3) | reg_num (REGISTER_O0));
+			store_c (31);
+
+			/* and */
+			if (REGISTER_O0==EAX)
+				store_c (045);
+			else
+				as_r (0201,040,REGISTER_O0);
+			store_l ((1<<log2i)-1);
+
+			as_r_r (0003,REGISTER_O0,d_reg); /* add */
+
+			/* and */
+			if (d_reg==EAX)
+				store_c (045);
+			else
+				as_r (0201,040,d_reg);
+			store_l ((1<<log2i)-1);
+		}
+
+		as_r_r (0053,REGISTER_O0,d_reg); /* sub */
+
+		return;
+	}
 
 	switch (d_reg){
 		case REGISTER_D0:
@@ -3530,7 +3591,7 @@ static void as_instructions (struct instruction *instruction)
 				as_div_instruction (instruction);
 				break;
 			case IMOD:
-				as_mod_instruction (instruction);
+				as_rem_instruction (instruction);
 				break;
 			case IAND:
 				as_logic_instruction (instruction,0043,040,045);

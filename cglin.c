@@ -3384,7 +3384,7 @@ static void linearize_div_mod_operator (int i_instruction_code,INSTRUCTION_GRAPH
 	to_data_addressing_mode (&ad_1);
 
 # ifdef I486
-	if ((ad_1.ad_mode==P_IMMEDIATE && !((ad_1.ad_offset & (ad_1.ad_offset-1))==0 && ad_1.ad_offset>0)) || ad_1.ad_mode==P_INDEXED)
+	if ((ad_1.ad_mode==P_IMMEDIATE && !((ad_1.ad_offset & (ad_1.ad_offset-1))==0 && (i_instruction_code==IMOD ? ad_1.ad_offset>1 : ad_1.ad_offset>0))) || ad_1.ad_mode==P_INDEXED)
 		in_data_register (&ad_1);
 # endif
 
