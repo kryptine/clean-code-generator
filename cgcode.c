@@ -291,8 +291,8 @@ LABEL			*eval_fill_label,*eval_upd_labels[33];
 static LABEL	*print_r_arg_label,*push_t_r_args_label,*push_a_r_args_label;
 LABEL			*index_error_label;
 
-#if defined (G_POWER) || defined (I486)
-LABEL	*r_to_i_buffer_label;
+#ifdef G_POWER
+LABEL			*r_to_i_buffer_label;
 #endif
 
 LABEL			*collect_0_label,*collect_1_label,*collect_2_label,
@@ -6370,9 +6370,10 @@ void code_RtoI (VOID)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
 
 #if defined (G_POWER) || defined (I486)
+# ifdef G_POWER
 	if (r_to_i_buffer_label==NULL)
 		r_to_i_buffer_label=enter_label ("r_to_i_buffer",IMPORT_LABEL);
-
+# endif
 	graph_1=s_pop_b();
 	graph_2=s_pop_b();
 	graph_3=g_fjoin (graph_1,graph_2);
@@ -8618,7 +8619,7 @@ void initialize_coding (VOID)
 	sqrt_real=NULL;
 #endif
 
-#if defined (G_POWER) || defined (I486)
+#ifdef G_POWER
 	r_to_i_buffer_label=NULL;
 #endif
 	
