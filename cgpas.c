@@ -30,7 +30,6 @@
 
 #undef USE_DCBZ
 
-#define FSUB_FDIV_REVERSED
 #define TRL_RELOCATIONS
 
 #include "cgrconst.h"
@@ -41,6 +40,8 @@
 #include "cginstructions.h"
 #include "cgpas.h"
 #include "cgptoc.h"
+
+#define FP_REVERSE_SUB_DIV_OPERANDS 1
 
 #define IO_BUFFER_SIZE 16384
 #define BUFFER_SIZE 4096
@@ -274,7 +275,7 @@ void store_c_string_in_data_section (char *string,int length)
 		++string_p;
 	}
 	store_long_word_in_data_section (d);
-} 
+}
 
 #define CURRENT_CODE_OFFSET (code_buffer_offset+((unsigned char*)code_buffer_p-current_code_buffer->data))
 #define CURRENT_DATA_OFFSET (data_buffer_offset+((unsigned char*)data_buffer_p-current_data_buffer->data))
@@ -2263,14 +2264,12 @@ static void as_fdiv_instruction (struct instruction *instruction)
 
 	freg=as_float_parameter (instruction->instruction_parameters[0]);
 
-#ifdef FSUB_FDIV_REVERSED
-	if (instruction->instruction_parameters[1].parameter_flags)
+	if (instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 		as_fdiv (instruction->instruction_parameters[1].parameter_data.reg.r+14,
 				 freg+14,instruction->instruction_parameters[1].parameter_data.reg.r+14);
 	else
-#endif
-	as_fdiv (instruction->instruction_parameters[1].parameter_data.reg.r+14,
-			 instruction->instruction_parameters[1].parameter_data.reg.r+14,freg+14);
+		as_fdiv (instruction->instruction_parameters[1].parameter_data.reg.r+14,
+				 instruction->instruction_parameters[1].parameter_data.reg.r+14,freg+14);
 }
 
 static void as_fsub_instruction (struct instruction *instruction)
@@ -2279,14 +2278,12 @@ static void as_fsub_instruction (struct instruction *instruction)
 
 	freg=as_float_parameter (instruction->instruction_parameters[0]);
 
-#ifdef FSUB_FDIV_REVERSED
-	if (instruction->instruction_parameters[1].parameter_flags)
+	if (instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 		as_fsub (instruction->instruction_parameters[1].parameter_data.reg.r+14,
 				 freg+14,instruction->instruction_parameters[1].parameter_data.reg.r+14);
 	else
-#endif
-	as_fsub (instruction->instruction_parameters[1].parameter_data.reg.r+14,
-			 instruction->instruction_parameters[1].parameter_data.reg.r+14,freg+14);
+		as_fsub (instruction->instruction_parameters[1].parameter_data.reg.r+14,
+				 instruction->instruction_parameters[1].parameter_data.reg.r+14,freg+14);
 }
 
 #ifdef FMADD
@@ -2328,7 +2325,17 @@ static void as_fmul_instruction (struct instruction *instruction)
 
 						return next_instruction;
 					}
-				}
+				} else if (	next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
+							next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r)
+				{
+						as_load_float_immediate (*next_instruction->instruction_parameters[0].parameter_data.r,16);
+						as_fmadd (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
+									freg+14,
+									instruction->instruction_parameters[1].parameter_data.reg.r+14,
+									16+14);
+
+						return next_instruction;
+				}					
 			} else if (next_instruction->instruction_icode==IFSUB){
 				if (next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER &&
 					next_instruction->instruction_parameters[0].parameter_data.reg.r!=next_instruction->instruction_parameters[1].parameter_data.reg.r)
@@ -2336,14 +2343,12 @@ static void as_fmul_instruction (struct instruction *instruction)
 					if (next_instruction->instruction_parameters[0].parameter_flags & FP_REG_LAST_USE &&
 						next_instruction->instruction_parameters[0].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r)
 					{
-# ifdef FSUB_FDIV_REVERSED
-						if (next_instruction->instruction_parameters[1].parameter_flags)
+						if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 							as_fmsub (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
 										freg+14,
 										instruction->instruction_parameters[1].parameter_data.reg.r+14,
 										next_instruction->instruction_parameters[1].parameter_data.reg.r+14);
 						else
-# endif
 							as_fnmsub (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
 										freg+14,
 										instruction->instruction_parameters[1].parameter_data.reg.r+14,
@@ -2352,20 +2357,34 @@ static void as_fmul_instruction (struct instruction *instruction)
 						return next_instruction;
 					} else if (next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r)
 					{
-# ifdef FSUB_FDIV_REVERSED
-						if (next_instruction->instruction_parameters[1].parameter_flags)
+						if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 							as_fnmsub (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
 										freg+14,
 										instruction->instruction_parameters[1].parameter_data.reg.r+14,
 										next_instruction->instruction_parameters[0].parameter_data.reg.r+14);
 						else
-# endif
 							as_fmsub (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
 										freg+14,
 										instruction->instruction_parameters[1].parameter_data.reg.r+14,
 										next_instruction->instruction_parameters[0].parameter_data.reg.r+14);
 						return next_instruction;
 					}
+				} else if (	next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
+							next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r)
+				{
+						as_load_float_immediate (*next_instruction->instruction_parameters[0].parameter_data.r,16);
+						if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+							as_fnmsub (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
+										freg+14,
+										instruction->instruction_parameters[1].parameter_data.reg.r+14,
+										16+14);
+						else
+							as_fmsub (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
+										freg+14,
+										instruction->instruction_parameters[1].parameter_data.reg.r+14,
+									16+14);
+
+						return next_instruction;
 				}
 			}
 	}
@@ -2427,11 +2446,9 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 											as_fadd (reg1+14,reg0+14,reg_s+14);
 											break;
 										case IFSUB:
-#ifdef FSUB_FDIV_REVERSED
-											if (next_instruction->instruction_parameters[1].parameter_flags)
+											if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 												as_fsub (reg1+14,reg_s+14,reg0+14);
 											else
-#endif
 												as_fsub (reg1+14,reg0+14,reg_s+14);
 											break;
 										case IFMUL:
@@ -2452,7 +2469,15 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 																	next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r+14);
 														
 														return next_of_next_instruction;
-													}
+													} else if (	next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
+																next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1)
+													{
+														as_load_float_immediate (*next_of_next_instruction->instruction_parameters[0].parameter_data.r,16);
+														as_fmadd (reg1+14,reg0+14,reg_s+14,16+14);
+														
+														return next_of_next_instruction;
+													}			
+
 												} else if (next_of_next_instruction->instruction_icode==IFSUB &&
 													next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER &&
 													next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r!=next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r)
@@ -2460,26 +2485,22 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 													if (next_of_next_instruction->instruction_parameters[0].parameter_flags & FP_REG_LAST_USE &&
 														next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r==reg1)
 													{
-# ifdef FSUB_FDIV_REVERSED
-														if (next_of_next_instruction->instruction_parameters[1].parameter_flags)
+														if (next_of_next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 															as_fmsub (	next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
 																		reg0+14,reg_s+14,
 																		next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r+14);
 														else
-# endif
 															as_fnmsub (	next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
 																		reg0+14,reg_s+14,
 																		next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r+14);
 														
 														return next_of_next_instruction;					
 													} else if (next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1){
-# ifdef FSUB_FDIV_REVERSED
-														if (next_of_next_instruction->instruction_parameters[1].parameter_flags)
+														if (next_of_next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 															as_fnmsub (	next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
 																		reg0+14,reg_s+14,
 																		next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r+14);
 														else
-# endif
 															as_fmsub (	next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
 																		reg0+14,reg_s+14,
 																		next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r+14);
@@ -2494,12 +2515,10 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 											as_fmul (reg1+14,reg0+14,reg_s+14);
 											break;
 										case IFDIV:
-#ifdef FSUB_FDIV_REVERSED
-											if (next_instruction->instruction_parameters[1].parameter_flags)
+											if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 												as_fdiv (reg1+14,reg_s+14,reg0+14);
 											else
-#endif
-											as_fdiv (reg1+14,reg0+14,reg_s+14);
+												as_fdiv (reg1+14,reg0+14,reg_s+14);
 											break;
 									}									
 									return next_instruction;
