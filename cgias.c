@@ -1910,6 +1910,57 @@ static void as_div_instruction (struct instruction *instruction)
 
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+		int i,log2i;
+		
+		i=instruction->instruction_parameters[0].parameter_data.i;
+		
+		if (! ((i & (i-1))==0 && i>0)){
+			internal_error_in_function ("as_div_instruction");
+			return;
+		}
+		
+		if (i==1)
+			return;
+		
+		log2i=0;
+		while (i>1){
+			i=i>>1;
+			++log2i;
+		}
+		
+		as_move_r_r (d_reg,REGISTER_O0);
+
+		if (log2i==1){
+			/* sar */
+			store_c (0301);
+			store_c (0300 | (7<<3) | reg_num (REGISTER_O0));
+			store_c (31);
+
+			as_r_r (0053,REGISTER_O0,d_reg); /* sub */
+		} else {
+			/* sar */
+			store_c (0301);
+			store_c (0300 | (7<<3) | reg_num (d_reg));
+			store_c (31);
+
+			/* and */
+			if (d_reg==EAX)
+				store_c (045);
+			else
+				as_r (0201,040,d_reg);
+			store_l ((1<<log2i)-1);
+
+			as_r_r (0003,REGISTER_O0,d_reg); /* add */
+		}
+		
+		store_c (0301);
+		store_c (0300 | (7<<3) | reg_num (d_reg));
+		store_c (log2i);
+
+		return;
+	}
+
 	switch (d_reg){
 		case REGISTER_D0:
 			as_move_r_r (REGISTER_A1,REGISTER_O0);

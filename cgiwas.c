@@ -1507,6 +1507,71 @@ static void w_as_div_instruction (struct instruction *instruction)
 
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+		int i,log2i;
+		
+		i=instruction->instruction_parameters[0].parameter_data.i;
+		
+		if (! ((i & (i-1))==0 && i>0)){
+			internal_error_in_function ("w_as_div_instruction");
+			return;
+		}
+		
+		if (i==1)
+			return;
+		
+		log2i=0;
+		while (i>1){
+			i=i>>1;
+			++log2i;
+		}
+		
+		w_as_opcode_movl();
+		w_as_register_register_newline (d_reg,REGISTER_O0);
+
+		if (log2i==1){
+			w_as_opcode ("sar");
+			if (intel_asm)
+				w_as_register_comma (REGISTER_O0);
+			w_as_immediate (31);
+			if (!intel_asm)
+				w_as_comma_register (REGISTER_O0);
+			w_as_newline();
+
+			w_as_opcode ("sub");
+			w_as_register_register_newline (REGISTER_O0,d_reg);
+		} else {
+			w_as_opcode ("sar");
+			if (intel_asm)
+				w_as_register_comma (d_reg);
+			w_as_immediate (31);
+			if (!intel_asm)
+				w_as_comma_register (d_reg);
+			w_as_newline();
+
+			w_as_opcode ("and");
+			if (intel_asm)
+				w_as_register_comma (d_reg);
+			w_as_immediate ((1<<log2i)-1);
+			if (!intel_asm)
+				w_as_comma_register (d_reg);
+			w_as_newline();
+
+			w_as_opcode ("add");
+			w_as_register_register_newline (REGISTER_O0,d_reg);
+		}
+		
+		w_as_opcode ("sar");
+		if (intel_asm)
+			w_as_register_comma (d_reg);
+		w_as_immediate (log2i);
+		if (!intel_asm)
+			w_as_comma_register (d_reg);
+		w_as_newline();
+
+		return;
+	}
+
 	switch (d_reg){
 		case REGISTER_D0:
 			w_as_opcode_movl();
@@ -1524,10 +1589,10 @@ static void w_as_div_instruction (struct instruction *instruction)
 					fprintf (assembly_file,"dword ptr ");
 				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT
 				&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
-			{
-				w_as_indirect (instruction->instruction_parameters[0].parameter_offset,REGISTER_O0);
-			} else
-				w_as_parameter (&instruction->instruction_parameters[0]);
+				{
+					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,REGISTER_O0);
+				} else
+					w_as_parameter (&instruction->instruction_parameters[0]);
 			}
 			w_as_newline();
 		
@@ -1651,10 +1716,10 @@ static void w_as_mod_instruction (struct instruction *instruction)
 					fprintf (assembly_file,"dword ptr ");
 				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT
 				&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
-			{
-				w_as_indirect (instruction->instruction_parameters[0].parameter_offset,REGISTER_O0);
-			} else
-				w_as_parameter (&instruction->instruction_parameters[0]);
+				{
+					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,REGISTER_O0);
+				} else
+					w_as_parameter (&instruction->instruction_parameters[0]);
 			}
 			w_as_newline();
 
