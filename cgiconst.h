@@ -49,13 +49,13 @@ enum {
 	,IMULO
 #endif
 #if defined (G_POWER) || defined (I486)
-	,IJMPP	,IRTSP
+	,IJMPP	,IRTSP, IFABS,	INEG,	INOT
 #endif
 #if defined (I486) && defined (FP_STACK_OPTIMIZATIONS)
 	,IFEXG
 #endif
 #if defined (I486)
-	,IRTSI, IDIVI, IREMI, IDIVU, IREMU, IFABS, INEG, INOT
+	,IRTSI, IDIVI, IREMI, IDIVU, IREMU
 #endif
 #ifdef G_POWER
 	,IUMULH

@@ -515,6 +515,7 @@ static unsigned char real_reg_num [32] =
 # define as_dcbz(ra,rb)	store_instruction ((31<<26)|(reg_num(ra)<<16)|(reg_num(rb)<<11)|(1014<<1))
 #endif
 #define as_extb(ra,rb)		store_instruction ((31<<26)|(reg_num(ra)<<21)|(reg_num(rb)<<16)|(954<<1))
+#define as_fabs(fd,fb)		as_i_dac (264,(fd),0,(fb))
 #define as_fadd(fd,fa,fc)	as_i_dac (21,(fd),(fa),(fc))
 #define as_fcmpu(fa,fb)		as_i_dac (0,0,(fa),(fb))
 #define as_fctiw(fd,fb)		as_i_dac (14,(fd),0,(fb))
@@ -551,6 +552,8 @@ static unsigned char real_reg_num [32] =
 #define as_mulli(rd,ra,si)	as_i_dai (7,rd,ra,si)
 #define as_mullw(rd,ra,rb)	as_i_dab (rd,ra,rb,235)
 #define as_mullwo_(rd,ra,rb)as_i_dabo_ (rd,ra,rb,235)
+#define as_nand(ra,rs,rb)	as_i_sab (rs,ra,rb,476)
+#define as_neg(rd,ra)		store_instruction ((31<<26)|(reg_num(rd)<<21)|(reg_num(ra)<<16)|(104<<1))
 #define as_nop()			store_instruction (24<<26)
 #define as_or(ra,rs,rb)		as_i_sab (rs,ra,rb,444)
 #define as_ori(ra,rs,si)	as_i_dai (24,rs,ra,si)
@@ -1694,6 +1697,16 @@ static void as_jmpp_instruction (struct instruction *instruction)
 	}
 }
 
+static void as_neg_instruction (struct instruction *instruction)
+{	
+	as_neg (instruction->instruction_parameters[0].parameter_data.reg.r,instruction->instruction_parameters[0].parameter_data.reg.r);
+}
+
+static void as_not_instruction (struct instruction *instruction)
+{	
+	as_nand (instruction->instruction_parameters[0].parameter_data.reg.r,instruction->instruction_parameters[0].parameter_data.reg.r,instruction->instruction_parameters[0].parameter_data.reg.r);
+}
+
 static void write_c (int c)
 {
 	fputc (c,output_file);
@@ -2444,6 +2457,15 @@ static void as_fneg_instruction (struct instruction *instruction)
 	as_fneg (instruction->instruction_parameters[1].parameter_data.reg.r+14,freg+14);
 }
 
+static void as_fabs_instruction (struct instruction *instruction)
+{
+	int freg;
+
+	freg=as_float_parameter (instruction->instruction_parameters[0]);
+
+	as_fabs (instruction->instruction_parameters[1].parameter_data.reg.r+14,freg+14);
+}
+
 static void as_compare_float_instruction (struct instruction *instruction)
 {
 	int freg;
@@ -2811,6 +2833,15 @@ static void write_instructions (struct instruction *instructions)
 			case IEXTB:
 				as_extb_instruction (instruction);
 				break;
+			case INEG:
+				as_neg_instruction (instruction);
+				break;
+			case INOT:
+				as_not_instruction (instruction);
+				break;
+			case IFABS:
+				as_fabs_instruction (instruction);
+				break;				
 			case IFMOVE:
 				instruction=as_fmove_instruction (instruction);
 				break;

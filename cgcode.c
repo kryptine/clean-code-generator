@@ -192,7 +192,7 @@ int no_time_profiling;
 # define g_remu(g1,g2) g_instruction_2(GREMU,(g1),(g2))
 #endif
 #define g_mul(g1,g2) g_instruction_2(GMUL,(g1),(g2))
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 # define g_neg(g1) g_instruction_1(GNEG,(g1))
 # define g_not(g1) g_instruction_1(GNOT,(g1))
 #endif
@@ -451,7 +451,7 @@ static void code_dyadic_sane_operator (LABEL *label)
 #endif
 }
 
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 void code_absR (void)
 {
 	code_monadic_real_operator (GFABS);
@@ -4337,7 +4337,7 @@ void code_nu (int a_size,int b_size,char *descriptor_name,char *ea_label_name)
 		last_block->block_ea_label=NULL;
 }
 
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 void code_negI (void)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
@@ -4381,7 +4381,7 @@ void code_not (VOID)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 	
 	graph_1=s_get_b (0);
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 	graph_3=g_not (graph_1);
 #else
 	graph_2=g_load_i (-1);

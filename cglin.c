@@ -3380,7 +3380,7 @@ static void linearize_dyadic_non_commutative_data_operator (int i_instruction_co
 		register_node (graph,reg_1);
 }
 
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 static void linearize_monadic_data_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	INSTRUCTION_GRAPH graph_1;
@@ -6107,7 +6107,7 @@ static void linearize_float_graph (register INSTRUCTION_GRAPH graph,register ADD
 		case GFNEG:
 			linearize_monadic_float_operator (graph,ad_p,IFNEG);
 			break;
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 		case GFABS:
 			linearize_monadic_float_operator (graph,ad_p,IFABS);
 			break;
@@ -7637,7 +7637,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GFILL_R:
 			linearize_fill_r_operator (graph,ad_p);
 			return;
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 		case GNEG:
 			linearize_monadic_data_operator (INEG,graph,ad_p);
 			return;

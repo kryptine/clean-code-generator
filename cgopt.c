@@ -419,7 +419,7 @@ IF_G_POWER ( case IUMULH: )
 #if !defined (G_POWER)
 		case IFSQRT:
 #endif
-#ifdef I486
+#if defined (G_POWER) || defined (I486)
 		case IFABS:
 #endif
 			return 8;
@@ -1574,7 +1574,7 @@ IF_G_POWER ( case IUMULH: )
 #if !defined (G_POWER)
 			case IFSQRT:
 #endif
-#ifdef I486
+#if defined (G_POWER) || defined (I486)
 			case IFABS:
 #endif
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)
@@ -3857,7 +3857,7 @@ IF_G_POWER (case ICMPLW:)
 #if !defined (G_POWER)
 			case IFSQRT:	
 #endif
-#ifdef I486
+#if defined (G_POWER) || defined (I486)
 			case IFABS:
 #endif
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)

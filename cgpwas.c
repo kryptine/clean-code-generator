@@ -1468,6 +1468,21 @@ static void w_as_jmpp_instruction (struct instruction *instruction)
 	}
 }
 
+static void w_as_neg_instruction (struct instruction *instruction)
+{
+	w_as_opcode ("neg");
+	w_as_register_comma (instruction->instruction_parameters[0].parameter_data.reg.r);
+	w_as_register_newline (instruction->instruction_parameters[0].parameter_data.reg.r);
+}
+
+static void w_as_not_instruction (struct instruction *instruction)
+{
+	w_as_opcode ("nand");
+	w_as_register_comma (instruction->instruction_parameters[0].parameter_data.reg.r);
+	w_as_register_comma (instruction->instruction_parameters[0].parameter_data.reg.r);
+	w_as_register_newline (instruction->instruction_parameters[0].parameter_data.reg.r);
+}
+
 struct call_and_jump {
 	struct call_and_jump *	cj_next;
 	WORD					cj_label_id;
@@ -3131,9 +3146,18 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IEXTB:
 				w_as_extb_instruction (instruction);
 				break;
+			case INEG:
+				w_as_neg_instruction (instruction);
+				break;
+			case INOT:
+				w_as_not_instruction (instruction);
+				break;
 			case IFMOVE:
 				instruction=w_as_fmove_instruction (instruction);
 				break;
+			case IFABS:
+				w_as_dyadic_float_instruction (instruction,"fabs");
+				break;				
 			case IFADD:
 				w_as_tryadic_float_instruction (instruction,"fadd");
 				break;

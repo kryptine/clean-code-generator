@@ -1717,7 +1717,7 @@ static void put_instruction_name
 
 static void put_instructions_in_table (void)
 {
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 	put_instruction_name ("absR",			parse_instruction,			code_absR );
 #endif
 	put_instruction_name ("acosR",			parse_instruction,			code_acosR );
@@ -1849,7 +1849,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("modI",			parse_instruction,			code_remI );
 	put_instruction_name ("mulI",			parse_instruction,			code_mulI );
 	put_instruction_name ("mulR",			parse_instruction,			code_mulR );
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 	put_instruction_name ("negI",			parse_instruction,			code_negI );
 #endif
 	put_instruction_name ("negR",			parse_instruction,			code_negR );

@@ -15,7 +15,7 @@
 #	define ULONG unsigned long
 #endif
 
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 void code_absR (void);
 #endif
 void code_acosR (VOID);
@@ -153,7 +153,7 @@ void code_mulI (VOID);
 void code_mulIo (VOID);
 #endif
 void code_mulR (VOID);
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 void code_negI (void);
 #endif
 void code_negR (VOID);
