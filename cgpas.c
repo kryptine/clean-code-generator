@@ -2387,17 +2387,25 @@ static void as_fmul_instruction (struct instruction *instruction)
 
 						return next_instruction;
 					}
-				} else if (	next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
-							next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r)
-				{
-						as_load_float_immediate (*next_instruction->instruction_parameters[0].parameter_data.r,16);
-						as_fmadd (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
-									freg+14,
-									instruction->instruction_parameters[1].parameter_data.reg.r+14,
-									16+14);
+				} else if (next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r){
+					if (next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE){
+							as_load_float_immediate (*next_instruction->instruction_parameters[0].parameter_data.r,16);
+							as_fmadd (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
+										freg+14,
+										instruction->instruction_parameters[1].parameter_data.reg.r+14,
+										16+14);
 
-						return next_instruction;
-				}					
+							return next_instruction;
+					} else if (	next_instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+							as_lfd (16+14,next_instruction->instruction_parameters[0].parameter_offset,next_instruction->instruction_parameters[0].parameter_data.reg.r);
+							as_fmadd (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
+										freg+14,
+										instruction->instruction_parameters[1].parameter_data.reg.r+14,
+										16+14);
+
+							return next_instruction;
+					}
+				}
 			} else if (next_instruction->instruction_icode==IFSUB){
 				if (next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER &&
 					next_instruction->instruction_parameters[0].parameter_data.reg.r!=next_instruction->instruction_parameters[1].parameter_data.reg.r)
@@ -2431,9 +2439,8 @@ static void as_fmul_instruction (struct instruction *instruction)
 										next_instruction->instruction_parameters[0].parameter_data.reg.r+14);
 						return next_instruction;
 					}
-				} else if (	next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
-							next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r)
-				{
+				} else if (next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r){
+					if (next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE){
 						as_load_float_immediate (*next_instruction->instruction_parameters[0].parameter_data.r,16);
 						if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
 							as_fnmsub (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
@@ -2447,6 +2454,21 @@ static void as_fmul_instruction (struct instruction *instruction)
 									16+14);
 
 						return next_instruction;
+					} else if (next_instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+						as_lfd (16+14,next_instruction->instruction_parameters[0].parameter_offset,next_instruction->instruction_parameters[0].parameter_data.reg.r);
+						if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+							as_fnmsub (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
+										freg+14,
+										instruction->instruction_parameters[1].parameter_data.reg.r+14,
+										16+14);
+						else
+							as_fmsub (	next_instruction->instruction_parameters[1].parameter_data.reg.r+14,
+										freg+14,
+										instruction->instruction_parameters[1].parameter_data.reg.r+14,
+									16+14);
+
+						return next_instruction;
+					}
 				}
 			}
 	}
@@ -2540,15 +2562,19 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 																	next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r+14);
 														
 														return next_of_next_instruction;
-													} else if (	next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
-																next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1)
-													{
-														as_load_float_immediate (*next_of_next_instruction->instruction_parameters[0].parameter_data.r,16);
-														as_fmadd (reg1+14,reg0+14,reg_s+14,16+14);
-														
-														return next_of_next_instruction;
-													}			
-
+													} else if (next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1){
+														if (next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE){
+															as_load_float_immediate (*next_of_next_instruction->instruction_parameters[0].parameter_data.r,16);
+															as_fmadd (reg1+14,reg0+14,reg_s+14,16+14);
+															
+															return next_of_next_instruction;
+														} else if (next_of_next_instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+															as_lfd (16+14,next_of_next_instruction->instruction_parameters[0].parameter_offset,next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r);
+															as_fmadd (reg1+14,reg0+14,reg_s+14,16+14);
+															
+															return next_of_next_instruction;
+														}			
+													}
 												} else if (next_of_next_instruction->instruction_icode==IFSUB &&
 													next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER &&
 													next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r!=next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r)

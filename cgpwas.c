@@ -2537,12 +2537,10 @@ static struct instruction *w_as_fmul_instruction (struct instruction *instructio
 					
 					w_as_opcode ("fmadd");
 
-					w_as_parameter (&next_instruction->instruction_parameters[1]);
-					w_as_comma();
+					w_as_fp_register_comma (next_instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_parameter (&parameter_0);
 					w_as_comma();
-					w_as_parameter (&instruction->instruction_parameters[1]);
-					w_as_comma();
+					w_as_fp_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_parameter (&next_instruction->instruction_parameters[1]);
 					w_as_newline();
 					
@@ -2554,38 +2552,54 @@ static struct instruction *w_as_fmul_instruction (struct instruction *instructio
 					
 					w_as_opcode ("fmadd");
 
-					w_as_parameter (&next_instruction->instruction_parameters[1]);
-					w_as_comma();
+					w_as_fp_register_comma (next_instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_parameter (&parameter_0);
 					w_as_comma();
-					w_as_parameter (&instruction->instruction_parameters[1]);
-					w_as_comma();
+					w_as_fp_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_parameter (&next_instruction->instruction_parameters[0]);
 					w_as_newline();
 					
 					return next_instruction;
 				}
-			} else if (	next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
-						next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r)
-			{
-				struct parameter parameter_0;
+			} else if (next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r){
+				if (next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE){
+					struct parameter parameter_0;
 
-				parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
+					parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
 
-				w_as_load_float_immediate (*next_instruction->instruction_parameters[0].parameter_data.r,16);
+					w_as_load_float_immediate (*next_instruction->instruction_parameters[0].parameter_data.r,16);
 
-				w_as_opcode ("fmadd");
+					w_as_opcode ("fmadd");
 
-				w_as_parameter (&next_instruction->instruction_parameters[1]);
-				w_as_comma();
-				w_as_parameter (&parameter_0);
-				w_as_comma();
-				w_as_parameter (&instruction->instruction_parameters[1]);
-				w_as_comma();
-				w_as_fp_register (16);
-				w_as_newline();
-				
-				return next_instruction;
+					w_as_fp_register_comma (next_instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_parameter (&parameter_0);
+					w_as_comma();
+					w_as_fp_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_fp_register (16);
+					w_as_newline();
+					
+					return next_instruction;
+				} else if (	next_instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					struct parameter parameter_0;
+
+					parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
+
+					w_as_opcode ("lfd");
+					w_as_fp_register_comma (16);
+					w_as_indirect (next_instruction->instruction_parameters[0].parameter_offset,next_instruction->instruction_parameters[0].parameter_data.reg.r);
+					w_as_newline();
+
+					w_as_opcode ("fmadd");
+
+					w_as_fp_register_comma (next_instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_parameter (&parameter_0);
+					w_as_comma();
+					w_as_fp_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_fp_register (16);
+					w_as_newline();
+					
+					return next_instruction;
+				}
 			}
 		} else if (next_instruction->instruction_icode==IFSUB){
 			if (next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER &&
@@ -2634,30 +2648,51 @@ static struct instruction *w_as_fmul_instruction (struct instruction *instructio
 					
 					return next_instruction;
 				}
-			} else if (	next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
-						next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r)
-			{
-				struct parameter parameter_0;
+			} else if (next_instruction->instruction_parameters[1].parameter_data.reg.r==instruction->instruction_parameters[1].parameter_data.reg.r){
+				if (next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE){
+					struct parameter parameter_0;
 
-				parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
+					parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
 
-				w_as_load_float_immediate (*next_instruction->instruction_parameters[0].parameter_data.r,16);
+					w_as_load_float_immediate (*next_instruction->instruction_parameters[0].parameter_data.r,16);
 
-				if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
-					w_as_opcode ("fnmsub");
-				else
-					w_as_opcode ("fmsub");
+					if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+						w_as_opcode ("fnmsub");
+					else
+						w_as_opcode ("fmsub");
 
-				w_as_parameter (&next_instruction->instruction_parameters[1]);
-				w_as_comma();
-				w_as_parameter (&parameter_0);
-				w_as_comma();
-				w_as_parameter (&instruction->instruction_parameters[1]);
-				w_as_comma();
-				w_as_fp_register (16);
-				w_as_newline();
-				
-				return next_instruction;
+					w_as_fp_register_comma (next_instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_parameter (&parameter_0);
+					w_as_comma();
+					w_as_fp_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_fp_register (16);
+					w_as_newline();
+					
+					return next_instruction;
+				} else if (next_instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					struct parameter parameter_0;
+
+					parameter_0=w_as_float_parameter (instruction->instruction_parameters[0]);
+
+					w_as_opcode ("lfd");
+					w_as_fp_register_comma (16);
+					w_as_indirect (next_instruction->instruction_parameters[0].parameter_offset,next_instruction->instruction_parameters[0].parameter_data.reg.r);
+					w_as_newline();
+
+					if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+						w_as_opcode ("fnmsub");
+					else
+						w_as_opcode ("fmsub");
+
+					w_as_fp_register_comma (next_instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_parameter (&parameter_0);
+					w_as_comma();
+					w_as_fp_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_fp_register (16);
+					w_as_newline();
+					
+					return next_instruction;
+				}
 			}
 		}
 
@@ -2749,22 +2784,36 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 														w_as_newline();
 														
 														return next_of_next_instruction;
-													} else if (	next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE &&
-																next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1)
-													{
-														w_as_load_float_immediate (*next_of_next_instruction->instruction_parameters[0].parameter_data.r,16);
-														
-														w_as_opcode ("fmadd");
+													} else if (next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1){
+														if (next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_IMMEDIATE){
+															w_as_load_float_immediate (*next_of_next_instruction->instruction_parameters[0].parameter_data.r,16);
+															
+															w_as_opcode ("fmadd");
 
-														w_as_fp_register (reg1);
-														w_as_comma();
-														w_as_fp_register_comma (reg0);
-														w_as_fp_register_comma (reg_s);
-														w_as_fp_register (16);
-														w_as_newline();
-														
-														return next_of_next_instruction;
-													}			
+															w_as_fp_register_comma (reg1);
+															w_as_fp_register_comma (reg0);
+															w_as_fp_register_comma (reg_s);
+															w_as_fp_register (16);
+															w_as_newline();
+															
+															return next_of_next_instruction;
+														} else if (	next_of_next_instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+															w_as_opcode ("lfd");
+															w_as_fp_register_comma (16);
+															w_as_indirect (next_of_next_instruction->instruction_parameters[0].parameter_offset,next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r);
+															w_as_newline();
+															
+															w_as_opcode ("fmadd");
+
+															w_as_fp_register_comma (reg1);
+															w_as_fp_register_comma (reg0);
+															w_as_fp_register_comma (reg_s);
+															w_as_fp_register (16);
+															w_as_newline();
+															
+															return next_of_next_instruction;
+														}
+													}
 												} else if (next_of_next_instruction->instruction_icode==IFSUB &&
 													next_of_next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER &&
 													next_of_next_instruction->instruction_parameters[0].parameter_data.reg.r!=next_of_next_instruction->instruction_parameters[1].parameter_data.reg.r)
