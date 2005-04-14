@@ -498,9 +498,7 @@ INSTRUCTION_GRAPH g_fjoin (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2)
 
 		previous_loadx=&load_indexed_list;
 
-		/* added 25-10-2001 */
 		while (*previous_loadx!=NULL && *previous_loadx!=graph_1)
-		/* while (*previous_loadx!=graph_1) */
 			previous_loadx=&(*previous_loadx)->instruction_parameters[3].p;
 		
 		fload_graph=g_new_node (GFLOAD_X,0,4*sizeof (union instruction_parameter));
@@ -511,9 +509,7 @@ INSTRUCTION_GRAPH g_fjoin (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2)
 
 		fload_graph->instruction_parameters[3].p=graph_2->instruction_parameters[3].p;
 
-		/* added 25-10-2001 */
 		if (*previous_loadx!=NULL)
-		/* */
 			*previous_loadx=fload_graph;
 
 		fload_graph->instruction_d_min_a_cost+=1;
@@ -571,10 +567,9 @@ INSTRUCTION_GRAPH g_fload_id (int offset,INSTRUCTION_GRAPH graph_1)
 	return instruction;
 }
 
-INSTRUCTION_GRAPH g_fload_x
-	(INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2)
+INSTRUCTION_GRAPH g_fload_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2)
 {
-	register INSTRUCTION_GRAPH instruction;
+	INSTRUCTION_GRAPH instruction;
 	
 	instruction=g_new_node (GFLOAD_X,0,4*sizeof (union instruction_parameter));
 	
@@ -582,7 +577,12 @@ INSTRUCTION_GRAPH g_fload_x
 	instruction->instruction_parameters[1].i=(offset<<2) | shift;
 	instruction->instruction_parameters[2].p=graph_2;
 	instruction->instruction_parameters[3].p=load_indexed_list;
-	
+
+#if defined (sparc) || defined (G_POWER)
+	if (offset!=0 && graph_2!=NULL)
+		graph_2->instruction_d_min_a_cost+=1;
+	else
+#endif
 	graph_1->instruction_d_min_a_cost+=1;
 	
 	load_indexed_list=instruction;
@@ -714,7 +714,12 @@ INSTRUCTION_GRAPH g_load_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTR
 	instruction->instruction_parameters[1].i=(offset<<2) | shift;
 	instruction->instruction_parameters[2].p=graph_2;
 	instruction->instruction_parameters[3].p=load_indexed_list;
-	
+
+#if defined (sparc) || defined (G_POWER)
+	if (offset!=0 && graph_2!=NULL)
+		graph_2->instruction_d_min_a_cost+=1;
+	else
+#endif
 	graph_1->instruction_d_min_a_cost+=1;
 	
 	load_indexed_list=instruction;
@@ -821,7 +826,12 @@ INSTRUCTION_GRAPH g_fstore_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_
 	instruction->instruction_parameters[2].i=(offset<<2) | shift;
 	instruction->instruction_parameters[3].p=graph_3;
 	instruction->instruction_parameters[4].p=load_indexed_list;
-	
+
+#if defined (sparc) || defined (G_POWER)
+	if (offset!=0 && graph_3!=NULL)
+		graph_3->instruction_d_min_a_cost+=1;
+	else
+#endif
 	graph_2->instruction_d_min_a_cost+=1;
 	
 	return instruction;
@@ -902,7 +912,12 @@ INSTRUCTION_GRAPH g_store_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2
 	instruction->instruction_parameters[2].i=(offset<<2) | shift;
 	instruction->instruction_parameters[3].p=graph_3;
 	instruction->instruction_parameters[4].p=load_indexed_list;
-	
+
+#if defined (sparc) || defined (G_POWER)
+	if (offset!=0 && graph_3!=NULL)
+		graph_3->instruction_d_min_a_cost+=1;
+	else
+#endif
 	graph_2->instruction_d_min_a_cost+=1;
 	
 	return instruction;

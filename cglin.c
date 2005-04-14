@@ -6231,6 +6231,13 @@ static void linearize_fload_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 	offset=graph->instruction_parameters[1].i;
 	graph_2=graph->instruction_parameters[2].p;
 
+#if defined (sparc) || defined (G_POWER)
+	if (offset!=0 && graph_2!=NULL){
+		graph_1=graph_2;
+		graph_2=NULL;
+	}
+#endif
+
 	if (graph_2!=NULL){
 		ADDRESS ad_1;
 
@@ -6741,6 +6748,13 @@ static void linearize_load_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p
 	graph_1=graph->instruction_parameters[0].p;
 	offset=graph->instruction_parameters[1].i;
 	graph_2=graph->instruction_parameters[2].p;
+
+#if defined (sparc) || defined (G_POWER)
+	if (offset!=0 && graph_2!=NULL){
+		graph_1=graph_2;
+		graph_2=NULL;
+	}
+#endif
 
 	if (graph_2!=NULL){
 		ADDRESS ad_1;
@@ -7330,7 +7344,7 @@ static void linearize_store_x_operator (int i_instruction_code,register INSTRUCT
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 	int offset;
 	ADDRESS ad_1,ad_3;
-	
+
 	graph_1=graph->instruction_parameters[0].p;
 	graph_2=graph->instruction_parameters[1].p;
 	offset=graph->instruction_parameters[2].i;
@@ -7380,7 +7394,7 @@ static void linearize_store_x_operator (int i_instruction_code,register INSTRUCT
 				internal_error_in_function ("linearize_store_x_operator");
 		}
 	}
-	
+
 	do_array_selects_before_update (graph->instruction_parameters[4].p,graph_1,graph_2);
 
 	in_address_register (ad_p);
@@ -7390,6 +7404,13 @@ static void linearize_store_x_operator (int i_instruction_code,register INSTRUCT
 			in_data_register (&ad_1);
 
 		instruction_ad_id (i_instruction_code,&ad_1,offset>>2,ad_p->ad_register);
+#if defined (sparc) || defined (G_POWER)
+	} else if (offset!=0){
+		if (i_instruction_code==IMOVEB && ad_1.ad_mode!=P_IMMEDIATE)
+			in_data_register (&ad_1);
+
+		instruction_ad_id (i_instruction_code,&ad_1,offset>>2,ad_3.ad_register);
+#endif
 	} else {
 		in_data_register (&ad_3);
 		
@@ -7410,32 +7431,23 @@ static void linearize_store_x_operator (int i_instruction_code,register INSTRUCT
 
 		instruction_ad_x (i_instruction_code,&ad_1,offset,ad_p->ad_register,ad_3.ad_register);
 	}
-		
+
 	if (graph->node_count>1){
-/* added 10-12-97 */
-	/* changed 27-6-2001 */
-	
 		while (graph_2->instruction_code==GINDIRECTION)
 			graph_2=graph_2->instruction_parameters[0].p;
 		
  		if (graph_2->instruction_code==GREGISTER){
- 	/*	if (graph_2->instruction_code==GREGISTER || graph_2->instruction_code==GINDIRECTION){ */
-
 			register_node (graph_2,ad_p->ad_register);
 			graph_2->node_count += graph->node_count;
 			ad_p->ad_count_p=&graph_2->node_count;
 
 			graph->instruction_parameters[0].p=graph_2;
 			graph->instruction_code=GINDIRECTION;
-		} else
-/* */
-		{
+		} else {
 			register_node (graph,ad_p->ad_register);
 			ad_p->ad_count_p=&graph->node_count;
 		}
-	}
-/* added 27-6-2001 */
-	else {
+	} else {
 		if (graph_2->instruction_code==GREGISTER){
 			graph->instruction_parameters[0].p=graph_2;
 			graph->instruction_code=GINDIRECTION;
@@ -7444,7 +7456,6 @@ static void linearize_store_x_operator (int i_instruction_code,register INSTRUCT
 			graph->instruction_code=GINDIRECTION;
 		}
  	}
-/**/
 }
 
 static void linearize_bounds_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
@@ -8058,8 +8069,8 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 
 static void linearize_fstore_x_operator (register INSTRUCTION_GRAPH graph,register ADDRESS *ad_p)
 {
-	register INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
-	register int offset;
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+	int offset;
 	ADDRESS ad_1,ad_3;
 			
 	graph_1=graph->instruction_parameters[0].p;
@@ -8111,7 +8122,7 @@ static void linearize_fstore_x_operator (register INSTRUCTION_GRAPH graph,regist
 				internal_error_in_function ("linearize_fstore_x_operator");
 		}
 	}
-	
+
 	do_array_selects_before_update (graph->instruction_parameters[4].p,graph_1,graph_2);
 
 	in_address_register (ad_p);
@@ -8129,6 +8140,22 @@ static void linearize_fstore_x_operator (register INSTRUCTION_GRAPH graph,regist
 		} else
 #endif
 		move_float_ad_id (&ad_1,offset>>2,ad_p->ad_register);
+#if defined (sparc) || defined (G_POWER)
+	} else if (offset!=0){
+		in_address_register (&ad_3);
+# ifdef ALIGN_REAL_ARRAYS
+		if (ad_1.ad_mode==P_F_REGISTER){
+			i_fmove_fr_id_f (ad_1.ad_register,offset>>2,ad_3.ad_register,graph->inode_arity & LOAD_STORE_ALIGNED_REAL);
+			if (--*ad_1.ad_count_p==0){
+#  ifdef FP_STACK_OPTIMIZATIONS
+				last_instruction->instruction_parameters[0].parameter_flags |= FP_REG_LAST_USE;
+#  endif
+				free_fregister (ad_1.ad_register);
+			}
+		} else
+# endif
+		move_float_ad_id (&ad_1,offset>>2,ad_3.ad_register);
+#endif
 	} else {
 		in_data_register (&ad_3);
 
@@ -8149,7 +8176,7 @@ static void linearize_fstore_x_operator (register INSTRUCTION_GRAPH graph,regist
 		move_float_ad_x (&ad_1,offset,ad_p->ad_register,ad_3.ad_register);
 #endif
 	}
-	
+
 	if (graph->node_count>1){
 		register_node (graph,ad_p->ad_register);
 		ad_p->ad_count_p=&graph->node_count;

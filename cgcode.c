@@ -6013,25 +6013,18 @@ static void code_r_replace (int a_size,int b_size)
 
 		offset=12;
 		graph_3=multiply_by_constant ((a_size+b_size)<<2,graph_2);
+
+#if defined (sparc) || defined (G_POWER)
+		graph_3=g_add (graph_1,graph_3);
+#endif
 	}
 
 	for (i=0; i<a_size; ++i){
 		INSTRUCTION_GRAPH graph_4,graph_5;
 		
 		graph_4=s_get_a (i+1);
-#if defined (sparc) || defined (G_POWER)
-		if (offset+(i<<2)!=0 && graph_3!=NULL){
-			INSTRUCTION_GRAPH graph_6;
-			
-			graph_6=g_add (g_load_i (offset+(i<<2)),graph_3);
-			graph_5=g_load_x (graph_1,0,0,graph_6);
-			graph_1=g_store_x (graph_4,graph_1,0,0,graph_6);
-		} else
-#endif
-		{
-			graph_5=g_load_x (graph_1,offset+(i<<2),0,graph_3);
-			graph_1=g_store_x (graph_4,graph_1,offset+(i<<2),0,graph_3);
-		}
+		graph_5=g_load_x (graph_1,offset+(i<<2),0,graph_3);
+		graph_1=g_store_x (graph_4,graph_1,offset+(i<<2),0,graph_3);
 		
 		s_put_a (i,graph_5);
 	}
@@ -6040,19 +6033,30 @@ static void code_r_replace (int a_size,int b_size)
 		INSTRUCTION_GRAPH graph_4,graph_5;
 		
 		graph_4=s_get_b (i);
-#if defined (sparc) || defined (G_POWER)
-		if (offset+((a_size+i)<<2)!=0 && graph_3!=NULL){
-			INSTRUCTION_GRAPH graph_6;
+
+		if (graph_4->instruction_code==GFHIGH && i+1<b_size){
+			INSTRUCTION_GRAPH graph_5;
 			
-			graph_6=g_add (g_load_i (offset+((a_size+i)<<2)),graph_3);
-			graph_5=g_load_x (graph_1,0,0,graph_6);
-			graph_1=g_store_x (graph_4,graph_1,0,0,graph_6);
-		} else
-#endif
-		{
-			graph_5=g_load_x (graph_1,offset+((a_size+i)<<2),0,graph_3);
-			graph_1=g_store_x (graph_4,graph_1,offset+((a_size+i)<<2),0,graph_3);
+			graph_5=s_get_b (i+1);
+			if (graph_5->instruction_code==GFLOW && graph_4->instruction_parameters[0].p==graph_5->instruction_parameters[0].p){				
+				INSTRUCTION_GRAPH graph_6,graph_7,graph_8,graph_9;
+				
+				graph_6=g_fjoin (graph_4,graph_5);
+				graph_7=g_fload_x (graph_1,offset+((a_size+i)<<2),0,graph_3);
+				graph_1=g_fstore_x (graph_6,graph_1,offset+((a_size+i)<<2),0,graph_3);
+
+				g_fhighlow (graph_8,graph_9,graph_7);
+	
+				s_put_b (i+1,graph_9);
+				s_put_b (i,graph_8);
+				++i;
+				
+				continue;
+			}
 		}
+
+		graph_5=g_load_x (graph_1,offset+((a_size+i)<<2),0,graph_3);
+		graph_1=g_store_x (graph_4,graph_1,offset+((a_size+i)<<2),0,graph_3);
 		
 		s_put_b (i,graph_5);
 	}
@@ -6676,16 +6680,15 @@ static void code_r_select (int a_size,int b_size)
 
 		offset=12;
 		graph_3=multiply_by_constant ((a_size+b_size)<<2,graph_2);
+
+#if defined (sparc) || defined (G_POWER)
+		graph_3=g_add (graph_1,graph_3);
+#endif
 	}
 
 	for (i=a_size-1; i>=0; --i){
 		INSTRUCTION_GRAPH graph_4;
 		
-#if defined (sparc) || defined (G_POWER)
-		if (offset+(i<<2)!=0 && graph_3!=NULL)
-			graph_4=g_load_x (graph_1,0,0,g_add (g_load_i (offset+(i<<2)),graph_3));
-		else
-#endif
 		graph_4=g_load_x (graph_1,offset+(i<<2),0,graph_3);
 		s_push_a (graph_4);
 	}
@@ -6693,11 +6696,6 @@ static void code_r_select (int a_size,int b_size)
 	for (i=b_size-1; i>=0; --i){
 		INSTRUCTION_GRAPH graph_4;
 		
-#if defined (sparc) || defined (G_POWER)
-		if (offset+((a_size+i)<<2)!=0 && graph_3!=NULL)
-			graph_4=g_load_x (graph_1,0,0,g_add (g_load_i (offset+((a_size+i)<<2)),graph_3));
-		else
-#endif
 		graph_4=g_load_x (graph_1,offset+((a_size+i)<<2),0,graph_3);
 		s_push_b (graph_4);
 	}
@@ -7236,9 +7234,28 @@ static void code_updateR (VOID)
 	s_put_a (0,graph_8);
 }
 
+static int equal_graph (INSTRUCTION_GRAPH graph_0,INSTRUCTION_GRAPH graph_1)
+{
+	if (graph_0==graph_1)
+		return 1;
+	
+	if (graph_0->instruction_code==graph_1->instruction_code){
+		switch (graph_0->instruction_code){
+			case GADD:
+			case GLSL:
+				return		equal_graph (graph_0->instruction_parameters[0].p,graph_1->instruction_parameters[0].p)
+						&&	equal_graph (graph_0->instruction_parameters[1].p,graph_1->instruction_parameters[1].p);
+			case GLOAD_I:
+				return graph_0->instruction_parameters[0].i==graph_1->instruction_parameters[0].i;
+		}
+	}
+	
+	return 0;
+}
+
 static void code_r_update (int a_size,int b_size)
 {
-	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_7;
 	int i,element_size,offset;
 	
 	graph_1=s_pop_a();
@@ -7252,22 +7269,42 @@ static void code_r_update (int a_size,int b_size)
 		offset=12+graph_2->instruction_parameters[0].i*element_size;
 		graph_3=NULL;
 	} else {
+		INSTRUCTION_GRAPH select_graph;
+
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
 
 		offset=12;
 		graph_3=multiply_by_constant (element_size,graph_2);
+
+#if defined (sparc) || defined (G_POWER)
+		graph_3=g_add (graph_1,graph_3);	
+#endif
+
+		select_graph=load_indexed_list;
+		
+		while (select_graph!=NULL){
+			if (select_graph->instruction_code==GLOAD_X || select_graph->instruction_code==GFLOAD_X){
+				if (select_graph->instruction_parameters[0].p==graph_1){
+					INSTRUCTION_GRAPH graph_4;
+
+					graph_4=select_graph->instruction_parameters[2].p;		
+					if (graph_4!=NULL && equal_graph (graph_4,graph_3)){
+						graph_3=graph_4;
+						break;
+					}
+				}
+			}
+			select_graph=select_graph->instruction_parameters[3].p;
+		}
 	}
+
+	graph_7=graph_1;
 
 	for (i=0; i<a_size; ++i){
 		INSTRUCTION_GRAPH graph_4;
 		
 		graph_4=s_pop_a();
-#if defined (sparc) || defined (G_POWER)
-		if (offset+(i<<2)!=0 && graph_3!=NULL)
-			graph_1=g_store_x (graph_4,graph_1,0,0,g_add (g_load_i (offset+(i<<2)),graph_3));
-		else
-#endif
 		graph_1=g_store_x (graph_4,graph_1,offset+(i<<2),0,graph_3);
 	}
 
@@ -7276,36 +7313,35 @@ static void code_r_update (int a_size,int b_size)
 		
 		graph_4=s_pop_b();
 		
-		/* added 16-10-2001 */
 		if (graph_4->instruction_code==GFHIGH && i+1<b_size){
 			INSTRUCTION_GRAPH graph_5,graph_6;
 			
 			graph_5=s_get_b (0);
 			if (graph_5->instruction_code==GFLOW && graph_4->instruction_parameters[0].p==graph_5->instruction_parameters[0].p){
-				
 				s_pop_b();
 				
 				graph_6=g_fjoin (graph_4,graph_5);
-#if defined (sparc) || defined (G_POWER)
-				if (offset+((a_size+i)<<2)!=0 && graph_3!=NULL)
-					graph_1=g_fstore_x (graph_6,graph_1,0,0,g_add (g_load_i (offset+((a_size+i)<<2)),graph_3));
-				else
-#endif
-				graph_1=g_fstore_x (graph_6,graph_1,offset+((a_size+i)<<2),0,graph_3);
 
-				++i;
+				if (! (	graph_6->instruction_code==GFLOAD_X &&
+						graph_6->instruction_parameters[0].p==graph_7 &&
+						graph_6->instruction_parameters[1].i==((offset+((a_size+i)<<2))<<2) &&
+						graph_6->instruction_parameters[2].p==graph_3))
+				{
+					graph_1=g_fstore_x (graph_6,graph_1,offset+((a_size+i)<<2),0,graph_3);
+				}
 				
+				++i;
 				continue;
 			}
 		}
-		/* */
-				
-#if defined (sparc) || defined (G_POWER)
-		if (offset+((a_size+i)<<2)!=0 && graph_3!=NULL)
-			graph_1=g_store_x (graph_4,graph_1,0,0,g_add (g_load_i (offset+((a_size+i)<<2)),graph_3));
-		else
-#endif
-		graph_1=g_store_x (graph_4,graph_1,offset+((a_size+i)<<2),0,graph_3);
+
+		if (! ( graph_4->instruction_code==GLOAD_X &&
+				graph_4->instruction_parameters[0].p==graph_7 &&
+				graph_4->instruction_parameters[1].i==((offset+((a_size+i)<<2))<<2) &&
+				graph_4->instruction_parameters[2].p==graph_3))
+		{
+			graph_1=g_store_x (graph_4,graph_1,offset+((a_size+i)<<2),0,graph_3);
+		}
 	}
 	
 	s_push_a (graph_1);
