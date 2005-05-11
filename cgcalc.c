@@ -2550,7 +2550,7 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			
 			graph_0=graph->instruction_parameters[0].p;
 			if (graph_0->order_mode==R_NOMODE)
-				if (graph->instruction_code==GMULUD)
+				if (graph_0->instruction_code==GMULUD)
 					calculate_mulud_operator (graph_0);
 				else
 					calculate_divdu_operator (graph_0);
