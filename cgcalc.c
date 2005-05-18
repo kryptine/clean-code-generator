@@ -3055,8 +3055,8 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GFLOG10:
 		case GFEXP:
 #endif
-#if defined (I486) || defined (G_POWER)
 		case GNEG:
+#if defined (I486) || defined (G_POWER)
 		case GNOT:
 #endif
 		case GBEFORE0:
