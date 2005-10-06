@@ -3767,7 +3767,63 @@ static void linearize_mod_operator (int i_instruction_code,INSTRUCTION_GRAPH gra
 #endif
 
 #ifdef I486
-static void linearize_mulud_or_divdu_operator (INSTRUCTION_GRAPH result_graph,ADDRESS *ad_p)
+static int linearize_first_graph_first (INSTRUCTION_GRAPH a_graph_1,INSTRUCTION_GRAPH a_graph_2)
+{
+	int i1,i2,u1,u2;
+	int a,d;
+	
+	a=a_graph_1->i_aregs; d=a_graph_1->i_dregs; i1=AD_REG_WEIGHT (a,d);
+	a=a_graph_2->i_aregs; d=a_graph_2->i_dregs; i2=AD_REG_WEIGHT (a,d);
+	
+	a=a_graph_1->u_aregs; d=a_graph_1->u_dregs; u1=AD_REG_WEIGHT (a,d);
+	a=a_graph_2->u_aregs; d=a_graph_2->u_dregs; u2=AD_REG_WEIGHT (a,d);
+	
+	if (i1<0)
+		return ! (i2<0 && (u2<u1 || (u1==u2 && i2<i1)));
+	else if (i1==0)
+		return ! (i2<0 || (i2==0 && u2<u1));
+	else
+		return ! (i2<=0 || (u2-i2>u1-i1 || (u2-i2==u1-i1 && i2<i1)));
+}
+
+static void linearize_3_graphs (INSTRUCTION_GRAPH graph_1,ADDRESS *ad_1_p,
+								INSTRUCTION_GRAPH graph_2,ADDRESS *ad_2_p,
+								INSTRUCTION_GRAPH graph_3,ADDRESS *ad_3_p)
+{
+	if (linearize_first_graph_first (graph_1,graph_2)){
+		if (linearize_first_graph_first (graph_1,graph_3)){
+			linearize_graph (graph_1,ad_1_p);
+			if (linearize_first_graph_first (graph_2,graph_3)){
+				linearize_graph (graph_2,ad_2_p);
+				linearize_graph (graph_3,ad_3_p);
+			} else {
+				linearize_graph (graph_3,ad_3_p);
+				linearize_graph (graph_2,ad_2_p);				
+			}
+		} else {
+			linearize_graph (graph_3,ad_3_p);
+			linearize_graph (graph_1,ad_1_p);
+			linearize_graph (graph_2,ad_2_p);
+		}
+	} else {
+		if (linearize_first_graph_first (graph_2,graph_3)){
+			linearize_graph (graph_2,ad_2_p);				
+			if (linearize_first_graph_first (graph_1,graph_3)){
+				linearize_graph (graph_1,ad_1_p);
+				linearize_graph (graph_3,ad_3_p);
+			} else {
+				linearize_graph (graph_3,ad_3_p);
+				linearize_graph (graph_1,ad_1_p);				
+			}
+		} else {
+			linearize_graph (graph_3,ad_3_p);
+			linearize_graph (graph_2,ad_2_p);
+			linearize_graph (graph_1,ad_1_p);
+		}
+	}
+}
+
+static void linearize_two_results_operator (INSTRUCTION_GRAPH result_graph,ADDRESS *ad_p)
 {
 	INSTRUCTION_GRAPH graph,result_graph2;
 	ADDRESS ad_1,ad_2;
@@ -3795,17 +3851,12 @@ static void linearize_mulud_or_divdu_operator (INSTRUCTION_GRAPH result_graph,AD
 		reg_1=ad_1.ad_register;
 		reg_2=ad_2.ad_register;
 		i_mulud_r_r (reg_1,reg_2);
-	} else {
-		INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+	} else if (graph->instruction_code==GDIVDU){
 		ADDRESS ad_3;
 
-		graph_1=graph->instruction_parameters[0].p;
-		graph_2=graph->instruction_parameters[1].p;
-		graph_3=graph->instruction_parameters[2].p;
-
-		linearize_graph (graph_1,&ad_1);
-		linearize_graph (graph_2,&ad_2);
-		linearize_graph (graph_3,&ad_3);
+		linearize_3_graphs (graph->instruction_parameters[0].p,&ad_1,
+							graph->instruction_parameters[1].p,&ad_2,
+							graph->instruction_parameters[2].p,&ad_3);
 		
 		in_preferred_alterable_register (&ad_2,REGISTER_D0);
 		in_preferred_alterable_register (&ad_1,REGISTER_A1);
@@ -3816,7 +3867,42 @@ static void linearize_mulud_or_divdu_operator (INSTRUCTION_GRAPH result_graph,AD
 		if (--*ad_3.ad_count_p==0)
 			free_register (ad_3.ad_register);
 		i_divdu_r_r_r (ad_3.ad_register,reg_1,reg_2);
-	}
+	} else if (graph->instruction_code==GADDDU){
+		ADDRESS ad_3,ad_4;
+
+		linearize_3_graphs (graph->instruction_parameters[0].p,&ad_1,
+							graph->instruction_parameters[1].p,&ad_2,
+							graph->instruction_parameters[2].p,&ad_3);
+
+		in_alterable_data_register (&ad_2);
+		instruction_ad_r (IADD,&ad_3,ad_2.ad_register);
+
+		in_alterable_data_register (&ad_1);	
+		ad_4.ad_mode=P_IMMEDIATE;
+		ad_4.ad_offset=0;
+		instruction_ad_r (IADC,&ad_4,ad_1.ad_register);
+
+		reg_1=ad_1.ad_register;
+		reg_2=ad_2.ad_register;
+	} else if (graph->instruction_code==GSUBDU){
+		ADDRESS ad_3,ad_4;
+
+		linearize_3_graphs (graph->instruction_parameters[0].p,&ad_1,
+							graph->instruction_parameters[1].p,&ad_2,
+							graph->instruction_parameters[2].p,&ad_3);
+
+		in_alterable_data_register (&ad_2);
+		instruction_ad_r (ISUB,&ad_3,ad_2.ad_register);
+
+		in_alterable_data_register (&ad_1);	
+		ad_4.ad_mode=P_IMMEDIATE;
+		ad_4.ad_offset=0;
+		instruction_ad_r (ISBB,&ad_4,ad_1.ad_register);
+
+		reg_1=ad_1.ad_register;
+		reg_2=ad_2.ad_register;
+	} else
+		internal_error_in_function ("linearize_two_results_operator");
 
 	result_graph2=result_graph->instruction_parameters[1].p;
 
@@ -8056,7 +8142,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 #ifdef I486
 		case GRESULT0:
 		case GRESULT1:
-			linearize_mulud_or_divdu_operator (graph,ad_p);
+			linearize_two_results_operator (graph,ad_p);
 			return;
 #endif
 		default:

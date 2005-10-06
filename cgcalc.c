@@ -2552,9 +2552,14 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			if (graph_0->order_mode==R_NOMODE)
 				if (graph_0->instruction_code==GMULUD)
 					calculate_mulud_operator (graph_0);
-				else
+				else if (	graph_0->instruction_code==GDIVDU ||
+							graph_0->instruction_code==GADDDU ||
+							graph_0->instruction_code==GSUBDU)
+				{
 					calculate_divdu_operator (graph_0);
-			
+				} else
+					internal_error_in_function ("calculate_graph_register_uses");
+
 			graph->order_mode=R_DREGISTER;
 			graph->u_aregs=graph_0->u_aregs;
 			graph->u_dregs=graph_0->u_dregs;
@@ -2775,6 +2780,8 @@ void count_graph (INSTRUCTION_GRAPH graph)
 			++graph->node_count;
 			break;
 #ifdef I486
+		case GADDDU:
+		case GSUBDU:
 		case GDIVDU:
 			if (++graph->node_count==1){
 				count_graph (graph->instruction_parameters[0].p);
@@ -2973,6 +2980,8 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 			graph->node_mark=2;
 			break;
 #ifdef I486
+		case GADDDU:
+		case GSUBDU:
 		case GDIVDU:
 			if (graph->node_mark<2){
 				graph->node_mark=2;

@@ -1534,6 +1534,9 @@ IF_G_SPARC (case IADDO: case ISUBO:)
 			case IFEXG:
 #endif
 IF_G_POWER ( case IUMULH: )
+#ifdef I486
+			case IADC:	case ISBB:
+#endif
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
@@ -3824,6 +3827,9 @@ static void allocate_registers (struct basic_block *basic_block)
 			case IMUL:	case IOR:	case ISUB:
 IF_G_SPARC (case IADDO: case ISUBO:)
 IF_G_POWER ( case IUMULH: )
+#ifdef I486
+			case IADC:	case ISBB:
+#endif
 				instruction_use_2 (instruction,USE_DEF);
 				break;
 #ifdef I486_USE_SCRATCH_REGISTER

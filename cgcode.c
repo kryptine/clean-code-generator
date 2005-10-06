@@ -19,6 +19,10 @@
 
 #include "cgport.h"
 
+#ifdef I486
+# define NEW_DESCRIPTORS
+#endif
+
 #if defined (G_POWER) || defined (I486)
 #	define PROFILE
 # if defined (G_POWER)
@@ -66,10 +70,14 @@
 #endif
 #define GEN_OBJ
 
-#if defined (M68000) || (defined (NO_STRING_ADDRES_IN_DESCRIPTOR) && (defined (G_POWER) || defined (I486)))
-# define ARITY_0_DESCRIPTOR_OFFSET (-8)
+#ifdef NEW_DESCRIPTORS
+#  define ARITY_0_DESCRIPTOR_OFFSET (-4)
 #else
-# define ARITY_0_DESCRIPTOR_OFFSET (-12)
+# if defined (M68000) || (defined (NO_STRING_ADDRES_IN_DESCRIPTOR) && (defined (G_POWER) || defined (I486)))
+# define ARITY_0_DESCRIPTOR_OFFSET (-8)
+# else
+#  define ARITY_0_DESCRIPTOR_OFFSET (-12)
+# endif
 #endif
 #ifdef GEN_MAC_OBJ
 # define DESCRIPTOR_ARITY_OFFSET (-4)
@@ -517,6 +525,30 @@ void code_addI (VOID)
 	
 	s_put_b (0,graph_3);
 }
+
+#ifdef I486
+void code_addLU (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
+	
+	graph_3=s_get_b (2);
+	graph_2=s_get_b (1);
+	graph_1=s_pop_b();
+
+	graph_4=g_new_node (GADDDU,3,3*sizeof (union instruction_parameter));
+	graph_4->instruction_parameters[0].p=graph_1;
+	graph_4->instruction_parameters[1].p=graph_2;
+	graph_4->instruction_parameters[2].p=graph_3;
+
+	graph_5=g_instruction_2 (GRESULT1,graph_4,NULL);
+	graph_6=g_instruction_2 (GRESULT0,graph_4,NULL);
+	graph_5->instruction_parameters[1].p=graph_6;
+	graph_6->instruction_parameters[1].p=graph_5;
+
+	s_put_b (1,graph_5);
+	s_put_b (0,graph_6);
+}
+#endif
 
 #ifndef M68000
 static void code_operatorIo (int instruction_code)
@@ -2200,15 +2232,19 @@ void code_eq_nulldesc (char descriptor_name[],int a_offset)
 	graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
 	graph_3=g_g_register (GLOBAL_DATA_REGISTER);
 	graph_4=g_add (graph_3,graph_2);
+	graph_5=g_load_des_id (0,graph_4);
+	graph_6=g_sub (graph_5,graph_2);
 #else
 	graph_2=g_load_id (0,graph_1);
-#endif
-#ifdef GEN_MAC_OBJ
-	graph_5=g_load_des_id (0,graph_4);
-#else
-	graph_5=g_load_des_id (2-2,graph_2);
-#endif
+# ifdef NEW_DESCRIPTORS
+	graph_5=g_load_des_id (-2,graph_2);
+	graph_5=g_lsl (g_load_i (3),graph_5);
 	graph_6=g_sub (graph_5,graph_2);
+# else
+	graph_5=g_load_des_id (2-2,graph_2);
+	graph_6=g_sub (graph_5,graph_2);
+# endif
+#endif
 	graph_7=g_load_des_i (descriptor,0);
 	graph_8=g_cmp_eq (graph_7,graph_6);
 	
@@ -3255,30 +3291,21 @@ void code_get_desc_arity (int a_offset)
 
 void code_get_node_arity (int a_offset)
 {
-	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_7;
-#ifdef GEN_MAC_OBJ
-	INSTRUCTION_GRAPH graph_6;
-#endif
-	
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
+
 	graph_1=s_get_a (a_offset);
 #ifdef GEN_MAC_OBJ
 	graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
 	graph_3=g_g_register (GLOBAL_DATA_REGISTER);
 	graph_4=g_add (graph_3,graph_2);
 	graph_5=g_load_des_id (0,graph_4);
+	graph_6=g_lsr (g_load_i (2),graph_5);
 #else
 	graph_2=g_load_id (0,graph_1);
-	graph_5=g_load_des_id (-2,graph_2);
+	graph_6=g_load_des_id (-2,graph_2);
 #endif
 
-#ifdef GEN_MAC_OBJ
-	graph_6=g_load_i (2);
-	graph_7=g_lsr (graph_6,graph_5);
-#else
-	graph_7=graph_5;
-#endif
-
-	s_push_b (graph_7);
+	s_push_b (graph_6);
 }
 
 void code_get_desc_flags_b (void)
@@ -6950,6 +6977,30 @@ void code_subI (VOID)
 	s_put_b (0,graph_3);
 }
 
+#ifdef I486
+void code_subLU (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
+	
+	graph_3=s_get_b (2);
+	graph_2=s_get_b (1);
+	graph_1=s_pop_b();
+
+	graph_4=g_new_node (GSUBDU,3,3*sizeof (union instruction_parameter));
+	graph_4->instruction_parameters[0].p=graph_1;
+	graph_4->instruction_parameters[1].p=graph_2;
+	graph_4->instruction_parameters[2].p=graph_3;
+
+	graph_5=g_instruction_2 (GRESULT1,graph_4,NULL);
+	graph_6=g_instruction_2 (GRESULT0,graph_4,NULL);
+	graph_5->instruction_parameters[1].p=graph_6;
+	graph_6->instruction_parameters[1].p=graph_5;
+
+	s_put_b (1,graph_5);
+	s_put_b (0,graph_6);
+}
+#endif
+
 #ifndef M68000
 void code_subIo (VOID)
 {
@@ -7622,7 +7673,11 @@ static void write_descriptor_curry_table (int arity,LABEL *code_label)
 		store_word_in_data_section (n<<2);
 #else
 # ifdef GEN_OBJ
+#  ifdef NEW_DESCRIPTORS
+		store_2_words_in_data_section (n,(arity-n)<<3);
+#  else
 		store_2_words_in_data_section (n,n<<3);
+#  endif
 # endif
 #endif
 		if (assembly_flag){
@@ -7630,7 +7685,11 @@ static void write_descriptor_curry_table (int arity,LABEL *code_label)
 			w_as_word_in_data_section (n<<2);
 #else
 			w_as_word_in_data_section (n);
+# ifdef NEW_DESCRIPTORS
+			w_as_word_in_data_section ((arity-n)<<3);
+# else
 			w_as_word_in_data_section (n<<3);
+# endif
 #endif
 		}
 		
@@ -7693,7 +7752,11 @@ static void write_descriptor_curry_table (int arity,LABEL *code_label)
 }
 
 static void code_descriptor (char label_name[],char node_entry_label_name[],char code_label_name[],LABEL *code_label,
+#ifdef NEW_DESCRIPTORS
+							int arity,int export_flag,LABEL *string_label,int string_code_label_id)
+#else
 							int arity,int export_flag,int lazy_record_flag,LABEL *string_label,int string_code_label_id)
+#endif
 {
 	LABEL *label;
 	int n;
@@ -7726,7 +7789,7 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 		w_as_new_data_module();
 #endif
 
-#ifndef M68000
+#if !defined (NEW_DESCRIPTORS) && !defined (M68000)
 	/* not for 68k to maintain long word alignment */
 	if (module_info_flag && module_label){
 # ifdef GEN_MAC_OBJ
@@ -7828,19 +7891,21 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 	}
 #endif
 
-#ifdef GEN_MAC_OBJ
+#ifndef NEW_DESCRIPTORS
+# ifdef GEN_MAC_OBJ
 	store_word_in_data_section (arity);
-#else
-# ifdef GEN_OBJ
+# else
+#  ifdef GEN_OBJ
 	store_2_words_in_data_section (lazy_record_flag,arity);
+#  endif
 # endif
-#endif
 	if (assembly_flag){
-#if defined (sparc) || defined (I486) || defined (G_POWER)
+# if defined (sparc) || defined (I486) || defined (G_POWER)
 		w_as_word_in_data_section (lazy_record_flag);
-#endif
+# endif
 		w_as_word_in_data_section (arity);
 	}
+#endif
 
 #if ! (defined (NO_STRING_ADDRES_IN_DESCRIPTOR) && (defined (G_POWER) || defined (I486)))
 # ifdef GEN_MAC_OBJ
@@ -7868,6 +7933,23 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 		w_as_define_label (label);
 }
 
+#ifdef NEW_DESCRIPTORS
+static void code_new_descriptor (int arity,int lazy_record_flag)
+{
+	store_2_words_in_data_section (lazy_record_flag,arity);
+	if (assembly_flag){
+		w_as_word_in_data_section (lazy_record_flag);
+		w_as_word_in_data_section (arity);
+	}
+
+	if (module_info_flag && module_label){
+		store_label_in_data_section (module_label);
+		if (assembly_flag)
+			w_as_label_in_data_section (module_label->label_name);
+	}
+}
+#endif
+
 void code_desc (char label_name[],char node_entry_label_name[],char *code_label_name,
 				int arity,int lazy_record_flag,char descriptor_name[],int descriptor_name_length)
 {
@@ -7893,9 +7975,17 @@ void code_desc (char label_name[],char node_entry_label_name[],char *code_label_
 		code_label_name=code_label->label_name;
 	}
 
+#ifdef NEW_DESCRIPTORS
+	code_descriptor (label_name,node_entry_label_name,code_label_name,code_label,arity,0,string_label,string_code_label_id);
+#else
 	code_descriptor (label_name,node_entry_label_name,code_label_name,code_label,arity,0,lazy_record_flag,string_label,string_code_label_id);
+#endif
 	
 	write_descriptor_curry_table (arity,code_label);
+
+#ifdef NEW_DESCRIPTORS
+	code_new_descriptor (arity,lazy_record_flag);
+#endif
 
 	w_descriptor_string (descriptor_name,descriptor_name_length,string_code_label_id,string_label);
 }
@@ -7917,7 +8007,11 @@ void code_descn (char label_name[],char node_entry_label_name[],int arity,int la
 #endif
 	);
 
+#ifdef NEW_DESCRIPTORS
+	code_descriptor (label_name,node_entry_label_name,NULL,NULL,0/*arity*/,0,string_label,string_code_label_id);
+#else
 	code_descriptor (label_name,node_entry_label_name,NULL,NULL,0/*arity*/,0,lazy_record_flag,string_label,string_code_label_id);
+#endif
 	
 #ifdef GEN_MAC_OBJ
 	store_word_in_data_section (0<<2);
@@ -7931,6 +8025,10 @@ void code_descn (char label_name[],char node_entry_label_name[],int arity,int la
 		w_as_word_in_data_section (arity);
 		w_as_word_in_data_section (0<<3);
 	}
+#endif
+
+#ifdef NEW_DESCRIPTORS
+	code_new_descriptor (0/*arity*/,lazy_record_flag);
 #endif
 
 	w_descriptor_string (descriptor_name,descriptor_name_length,string_code_label_id,string_label);
@@ -7961,9 +8059,17 @@ void code_descexp (char label_name[],char node_entry_label_name[],char *code_lab
 		code_label_name=code_label->label_name;
 	}
 
+#ifdef NEW_DESCRIPTORS
+	code_descriptor (label_name,node_entry_label_name,code_label_name,code_label,arity,EXPORT_LABEL,string_label,string_code_label_id);
+#else
 	code_descriptor (label_name,node_entry_label_name,code_label_name,code_label,arity,EXPORT_LABEL,lazy_record_flag,string_label,string_code_label_id);
+#endif
 
 	write_descriptor_curry_table (arity,code_label);
+
+#ifdef NEW_DESCRIPTORS
+	code_new_descriptor (arity,lazy_record_flag);
+#endif
 
 	w_descriptor_string (descriptor_name,descriptor_name_length,string_code_label_id,string_label);
 }

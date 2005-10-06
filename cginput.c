@@ -1738,6 +1738,9 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("acosR",			parse_instruction,			code_acosR );
 	put_instruction_name ("add_args",		parse_instruction_n_n_n,	code_add_args );
 	put_instruction_name ("addI",			parse_instruction,			code_addI );
+#ifdef I486
+	put_instruction_name ("addLU",			parse_instruction,			code_addLU );
+#endif
 	put_instruction_name ("addR",			parse_instruction,			code_addR );
 	put_instruction_name ("andB",			parse_instruction,			code_andB );
 	put_instruction_name ("and%",			parse_instruction,			code_and );
@@ -1977,6 +1980,9 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("sqrtR",			parse_instruction,			code_sqrtR );
 	put_instruction_name ("stop_reducer",	parse_instruction,			code_stop_reducer );
 	put_instruction_name ("subI",			parse_instruction,			code_subI );
+#ifdef I486
+	put_instruction_name ("subLU",			parse_instruction,			code_subLU );
+#endif
 #ifndef M68000
 	put_instruction_name ("addIo",			parse_instruction,			code_addIo );
 	put_instruction_name ("mulIo",			parse_instruction,			code_mulIo );

@@ -55,7 +55,7 @@ enum {
 	,IFEXG
 #endif
 #if defined (I486)
-	,IRTSI, IDIVI, IREMI, IREMU, IMULUD, IDIVDU
+	,IADC ,IRTSI, IDIVI, IREMI, IREMU, IMULUD, IDIVDU, ISBB
 #endif
 #if defined (I486) || defined (G_POWER)
 	,IDIVU

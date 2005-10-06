@@ -19,6 +19,9 @@ void code_absR (void);
 void code_acosR (VOID);
 void code_add_args (int source_offset,int n_arguments,int destination_offset);
 void code_addI (VOID);
+#ifdef I486
+void code_addLU (VOID);
+#endif
 #ifndef M68000
 void code_addIo (VOID);
 #endif
@@ -253,6 +256,9 @@ void code_sliceS (int source_offset,int destination_offset);
 void code_sqrtR (VOID);
 void code_stop_reducer (VOID);
 void code_subI (VOID);
+#ifdef I486
+void code_subLU (VOID);
+#endif
 #ifndef M68000
 void code_subIo (VOID);
 #endif

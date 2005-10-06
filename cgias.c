@@ -1593,6 +1593,60 @@ static void as_sub_instruction (struct instruction *instruction)
 	}
 }
 
+static void as_adc_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[0].parameter_type){
+		case P_REGISTER:
+			as_r_r (0023,instruction->instruction_parameters[0].parameter_data.reg.r,
+				instruction->instruction_parameters[1].parameter_data.reg.r);
+			return;
+		case P_IMMEDIATE:
+			as_i_r2 (0201,0020,0025,instruction->instruction_parameters[0].parameter_data.i,
+				instruction->instruction_parameters[1].parameter_data.reg.r);
+			return;
+		case P_INDIRECT:
+			as_id_r (0023,instruction->instruction_parameters[0].parameter_offset,
+				instruction->instruction_parameters[0].parameter_data.reg.r,
+				instruction->instruction_parameters[1].parameter_data.reg.r);
+			return;
+		case P_INDEXED:
+			as_x_r (0023,instruction->instruction_parameters[0].parameter_offset,
+				instruction->instruction_parameters[0].parameter_data.ir,
+				instruction->instruction_parameters[1].parameter_data.reg.r);
+			return;					
+		default:
+			internal_error_in_function ("as_adc_instruction");
+			return;
+	}
+}
+
+static void as_sbb_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[0].parameter_type){
+		case P_REGISTER:
+			as_r_r (0033,instruction->instruction_parameters[0].parameter_data.reg.r,
+				instruction->instruction_parameters[1].parameter_data.reg.r);
+			return;
+		case P_IMMEDIATE:
+			as_i_r2 (0201,0030,0035,instruction->instruction_parameters[0].parameter_data.i,
+				instruction->instruction_parameters[1].parameter_data.reg.r);
+			return;
+		case P_INDIRECT:
+			as_id_r (0033,instruction->instruction_parameters[0].parameter_offset,
+				instruction->instruction_parameters[0].parameter_data.reg.r,
+				instruction->instruction_parameters[1].parameter_data.reg.r);
+			return;
+		case P_INDEXED:
+			as_x_r (0033,instruction->instruction_parameters[0].parameter_offset,
+				instruction->instruction_parameters[0].parameter_data.ir,
+				instruction->instruction_parameters[1].parameter_data.reg.r);
+			return;					
+		default:
+			internal_error_in_function ("as_sbb_instruction");
+			return;
+	}
+}
+
 enum { SIZE_LONG, SIZE_WORD, SIZE_BYTE };
 
 static void as_cmp_i_parameter (int i,struct parameter *parameter)
@@ -4140,6 +4194,12 @@ static void as_instructions (struct instruction *instruction)
 				break;
 			case INOT:
 				as_not_instruction (instruction);
+				break;
+			case IADC:
+				as_adc_instruction (instruction);
+				break;
+			case ISBB:
+				as_sbb_instruction (instruction);
 				break;
 			case IMULUD:
 				as_mulud_instruction (instruction);

@@ -3249,6 +3249,12 @@ static void w_as_instructions (register struct instruction *instruction)
 			case INOT:
 				w_as_monadic_instruction (instruction,intel_asm ? "not" : "notl");
 				break;
+			case IADC:
+				w_as_dyadic_instruction (instruction,intel_asm ? "adc" : "adcl");
+				break;
+			case ISBB:
+				w_as_dyadic_instruction (instruction,intel_asm ? "sbb" : "sbbl");
+				break;
 			case IMULUD:
 				w_as_mulud_instruction (instruction);
 				break;
