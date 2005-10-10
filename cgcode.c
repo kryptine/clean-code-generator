@@ -243,7 +243,11 @@ int no_time_profiling;
 # define g_umulh(g1,g2) g_instruction_2(GUMULH,(g1),(g2))
 #endif
 
-#define MAX_YET_ARGS_NEEDED_ARITY 4
+#ifdef NEW_DESCRIPTORS
+# define MAX_YET_ARGS_NEEDED_ARITY 31
+#else
+# define MAX_YET_ARGS_NEEDED_ARITY 4
+#endif
 
 LABEL *INT_label,*BOOL_label,*CHAR_label,*REAL_label;
 LABEL *_STRING__label;
