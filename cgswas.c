@@ -122,7 +122,7 @@ void w_as_descriptor_in_data_section (char *label_name)
 
 static int w_as_data (register int n,register unsigned char *data,register int length)
 {
-	register int i,in_string;
+	int i,in_string;
 	
 	in_string=0;
 	
@@ -146,6 +146,7 @@ static int w_as_data (register int n,register unsigned char *data,register int l
 				w_as_opcode (".ascii");
 				putc ('\"',assembly_file);
 				in_string=1;
+				n=0;
 			}
 			putc (c,assembly_file);
 		} else {
@@ -157,6 +158,7 @@ static int w_as_data (register int n,register unsigned char *data,register int l
 					w_as_newline();
 					w_as_opcode (".byte");
 					in_string=0;
+					n=0;
 				} else
 					putc (',',assembly_file);
 			}

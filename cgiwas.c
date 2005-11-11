@@ -196,6 +196,7 @@ static int w_as_data (int n,char *data,int length)
 				w_as_opcode (intel_asm ? "db" : ".ascii");
 				putc ('\"',assembly_file);
 				in_string=1;
+				n=0;
 			}
 			putc (c,assembly_file);
 		} else {
@@ -207,6 +208,7 @@ static int w_as_data (int n,char *data,int length)
 					w_as_newline();
 					w_as_opcode (intel_asm ? "db" : ".byte");
 					in_string=0;
+					n=0;
 				} else
 					putc (',',assembly_file);
 			}
