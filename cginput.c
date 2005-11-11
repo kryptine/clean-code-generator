@@ -1854,7 +1854,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("ItoP",			parse_instruction,			code_ItoP );
 	put_instruction_name ("ItoR",			parse_instruction,			code_ItoR );
 	put_instruction_name ("jmp",			parse_instruction_a,		code_jmp );
-	put_instruction_name ("jmp_ap",			parse_instruction_n,			code_jmp_ap );
+	put_instruction_name ("jmp_ap",			parse_instruction_n,		code_jmp_ap );
 	put_instruction_name ("jmp_eval",		parse_instruction,			code_jmp_eval );
 	put_instruction_name ("jmp_eval_upd",	parse_instruction,			code_jmp_eval_upd );
 	put_instruction_name ("jmp_false",		parse_instruction_a,		code_jmp_false );
@@ -2010,6 +2010,9 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name (".desc",			parse_directive_desc,		code_desc );
 	put_instruction_name (".descn",			parse_directive_descn,		code_descn );
 	put_instruction_name (".descexp",		parse_directive_desc,		code_descexp );
+#ifdef NEW_DESCRIPTORS
+	put_instruction_name (".descs",			parse_directive_desc,		code_descs );
+#endif
 	put_instruction_name (".end",			parse_directive,			code_dummy );
 	put_instruction_name (".endinfo",		parse_directive,			code_dummy	);
 	put_instruction_name (".export",		parse_directive_labels,		code_export );

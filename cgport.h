@@ -1,6 +1,9 @@
 
 #define FINALIZERS
 #define NEW_APPLY
+#ifdef I486
+# define NEW_DESCRIPTORS
+#endif
 
 #if defined (__MWERKS__) || defined (__MRC__)
 # define POWER

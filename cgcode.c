@@ -19,10 +19,6 @@
 
 #include "cgport.h"
 
-#ifdef I486
-# define NEW_DESCRIPTORS
-#endif
-
 #if defined (G_POWER) || defined (I486)
 #	define PROFILE
 # if defined (G_POWER)
@@ -3627,7 +3623,7 @@ void code_jmp (char label_name[])
 							tail_call_profile=1;
 				}
 			}
-						
+			
 			if (! tail_call_profile)
 				i_jmp_l_profile (label,0);
 			else
@@ -7962,7 +7958,7 @@ void code_desc (char label_name[],char node_entry_label_name[],char *code_label_
 
 #if defined (NO_FUNCTION_NAMES) && defined (NO_CONSTRUCTOR_NAMES)
 	descriptor_name_length=0;
-#elif defined (NO_FUNCTION_NAMES) && defined (NO_CONSTRUCTOR_NAMES)
+#elif defined (NO_FUNCTION_NAMES)
 	if (strcmp (code_label_name,"__add__arg")!=0)
 		descriptor_name_length=0;
 #endif
@@ -8046,7 +8042,7 @@ void code_descexp (char label_name[],char node_entry_label_name[],char *code_lab
 
 #if defined (NO_FUNCTION_NAMES) && defined (NO_CONSTRUCTOR_NAMES)
 	descriptor_name_length=0;
-#elif defined (NO_FUNCTION_NAMES) && defined (NO_CONSTRUCTOR_NAMES)
+#elif defined (NO_FUNCTION_NAMES)
 	if (strcmp (code_label_name,"__add__arg")!=0)
 		descriptor_name_length=0;
 #endif
@@ -8077,6 +8073,87 @@ void code_descexp (char label_name[],char node_entry_label_name[],char *code_lab
 
 	w_descriptor_string (descriptor_name,descriptor_name_length,string_code_label_id,string_label);
 }
+
+#ifdef NEW_DESCRIPTORS
+void code_descs (char label_name[],char node_entry_label_name[],char *result_descriptor_name,
+				int offset1,int offset2,char descriptor_name[],int descriptor_name_length)
+{
+	LABEL *string_label,*label;
+	int string_code_label_id;
+
+#if defined (NO_FUNCTION_NAMES)
+	descriptor_name_length=0;
+#endif
+	
+	string_code_label_id=next_label_id++;
+	string_label=new_local_label (0
+#ifdef G_POWER
+									| DATA_LABEL
+#endif
+	);
+
+	label=enter_label (label_name,LOCAL_LABEL | DATA_LABEL);
+
+	if (label->label_id>=0)
+		error_s ("Label %d defined twice\n",label_name);
+	label->label_id=next_label_id++;
+
+	label->label_descriptor=string_label;
+
+#ifdef FUNCTION_LEVEL_LINKING
+	as_new_data_module();
+	if (assembly_flag)
+		w_as_new_data_module();
+#endif
+
+	if (! (result_descriptor_name[0]=='_' && result_descriptor_name[1]=='_' && result_descriptor_name[2]=='\0')){
+		LABEL *result_descriptor_label;
+
+		result_descriptor_label=enter_label (result_descriptor_name,0);
+
+		if (result_descriptor_label->label_id<0)
+			result_descriptor_label->label_id=next_label_id++;
+
+#ifdef GEN_OBJ
+		store_descriptor_in_data_section (result_descriptor_label);
+#endif
+		if (assembly_flag)
+			w_as_descriptor_in_data_section (result_descriptor_label->label_name);
+	}
+
+#if ! (defined (NO_STRING_ADDRES_IN_DESCRIPTOR) && (defined (G_POWER) || defined (I486)))
+# ifdef GEN_OBJ
+	store_label_in_data_section (string_label);
+# endif
+	if (assembly_flag)
+		w_as_internal_label_value (string_code_label_id);
+#endif
+
+#ifdef GEN_OBJ
+	define_data_label (label);
+#endif
+	if (assembly_flag)
+		w_as_define_label (label);
+
+#ifdef GEN_OBJ
+	store_2_words_in_data_section (0,8);
+	store_2_words_in_data_section (offset1<<2,offset2<<2);
+	store_2_words_in_data_section (1,0);
+#endif
+	if (assembly_flag){
+		w_as_word_in_data_section (0);
+		w_as_word_in_data_section (8);
+		w_as_word_in_data_section (offset1<<2);
+		w_as_word_in_data_section (offset2<<2);
+		w_as_word_in_data_section (1);
+		w_as_word_in_data_section (0);
+	}
+
+	code_new_descriptor (1,0);
+
+	w_descriptor_string (descriptor_name,descriptor_name_length,string_code_label_id,string_label);
+}
+#endif
 
 void code_record (char record_label_name[],char type[],int a_size,int b_size,char record_name[],int record_name_length)
 {
