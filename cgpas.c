@@ -3085,6 +3085,58 @@ static void as_import_labels (struct label_node *label_node)
 	as_import_labels (label_node->label_node_right);
 }
 
+static void as_profile_call (struct basic_block *block)
+{
+	LABEL *profile_label;
+	
+	if (profile_table_flag){
+		as_load_label (profile_table_label,32764,REGISTER_R3);
+		as_mflr (REGISTER_R0);
+		as_addi (REGISTER_R3,REGISTER_R3,block->block_profile_function_label->label_arity-32764);
+	} else {
+		as_load_label (block->block_profile_function_label,0,REGISTER_R3);
+		as_mflr (REGISTER_R0);
+	}
+	as_bl();
+	
+	if (block->block_n_node_arguments>-100)
+		profile_label=block->block_profile==2 ? profile_n2_label : profile_n_label;
+	else {
+		switch (block->block_profile){
+			case 2:  profile_label=profile_s2_label; break;
+			case 4:  profile_label=profile_l_label;  break;
+			case 5:  profile_label=profile_l2_label; break;
+			default: profile_label=profile_s_label;
+		}
+	}
+	as_branch_label (profile_label,BRANCH_RELOCATION);
+}
+
+#ifdef NEW_APPLY
+extern LABEL *add_empty_node_labels[];
+
+static void as_apply_update_entry (struct basic_block *block)
+{
+	if (block->block_profile)
+		as_profile_call (block);
+
+	if (block->block_n_node_arguments==-200){
+		as_b();
+		as_branch_label (block->block_ea_label,BRANCH_RELOCATION);
+		as_nop();
+		as_nop();
+		as_nop();
+	} else {
+		as_mflr (REGISTER_R0);
+		as_bl();
+		as_branch_label (add_empty_node_labels[block->block_n_node_arguments+200],BRANCH_RELOCATION);
+		as_mtlr (REGISTER_R0);
+		as_b();
+		as_branch_label (block->block_ea_label,BRANCH_RELOCATION);
+	}
+}
+#endif
+
 static void write_code (void)
 {
 	struct basic_block *block;
@@ -3209,34 +3261,15 @@ static void write_code (void)
 
 			store_instruction (block->block_n_node_arguments);
 		}
+#ifdef NEW_APPLY
+		else if (block->block_n_node_arguments<-100)
+			as_apply_update_entry (block);
+#endif
 
 		as_labels (block->block_labels);
 
-		if (block->block_profile){
-			LABEL *profile_label;
-			
-			if (profile_table_flag){
-				as_load_label (profile_table_label,32764,REGISTER_R3);
-				as_mflr (REGISTER_R0);
-				as_addi (REGISTER_R3,REGISTER_R3,block->block_profile_function_label->label_arity-32764);
-			} else {
-				as_load_label (block->block_profile_function_label,0,REGISTER_R3);
-				as_mflr (REGISTER_R0);
-			}
-			as_bl();
-			
-			if (block->block_n_node_arguments>-100)
-				profile_label=block->block_profile==2 ? profile_n2_label : profile_n_label;
-			else {
-				switch (block->block_profile){
-					case 2:  profile_label=profile_s2_label; break;
-					case 4:  profile_label=profile_l_label;  break;
-					case 5:  profile_label=profile_l2_label; break;
-					default: profile_label=profile_s_label;
-				}
-			}
-			as_branch_label (profile_label,BRANCH_RELOCATION);
-		}
+		if (block->block_profile)
+			as_profile_call (block);
 
 		if (block->block_n_new_heap_cells!=0)
 			as_garbage_collect_test (block);

@@ -3560,6 +3560,164 @@ static void w_as_import_labels (register struct label_node *label_node)
 	w_as_import_labels (label_node->label_node_right);
 }
 
+static void w_as_node_entry_info (struct basic_block *block)
+{
+	if (block->block_ea_label!=NULL){
+		int n_node_arguments;
+		extern LABEL *eval_fill_label,*eval_upd_labels[];
+		
+		n_node_arguments=block->block_n_node_arguments;
+
+		if (n_node_arguments<-2)
+			n_node_arguments=1;
+		
+		if (n_node_arguments>=0 && block->block_ea_label!=eval_fill_label){
+			w_as_load_label (block->block_ea_label,REGISTER_A2);
+
+			if (!block->block_profile){					
+				w_as_opcode ("b");
+				w_as_label (eval_upd_labels[n_node_arguments]->label_name);
+				w_as_newline();
+
+				w_as_instruction_without_parameters ("nop");
+#ifdef GNU_SYNTAX
+				w_as_instruction_without_parameters ("nop");
+#endif
+			} else {						
+				if (profile_table_flag){
+					w_as_opcode ("b");
+					w_as_label (eval_upd_labels[n_node_arguments]->label_name);
+					fprintf (assembly_file,"-8");
+					w_as_newline();
+
+					w_as_load_label_with_offset (profile_table_label,32764,REGISTER_R3);
+
+					w_as_opcode ("addi");
+					w_as_register_comma (REGISTER_R3);
+					w_as_register_comma (REGISTER_R3);
+					w_as_immediate (block->block_profile_function_label->label_arity-32764);
+					w_as_newline();
+				
+					w_as_opcode ("b");
+					fprintf (assembly_file,IF_GNU ("$-16","*-16"));
+					w_as_newline();
+				} else {
+					w_as_load_label (block->block_profile_function_label,REGISTER_R3);
+
+					w_as_opcode ("b");
+					w_as_label (eval_upd_labels[n_node_arguments]->label_name);
+					fprintf (assembly_file,"-8");
+					w_as_newline();
+				}
+			}
+		} else {
+			w_as_opcode ("b");
+			w_as_label (block->block_ea_label->label_name);
+			w_as_newline();
+			
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+#ifdef GNU_SYNTAX
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+#endif
+		}
+		
+		if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
+#ifdef GNU_SYNTAX
+			w_as_label_in_code_section (block->block_descriptor->label_name);
+#else
+			w_as_load_label (block->block_descriptor,REGISTER_R0);
+#endif
+		else
+			w_as_number_of_arguments (0);
+	} else {
+		if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
+#ifdef GNU_SYNTAX
+			w_as_label_in_code_section (block->block_descriptor->label_name);
+#else
+			w_as_load_label (block->block_descriptor,REGISTER_R0);
+#endif
+		/* else
+			w_as_number_of_arguments (0);
+		*/
+	}
+	w_as_number_of_arguments (block->block_n_node_arguments);
+}
+
+static void w_as_profile_call (struct basic_block *block)
+{
+	if (profile_table_flag){
+		w_as_load_label_with_offset (profile_table_label,32764,REGISTER_R3);
+	
+		w_as_opcode ("mflr");
+		w_as_register (REGISTER_R0);
+		w_as_newline();
+		
+		w_as_opcode ("addi");
+		w_as_register_comma (REGISTER_R3);
+		w_as_register_comma (REGISTER_R3);
+		w_as_immediate (block->block_profile_function_label->label_arity-32764);
+		w_as_newline();
+	} else {
+		w_as_load_label (block->block_profile_function_label,REGISTER_R3);
+	
+		w_as_opcode ("mflr");
+		w_as_register (REGISTER_R0);
+		w_as_newline();
+	}
+	
+	w_as_opcode ("bl");
+	
+	if (block->block_n_node_arguments>-100)
+		w_as_label (block->block_profile==2 ? "profile_n2" : "profile_n");
+	else {
+		switch (block->block_profile){
+			case 2:  w_as_label ("profile_s2"); break;
+			case 4:  w_as_label ("profile_l"); break;
+			case 5:  w_as_label ("profile_l2"); break;
+			default: w_as_label ("profile_s");
+		}
+	}
+	w_as_newline();
+}
+
+#ifdef NEW_APPLY
+extern LABEL *add_empty_node_labels[];
+
+static void w_as_apply_update_entry (struct basic_block *block)
+{
+	if (block->block_profile)
+		w_as_profile_call (block);
+
+	if (block->block_n_node_arguments==-200){
+		w_as_opcode ("b");
+		w_as_label (block->block_ea_label->label_name);
+		w_as_newline();
+
+		w_as_instruction_without_parameters ("nop");
+		w_as_instruction_without_parameters ("nop");
+		w_as_instruction_without_parameters ("nop");
+	} else {
+		w_as_opcode ("mflr");
+		w_as_register (REGISTER_R0);
+		w_as_newline();
+
+		w_as_opcode ("bl");
+		w_as_label (add_empty_node_labels[block->block_n_node_arguments+200]->label_name);
+		w_as_newline();
+
+		w_as_opcode ("mtlr");
+		w_as_register (REGISTER_R0);
+		w_as_newline();
+
+		w_as_opcode ("b");
+		w_as_label (block->block_ea_label->label_name);
+		w_as_newline();
+	}
+}
+#endif
+
 void write_assembly (VOID)
 {
 	struct basic_block *block;
@@ -3590,126 +3748,17 @@ void write_assembly (VOID)
 		}
 
 		if (block->block_n_node_arguments>-100){
-			if (block->block_ea_label!=NULL){
-				int n_node_arguments;
-				extern LABEL *eval_fill_label,*eval_upd_labels[];
-				
-				n_node_arguments=block->block_n_node_arguments;
-
-				if (n_node_arguments<-2)
-					n_node_arguments=1;
-				
-				if (n_node_arguments>=0 && block->block_ea_label!=eval_fill_label){
-					w_as_load_label (block->block_ea_label,REGISTER_A2);
-
-					if (!block->block_profile){					
-						w_as_opcode ("b");
-						w_as_label (eval_upd_labels[n_node_arguments]->label_name);
-						w_as_newline();
-
-						w_as_instruction_without_parameters ("nop");
-#ifdef GNU_SYNTAX
-						w_as_instruction_without_parameters ("nop");
-#endif
-					} else {						
-						if (profile_table_flag){
-							w_as_opcode ("b");
-							w_as_label (eval_upd_labels[n_node_arguments]->label_name);
-							fprintf (assembly_file,"-8");
-							w_as_newline();
-
-							w_as_load_label_with_offset (profile_table_label,32764,REGISTER_R3);
-
-							w_as_opcode ("addi");
-							w_as_register_comma (REGISTER_R3);
-							w_as_register_comma (REGISTER_R3);
-							w_as_immediate (block->block_profile_function_label->label_arity-32764);
-							w_as_newline();
-						
-							w_as_opcode ("b");
-							fprintf (assembly_file,IF_GNU ("$-16","*-16"));
-							w_as_newline();
-						} else {
-							w_as_load_label (block->block_profile_function_label,REGISTER_R3);
-
-							w_as_opcode ("b");
-							w_as_label (eval_upd_labels[n_node_arguments]->label_name);
-							fprintf (assembly_file,"-8");
-							w_as_newline();
-						}
-					}
-				} else {
-					w_as_opcode ("b");
-					w_as_label (block->block_ea_label->label_name);
-					w_as_newline();
-					
-					w_as_instruction_without_parameters ("nop");
-					w_as_instruction_without_parameters ("nop");
-#ifdef GNU_SYNTAX
-					w_as_instruction_without_parameters ("nop");
-					w_as_instruction_without_parameters ("nop");
-#endif
-				}
-				
-				if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
-#ifdef GNU_SYNTAX
-					w_as_label_in_code_section (block->block_descriptor->label_name);
-#else
-					w_as_load_label (block->block_descriptor,REGISTER_R0);
-#endif
-				else
-					w_as_number_of_arguments (0);
-			} else {
-				if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
-#ifdef GNU_SYNTAX
-					w_as_label_in_code_section (block->block_descriptor->label_name);
-#else
-					w_as_load_label (block->block_descriptor,REGISTER_R0);
-#endif
-				/* else
-					w_as_number_of_arguments (0);
-				*/
-			}
-			w_as_number_of_arguments (block->block_n_node_arguments);
+			w_as_node_entry_info (block);
 		}
+#ifdef NEW_APPLY
+		else if (block->block_n_node_arguments<-100)
+			w_as_apply_update_entry (block);
+#endif
 
 		w_as_labels (block->block_labels);
 
-		if (block->block_profile){
-			if (profile_table_flag){
-				w_as_load_label_with_offset (profile_table_label,32764,REGISTER_R3);
-			
-				w_as_opcode ("mflr");
-				w_as_register (REGISTER_R0);
-				w_as_newline();
-				
-				w_as_opcode ("addi");
-				w_as_register_comma (REGISTER_R3);
-				w_as_register_comma (REGISTER_R3);
-				w_as_immediate (block->block_profile_function_label->label_arity-32764);
-				w_as_newline();
-			} else {
-				w_as_load_label (block->block_profile_function_label,REGISTER_R3);
-			
-				w_as_opcode ("mflr");
-				w_as_register (REGISTER_R0);
-				w_as_newline();
-			}
-			
-			w_as_opcode ("bl");
-			
-			if (block->block_n_node_arguments>-100)
-				w_as_label (block->block_profile==2 ? "profile_n2" : "profile_n");
-			else {
-				switch (block->block_profile){
-					case 2:  w_as_label ("profile_s2"); break;
-					case 4:  w_as_label ("profile_l"); break;
-					case 5:  w_as_label ("profile_l2"); break;
-					default: w_as_label ("profile_s");
-				}
-			}
-			w_as_newline();
-		}
+		if (block->block_profile)
+			w_as_profile_call (block);
 
 		if (block->block_n_new_heap_cells!=0)
 			w_as_garbage_collect_test (block);
