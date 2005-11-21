@@ -1,9 +1,6 @@
 
 #define FINALIZERS
 #define NEW_APPLY
-#ifdef I486
-# define NEW_DESCRIPTORS
-#endif
 
 #if defined (__MWERKS__) || defined (__MRC__)
 # define POWER
@@ -12,6 +9,10 @@
 # elif !defined (MAKE_MPW_TOOL)
 #  define G_POWER
 # endif
+#endif
+
+#if defined (I486) || defined (G_POWER)
+# define NEW_DESCRIPTORS
 #endif
 
 #if 0 || defined (MACH_O)
