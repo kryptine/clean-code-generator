@@ -2384,7 +2384,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 				if (!float_parameters)
 					++n_clean_b_register_parameters;
 				continue;
-#ifdef I486
+#if defined (I486) || defined (G_POWER)
 			case 'r':
 #endif
 			case 'R':
@@ -2647,6 +2647,18 @@ void code_ccall (char *c_function_name,char *s,int length)
 						b_o+=4;
 					}					
 					break;
+# ifdef G_POWER
+				case 'r':
+					if (c_fp_parameter_n<13){
+						++c_parameter_n;
+						i_fmove_id_fr (b_o,B_STACK_REGISTER,1+c_fp_parameter_n-14);
+						i_word_i (0xFC000018 | ((1+c_fp_parameter_n) << 21) | ((1+c_fp_parameter_n) << 11)); // frsp frp,frp
+					} else
+						error_s ("Passing single precision argument in fp position > 13 not implemented (in '%s')",c_function_name);
+					++c_fp_parameter_n;
+					b_o+=8;
+					break;
+# endif
 				case 'R':
 # ifdef G_POWER
 #  ifdef LINUX_ELF
