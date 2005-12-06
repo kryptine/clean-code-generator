@@ -4931,6 +4931,35 @@ void code_pushL (char *label_name)
 	s_push_b (graph_1);
 }
 
+void code_pushLc (char *c_function_name)
+{
+	INSTRUCTION_GRAPH graph_1;
+	LABEL *label;
+
+#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
+	char label_name [202];
+	
+# if defined (G_POWER) && !defined (MACH_O)
+	label_name[0]='.';
+# else
+	label_name[0]='_';
+# endif
+	strcpy (&label_name[1],c_function_name);
+
+	label=enter_label (label_name,0);
+#else
+	label=enter_label (c_function_name,0);
+#endif
+
+	graph_1=g_lea (label);
+
+#ifndef M68000
+	--graph_1->instruction_d_min_a_cost;
+#endif
+
+	s_push_b (graph_1);
+}
+
 void code_pushR (double v)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;

@@ -1922,6 +1922,7 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("pushI",			parse_instruction_i,		code_pushI );
 	put_instruction_name ("pushI_a",		parse_instruction_n,		code_pushI_a );
 	put_instruction_name ("pushL",			parse_instruction_l,		code_pushL );
+	put_instruction_name ("pushLc",			parse_instruction_l,		code_pushLc );
 	put_instruction_name ("pushR",			parse_instruction_r,		code_pushR );
 	put_instruction_name ("pushR_a",		parse_instruction_n,		code_pushR_a );
 	put_instruction_name ("pushzs",			parse_instruction_s,		code_pushzs );

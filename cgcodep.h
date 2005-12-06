@@ -211,6 +211,7 @@ void code_pushF_a (int a_offset);
 void code_pushI (LONG i);
 void code_pushI_a (int a_offset);
 void code_pushL (char *label_name);
+void code_pushLc (char *c_function_name);
 void code_pushR (double r);
 void code_pushR_a (int a_offset);
 void code_pushzs (char *string,int length);
