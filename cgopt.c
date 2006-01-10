@@ -14,7 +14,7 @@
 
 #include "cgopt.h"
 
-#ifdef I486
+#if defined (I486) && !defined (G_AI64)
 # define I486_USE_SCRATCH_REGISTER
 #endif
 
@@ -819,7 +819,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					parameter0=&instruction->instruction_parameters[0];
 					parameter1=&instruction->instruction_parameters[1];
 					
-					if (parameter1->parameter_offset<b_offset && parameter1->parameter_offset!=b_offset-4){
+					if (parameter1->parameter_offset<b_offset && parameter1->parameter_offset!=b_offset-STACK_ELEMENT_SIZE){
 						insert_decrement_b_stack_pointer (instruction,b_offset-parameter1->parameter_offset);
 				
 						b_offset=parameter1->parameter_offset;
@@ -836,8 +836,8 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 						if (parameter0->parameter_offset==b_offset
 							&& b_offset<((WORD)parameter0->parameter_data.reg.u))
 						{
-							if (b_offset+4<=((WORD)parameter0->parameter_data.reg.u)){
-								b_offset+=4;
+							if (b_offset+STACK_ELEMENT_SIZE<=((WORD)parameter0->parameter_data.reg.u)){
+								b_offset+=STACK_ELEMENT_SIZE;
 								parameter0->parameter_type=P_POST_INCREMENT;
 							} else
 								parameter0->parameter_offset-=b_offset;
@@ -846,8 +846,8 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					}
 					
 					if (parameter1->parameter_offset<b_offset){
-						if (parameter1->parameter_offset==b_offset-4){
-							b_offset-=4;
+						if (parameter1->parameter_offset==b_offset-STACK_ELEMENT_SIZE){
+							b_offset-=STACK_ELEMENT_SIZE;
 							parameter1->parameter_type=P_PRE_DECREMENT;
 							continue;
 						} else
@@ -867,8 +867,8 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 						if (parameter->parameter_offset==b_offset
 							&& b_offset<((WORD)parameter->parameter_data.reg.u))
 						{							
-							if (b_offset+4<=((WORD)parameter->parameter_data.reg.u)){
-								b_offset+=4;
+							if (b_offset+STACK_ELEMENT_SIZE<=((WORD)parameter->parameter_data.reg.u)){
+								b_offset+=STACK_ELEMENT_SIZE;
 								parameter->parameter_type=P_POST_INCREMENT;
 								continue;
 							}
@@ -885,8 +885,8 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					parameter=&instruction->instruction_parameters[1];
 		
 					if (parameter->parameter_offset<b_offset){
-						if (parameter->parameter_offset==b_offset-4){
-							b_offset-=4;
+						if (parameter->parameter_offset==b_offset-STACK_ELEMENT_SIZE){
+							b_offset-=STACK_ELEMENT_SIZE;
 							parameter->parameter_type=P_PRE_DECREMENT;
 							continue;
 						} else {
@@ -941,7 +941,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 			if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&	
 				instruction->instruction_parameters[0].parameter_data.reg.r==B_STACK_POINTER &&
 				instruction->instruction_parameters[0].parameter_offset==b_offset &&
-				b_offset+4<=((WORD)instruction->instruction_parameters[0].parameter_data.reg.u)
+				b_offset+STACK_ELEMENT_SIZE<=((WORD)instruction->instruction_parameters[0].parameter_data.reg.u)
 			){
 				instruction->instruction_parameters[0].parameter_type=P_POST_INCREMENT;
 
@@ -950,12 +950,12 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 				){
 					instruction->instruction_parameters[1].parameter_offset-=b_offset;
 				}
-				b_offset+=4;
+				b_offset+=STACK_ELEMENT_SIZE;
 				continue;
 			}
 			if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT &&
 				instruction->instruction_parameters[1].parameter_data.reg.r==B_STACK_POINTER &&
-				instruction->instruction_parameters[1].parameter_offset==b_offset-4
+				instruction->instruction_parameters[1].parameter_offset==b_offset-STACK_ELEMENT_SIZE
 			){
 				instruction->instruction_parameters[1].parameter_type=P_PRE_DECREMENT;
 
@@ -964,7 +964,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 				){
 					instruction->instruction_parameters[0].parameter_offset-=b_offset;
 				}
-				b_offset-=4;
+				b_offset-=STACK_ELEMENT_SIZE;
 				continue;				
 			}
 		}
@@ -1236,7 +1236,11 @@ struct register_allocation r_reg_alloc[N_REAL_REGISTERS];
 struct register_allocation a_reg_alloc[8],d_reg_alloc[8];
 #endif
 
-#if defined (NEW_R_ALLOC) && (defined (sparc) || defined (G_POWER))
+#if defined (NEW_R_ALLOC) && (defined (sparc) || defined (G_POWER) || defined (G_AI64))
+# define F_REG_15
+#endif
+
+#ifdef F_REG_15
 	struct register_allocation f_reg_alloc[15];
 #else
 	struct register_allocation f_reg_alloc[8];
@@ -1594,6 +1598,9 @@ IF_G_POWER ( case IUMULH: )
 			case IFABS:
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)
 IF_G_RISC (case IADDI: case ILSLI:)
+#ifdef G_AI64
+			case IMOVESW:
+#endif
 				define_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
@@ -1756,7 +1763,7 @@ static void initialize_register_allocation()
 	}
 #endif
 
-#if defined (NEW_R_ALLOC) && (defined (sparc) || defined (G_POWER))
+#ifdef F_REG_15
 	for (n=8; n<15; ++n){
 		f_reg_alloc[n].reg=-32768;
 		f_reg_alloc[n].instruction_n=0;
@@ -2015,7 +2022,7 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 				real_reg_n=REAL_A1;
 				i=reg_alloc[REAL_A1].instruction_n;
 			}
-#if !defined (I486) || defined (I486_USE_SCRATCH_REGISTER)
+#if !(defined (I486) && !defined (G_AI64)) || defined (I486_USE_SCRATCH_REGISTER)
 			if (reg_alloc[REAL_A2].instruction_n<i
 # if defined (I486_USE_SCRATCH_REGISTER)
 				&& allocate_scratch_register
@@ -2069,12 +2076,12 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 				real_reg_n=6;
 				i=reg_alloc[6].instruction_n;
 			}
-# ifndef I486
+#  if ! (defined (I486) && !defined (G_AI64))
 			if (reg_alloc[7].instruction_n<i){
 				real_reg_n=7;
 				i=reg_alloc[7].instruction_n;
 			}
-#  if defined (sparc) || defined (G_POWER)
+#  if defined (sparc) || defined (G_POWER) || defined (G_AI64)
 			if (reg_alloc[8].instruction_n<i){
 				real_reg_n=8;
 				i=reg_alloc[8].instruction_n;
@@ -2240,7 +2247,7 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 				real_reg_n=REAL_A1;
 				i=reg_alloc[REAL_A1].instruction_n;
 			}
-#if !defined (I486) || defined (I486_USE_SCRATCH_REGISTER)
+#if !(defined (I486) && !defined (G_AI64)) || defined (I486_USE_SCRATCH_REGISTER)
 			if (reg_alloc[REAL_A2].instruction_n<i && avoid_reg_n!=REAL_A2
 # if defined (I486_USE_SCRATCH_REGISTER)
 				&& allocate_scratch_register
@@ -2295,12 +2302,12 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 				real_reg_n=6;
 				i=reg_alloc[6].instruction_n;
 			}
-# ifndef I486
+#  if ! (defined (I486) && !defined (G_AI64))
 			if (reg_alloc[7].instruction_n<i && avoid_reg_n!=7){
 				real_reg_n=7;
 				i=reg_alloc[7].instruction_n;
 			}
-#  if defined (sparc) || defined (G_POWER)
+#  if defined (sparc) || defined (G_POWER) || defined (G_AI64)
 			if (reg_alloc[8].instruction_n<i && avoid_reg_n!=8){
 				real_reg_n=8;
 				i=reg_alloc[8].instruction_n;
@@ -2470,7 +2477,7 @@ static int find_reg_not_in_set
 				real_reg_n=REAL_A1;
 				i=reg_alloc[REAL_A1].instruction_n;
 			}
-# if !defined (I486) || defined (I486_USE_SCRATCH_REGISTER)
+# if !(defined (I486) && !defined (G_AI64)) || defined (I486_USE_SCRATCH_REGISTER)
 			if (reg_alloc[REAL_A2].instruction_n<i && !(avoid_reg_set & (1<<REAL_A2))
 #  if defined (I486_USE_SCRATCH_REGISTER)
 				&& allocate_scratch_register
@@ -2525,12 +2532,12 @@ static int find_reg_not_in_set
 				real_reg_n=6;
 				i=reg_alloc[6].instruction_n;
 			}
-#  ifndef I486
+#  if ! (defined (I486) && !defined (G_AI64))
 			if (reg_alloc[7].instruction_n<i && !(avoid_reg_set & 128)){
 				real_reg_n=7;
 				i=reg_alloc[7].instruction_n;
 			}
-#  if defined (sparc) || defined (G_POWER)
+#  if defined (sparc) || defined (G_POWER) || defined (G_AI64)
 			if (reg_alloc[8].instruction_n<i && !(avoid_reg_set & 256)){
 				real_reg_n=8;
 				i=reg_alloc[8].instruction_n;
@@ -2620,9 +2627,11 @@ static int free_2_register (	int real_reg_n,struct register_use *reg_uses,
 #endif
 		if (reg_alloc[real_reg_n].value_used){
 			if (reg_uses[old_reg_n].offset==0){
+#ifndef G_A64
 				if (register_flag!=F_REGISTER)
 					local_data_offset-=4;
 				else
+#endif
 					local_data_offset-=8;
 
 				reg_uses[old_reg_n].offset=local_data_offset;
@@ -3892,7 +3901,9 @@ IF_G_POWER (case ICMPLW:)
 			case IFABS:
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)
 IF_G_RISC (case IADDI: case ILSLI:)
-
+#ifdef G_AI64
+			case IMOVESW:
+#endif
 #if 1
 				if (instruction->instruction_parameters[1].parameter_type==P_REGISTER ||
 					instruction->instruction_parameters[1].parameter_type==P_F_REGISTER)
@@ -4078,7 +4089,7 @@ int do_register_allocation
 	struct register_use *r_reg_uses_block;
 #endif
 
-#if defined(NEW_R_ALLOC) && (defined (sparc) || defined (G_POWER))
+#ifdef F_REG_15
 	if (highest_a_register<=N_REAL_A_REGISTERS && highest_d_register<=8 && highest_f_register<=15)
 #else
 	if (highest_a_register<=8 && highest_d_register<=8 && highest_f_register<=8)
@@ -4131,7 +4142,7 @@ int do_register_allocation
 	initialize_register_uses (d_reg_uses,highest_d_register,end_d_registers);
 #endif
 
-#if defined(NEW_R_ALLOC) && (defined(sparc) || defined (G_POWER))
+#ifdef F_REG_15
 	{
 	int max_15_and_highest_f_register;
 

@@ -3,7 +3,7 @@
 # define FMADD
 #endif
 
-#ifdef I486
+#if defined (I486) && !defined (G_AI64)
 # define FP_STACK_OPTIMIZATIONS
 #endif
 
@@ -62,6 +62,9 @@ enum {
 #endif
 #ifdef G_POWER
 	,IUMULH
+#endif
+#ifdef G_AI64
+	,IMOVESW
 #endif
 };
 

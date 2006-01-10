@@ -98,12 +98,19 @@ struct index_registers {
 	struct reg d_reg;
 };
 
+#ifndef G_A64
+# define imm i
+#endif
+
 struct parameter {
 	char parameter_type;
 	char parameter_flags;
 	short parameter_offset;
 	union parameter_data {
 		LONG i;
+#ifdef G_A64
+		__int64 imm;
+#endif
 		LABEL *l;
 		DOUBLE *r;
 		struct reg reg;
@@ -151,6 +158,9 @@ struct instruction_node {
 		struct instruction_node *	p;
 		LABEL *						l;
 		LONG						i;
+# ifdef G_A64
+		__int64						imm;
+# endif
 	}
 #endif
 	instruction_parameters[VARIABLE_ARRAY_SIZE];

@@ -20,10 +20,12 @@
 
 #define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
 
-#define g_fhighlow(gh,gl,gf) \
+#ifndef G_A64
+# define g_fhighlow(gh,gl,gf) \
 	(gh)=g_instruction_2 (GFHIGH,(gf),NULL); \
 	(gl)=g_instruction_2 (GFLOW,(gf),(gh)); \
 	(gh)->instruction_parameters[1].p=(gl)
+#endif
 
 #define	ELEMENT_MAY_BE_REMOVED			1
 #define	ELEMENT_USED_BEFORE_JSR			2
@@ -93,7 +95,7 @@ INSTRUCTION_GRAPH s_get_a (int offset)
 	}
 	
 	graph=g_load
-		(-((required_offset+global_block.block_graph_a_stack_begin_displacement+1)<<2),A_STACK_POINTER);
+		(-((required_offset+global_block.block_graph_a_stack_begin_displacement+1)<<STACK_ELEMENT_LOG_SIZE),A_STACK_POINTER);
 	
 	new_element=allocate_struct_from_heap (a_stack);
 	new_element->a_stack_offset=required_offset;
@@ -201,7 +203,7 @@ INSTRUCTION_GRAPH s_get_b (int offset)
 	}
 	
 	graph=g_load
-		((required_offset+global_block.block_graph_b_stack_begin_displacement)<<2,B_STACK_POINTER);
+		((required_offset+global_block.block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 	
 	new_element=allocate_struct_from_heap (b_stack);
 	new_element->b_stack_offset=required_offset;
@@ -344,25 +346,33 @@ void init_b_stack (int b_stack_size,ULONG vector[])
 					float_offsets [number_of_float_register_parameters++]=offset;
 					
 					if (all_parameters_in_registers)
+#ifdef G_A64
+						stack_displacement-=1;
+#else
 						stack_displacement-=2;
+#endif
 				} else {				
 					INSTRUCTION_GRAPH f_graph,h_graph,l_graph;
 
-					f_graph=g_fload ((offset+stack_displacement)<<2,B_STACK_POINTER);
-#ifdef g_fhighlow
-					g_fhighlow (h_graph,l_graph,f_graph);
+					f_graph=g_fload ((offset+stack_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
+#ifdef G_A64
+					f_graph=g_fromf (f_graph);
+					s_put_b_l (offset,f_graph,f_graph);
 #else
-					h_graph=g_fhigh (f_graph);
-					l_graph=g_flow (f_graph);
-#endif		
+					g_fhighlow (h_graph,l_graph,f_graph);
+
 					s_put_b_l (offset+1,l_graph,l_graph);
 					s_put_b_l (offset,h_graph,h_graph);
-		
+#endif		
 					all_parameters_in_registers=0;
 				}
 			} else
 				all_parameters_in_registers=0;
+#ifdef G_A64
+			offset+=1;
+#else
 			offset+=2;
+#endif
 		} else {
 			if (number_of_data_register_parameters < (parallel_flag ? N_DATA_PARAMETER_REGISTERS-1 : N_DATA_PARAMETER_REGISTERS)){
 				data_offsets [number_of_data_register_parameters++]=offset;
@@ -388,16 +398,18 @@ void init_b_stack (int b_stack_size,ULONG vector[])
 	
 		register_graph=g_fregister (number_of_float_register_parameters-1-n);
 
-#ifdef g_fhighlow
-		g_fhighlow (h_graph,l_graph,register_graph);
-#else
-		h_graph=g_fhigh (register_graph);
-		l_graph=g_flow (register_graph);
-#endif	
 		offset=float_offsets[n];
+
+#ifdef G_A64
+		register_graph=g_fromf (register_graph);
+
+		s_put_b_l (offset,register_graph,register_graph);
+#else
+		g_fhighlow (h_graph,l_graph,register_graph);
 		
 		s_put_b_l (offset+1,l_graph,l_graph);
 		s_put_b_l (offset,h_graph,h_graph);
+#endif
 	}
 	
 	last_block->block_n_begin_d_parameter_registers=number_of_data_register_parameters;
@@ -436,25 +448,34 @@ void init_ab_stack (int a_stack_size,int b_stack_size,ULONG vector[])
 					float_offsets [number_of_float_register_parameters++]=offset;
 					
 					if (all_parameters_in_registers)
+#ifdef G_A64
+						stack_displacement-=1;
+#else
 						stack_displacement-=2;
+#endif
 				} else {				
 					INSTRUCTION_GRAPH f_graph,h_graph,l_graph;
 
-					f_graph=g_fload ((offset+stack_displacement)<<2,B_STACK_POINTER);
-#ifdef g_fhighlow
-					g_fhighlow (h_graph,l_graph,f_graph);
+					f_graph=g_fload ((offset+stack_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
+#ifdef G_A64
+					f_graph=g_fromf (f_graph);
+					
+					s_put_b_l (offset,f_graph,f_graph);
 #else
-					h_graph=g_fhigh (f_graph);
-					l_graph=g_flow (f_graph);
-#endif		
+					g_fhighlow (h_graph,l_graph,f_graph);
+
 					s_put_b_l (offset+1,l_graph,l_graph);
 					s_put_b_l (offset,h_graph,h_graph);
-		
+#endif		
 					all_parameters_in_registers=0;
 				}
 			} else
 				all_parameters_in_registers=0;
+#ifdef G_A64
+			offset+=1;
+#else
 			offset+=2;
+#endif
 		} else {
 			if (number_of_data_register_parameters <
 				(parallel_flag ? n_data_parameter_registers-1 : n_data_parameter_registers) + n_extra_data_parameter_registers)
@@ -492,16 +513,18 @@ void init_ab_stack (int a_stack_size,int b_stack_size,ULONG vector[])
 	
 		register_graph=g_fregister (number_of_float_register_parameters-1-n);
 
-#ifdef g_fhighlow
-		g_fhighlow (h_graph,l_graph,register_graph);
-#else
-		h_graph=g_fhigh (register_graph);
-		l_graph=g_flow (register_graph);
-#endif	
 		offset=float_offsets[n];
+
+#ifdef G_A64
+		register_graph=g_fromf (register_graph);
 		
+		s_put_b_l (offset,register_graph,register_graph);
+#else
+		g_fhighlow (h_graph,l_graph,register_graph);
+
 		s_put_b_l (offset+1,l_graph,l_graph);
 		s_put_b_l (offset,h_graph,h_graph);
+#endif
 	}
 	
 	last_block->block_n_begin_d_parameter_registers=number_of_data_register_parameters;
@@ -528,13 +551,24 @@ void insert_graph_in_b_stack (INSTRUCTION_GRAPH graph,int b_stack_size,ULONG *ve
 				INSTRUCTION_GRAPH f_graph,l_graph,h_graph;
 				
 				f_graph=g_fload
-					((required_offset+global_block.block_graph_b_stack_begin_displacement)<<2,B_STACK_POINTER);
-#ifdef g_fhighlow
-				g_fhighlow (h_graph,l_graph,f_graph);
+					((required_offset+global_block.block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
+
+#ifdef G_A64
+				f_graph=g_fromf (f_graph);
+
+				new_element=allocate_struct_from_heap (b_stack);
+				new_element->b_stack_offset=required_offset;
+				new_element->b_stack_flags=0;
+				new_element->b_stack_graph=f_graph;
+				new_element->b_stack_load_graph=f_graph;
+		
+				new_element->b_stack_next=*element_p;
+				*element_p=new_element;
+
+				element_p=&new_element->b_stack_next;
 #else
-				h_graph=g_fhigh (f_graph);
-				l_graph=g_flow (f_graph);
-#endif
+				g_fhighlow (h_graph,l_graph,f_graph);
+
 				new_element=allocate_struct_from_heap (b_stack);
 				new_element->b_stack_offset=required_offset;
 				new_element->b_stack_flags=0;
@@ -558,13 +592,16 @@ void insert_graph_in_b_stack (INSTRUCTION_GRAPH graph,int b_stack_size,ULONG *ve
 				*element_p=new_element;
 
 				element_p=&new_element->b_stack_next;
+#endif
 				continue;
-			} else {
+			}
+#ifndef G_A64
+			else {
 				if (*element_p==NULL || (*element_p)->b_stack_offset!=required_offset){
 					INSTRUCTION_GRAPH load_graph;
 					
 					load_graph=g_load
-						((required_offset+global_block.block_graph_b_stack_begin_displacement)<<2,B_STACK_POINTER);
+						((required_offset+global_block.block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 					
 					new_element=allocate_struct_from_heap (b_stack);
 					new_element->b_stack_offset=required_offset;
@@ -580,13 +617,14 @@ void insert_graph_in_b_stack (INSTRUCTION_GRAPH graph,int b_stack_size,ULONG *ve
 				++offset;
 				++required_offset;
 			}
+#endif
 		}
 		
 		if (*element_p==NULL || (*element_p)->b_stack_offset!=required_offset){
 			INSTRUCTION_GRAPH load_graph;
 			
 			load_graph=g_load
-				((required_offset+global_block.block_graph_b_stack_begin_displacement)<<2,B_STACK_POINTER);
+				((required_offset+global_block.block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 			
 			new_element=allocate_struct_from_heap (b_stack);
 			new_element->b_stack_offset=required_offset;
@@ -694,20 +732,28 @@ static int count_b_stack_size (ULONG *vector_p[],struct b_stack *b_stack,int b_s
 	b_element=first_b_element;
 	
 	for (i=0; i<b_stack_size; ){
-		register struct b_stack *next_b_element;
+		struct b_stack *next_b_element;
 		INSTRUCTION_GRAPH graph,next_graph;
 			
+#ifdef G_A64
+		if (i<b_stack_size && b_element->b_stack_graph->instruction_code==GFROMF)
+#else
 		if (i<b_stack_size-1 
 			&& (graph=b_element->b_stack_graph)->instruction_code==GFHIGH
 			&& (next_graph=(next_b_element=b_element->b_stack_next)->b_stack_graph)!=NULL
 			&& next_graph->instruction_code==GFLOW
 			&& next_graph->instruction_parameters[0].p==graph->instruction_parameters[0].p)
+#endif
 		{
 			set_bit (vector,i);
 			++i;
+#ifdef G_A64
+			b_element=b_element->b_stack_next;
+#else
 			set_bit (vector,i);
 			++i;
 			b_element=next_b_element->b_stack_next;
+#endif
 		} else {
 			clear_bit (vector,i);
 			++i;
@@ -762,18 +808,28 @@ static int count_b_stack_size_2 (ULONG *vector_p[],struct b_stack *b_stack,int b
 		register struct b_stack *next_b_element;
 		INSTRUCTION_GRAPH graph,next_graph;
 		
+#ifdef G_A64
+		if (i<b_stack_size
+			&& (graph=b_element->b_stack_graph)!=NULL
+			&& graph->instruction_code==GFROMF)
+#else
 		if (i<b_stack_size-1 
 			&& (graph=b_element->b_stack_graph)!=NULL
 			&& graph->instruction_code==GFHIGH
 			&& (next_graph=(next_b_element=b_element->b_stack_next)->b_stack_graph)!=NULL
 			&& next_graph->instruction_code==GFLOW
 			&& next_graph->instruction_parameters[0].p==graph->instruction_parameters[0].p)
+#endif
 		{
 			set_bit (vector,i);
 			++i;
+#ifdef G_A64
+			b_element=b_element->b_stack_next;
+#else
 			set_bit (vector,i);
 			++i;
 			b_element=next_b_element->b_stack_next;
+#endif
 		} else {
 			clear_bit (vector,i);
 			++i;
@@ -814,14 +870,14 @@ static void a_stack_load_register_values (int n_parameters,int n_address_paramet
 			element=*element_p;
 			if (element->a_stack_flags & ELEMENT_MAY_BE_REMOVED && element->a_stack_graph==NULL){
 				graph=g_load
-					((-(1+required_offset+global_block.block_graph_a_stack_begin_displacement))<<2,A_STACK_POINTER);
+					((-(1+required_offset+global_block.block_graph_a_stack_begin_displacement))<<STACK_ELEMENT_LOG_SIZE,A_STACK_POINTER);
 				element->a_stack_graph=graph;
 				element->a_stack_load_graph=graph;
 			}
 			element_p=&(*element_p)->a_stack_next;
 		} else {
 			graph=g_load
-				((-(1+required_offset+global_block.block_graph_a_stack_begin_displacement))<<2,A_STACK_POINTER);
+				((-(1+required_offset+global_block.block_graph_a_stack_begin_displacement))<<STACK_ELEMENT_LOG_SIZE,A_STACK_POINTER);
 			
 			new_element=allocate_struct_from_heap (a_stack);
 			new_element->a_stack_offset=required_offset;
@@ -878,7 +934,7 @@ static void a_stack_stores (int n_parameters,int n_address_parameter_registers)
 							|| a_element->a_stack_load_graph->instruction_code==GREGISTER
 						)
 							a_element->a_stack_graph=g_store (
-								(-(1+a_element->a_stack_offset+global_block.block_graph_a_stack_begin_displacement))<<2,
+								(-(1+a_element->a_stack_offset+global_block.block_graph_a_stack_begin_displacement))<<STACK_ELEMENT_LOG_SIZE,
 								A_STACK_POINTER,a_element->a_stack_graph,
 								a_element->a_stack_load_graph
 							);
@@ -957,7 +1013,7 @@ static void compute_a_load_offsets (register struct a_stack *a_element,int offse
 		if (load_graph!=NULL)
 			switch (load_graph->instruction_code){
 				case GLOAD:
-					load_graph->instruction_parameters[0].i= -((1+a_element->a_stack_offset)<<2)-offset;
+					load_graph->instruction_parameters[0].i= -((1+a_element->a_stack_offset)<<STACK_ELEMENT_LOG_SIZE)-offset;
 					break;
 				case GREGISTER:
 					break;
@@ -1008,13 +1064,13 @@ static void b_stack_load_register_values (int n_parameters,ULONG vector[],int n_
 				
 				element=*element_p;
 				if (element->b_stack_flags & ELEMENT_MAY_BE_REMOVED && element->b_stack_graph==NULL){
-					graph=g_load ((required_offset+global_block.block_graph_b_stack_begin_displacement)<<2,B_STACK_POINTER);
+					graph=g_load ((required_offset+global_block.block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 					element->b_stack_graph=graph;
 					element->b_stack_load_graph=graph;
 				}
 				element_p=&(*element_p)->b_stack_next;
 			} else{
-				graph=g_load ((required_offset+global_block.block_graph_b_stack_begin_displacement)<<2,B_STACK_POINTER);
+				graph=g_load ((required_offset+global_block.block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 			
 				new_element=allocate_struct_from_heap (b_stack);
 				new_element->b_stack_offset=required_offset;
@@ -1073,6 +1129,11 @@ static void b_stack_stores (int n_parameters,ULONG vector[],int n_data_parameter
 		if ((unsigned)parameter_n<(unsigned)n_parameters)
 			if (test_bit (vector,parameter_n)){
 				if (number_of_f_register_parameters<N_FLOAT_PARAMETER_REGISTERS && mc68881_flag){
+#ifdef G_A64
+					f_graphs[number_of_f_register_parameters]=g_fp_arg (graph);
+					f_graphs_p[number_of_f_register_parameters]=&b_element->b_stack_graph;
+					++number_of_f_register_parameters;
+#else
 					struct b_stack *next_b_element;
 					
 					next_b_element=b_element->b_stack_next;
@@ -1087,7 +1148,7 @@ static void b_stack_stores (int n_parameters,ULONG vector[],int n_data_parameter
 					++number_of_f_register_parameters;
 					
 					b_element=next_b_element;
-					
+#endif					
 					continue;
 				}
 			} else {
@@ -1107,7 +1168,22 @@ static void b_stack_stores (int n_parameters,ULONG vector[],int n_data_parameter
 		if (graph!=NULL){
 			struct b_stack *next_b_element;
 			INSTRUCTION_GRAPH next_graph;
-
+#ifdef G_A64
+			if (graph->instruction_code==GFROMF){
+				if (graph==b_element->b_stack_load_graph &&
+					graph->instruction_parameters[0].p->instruction_code!=GFREGISTER)
+				{
+					b_element->b_stack_graph=NULL;
+				} else {
+					b_element->b_stack_graph=g_fstore (
+						(b_element->b_stack_offset+global_block.block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,
+						B_STACK_POINTER,graph->instruction_parameters[0].p,
+						b_element->b_stack_load_graph
+					);
+				}
+				continue;
+			}
+#else
 			if (graph->instruction_code==GFHIGH
 				&& (next_b_element=b_element->b_stack_next)!=NULL
 				&& (next_graph=next_b_element->b_stack_graph)!=NULL
@@ -1123,7 +1199,7 @@ static void b_stack_stores (int n_parameters,ULONG vector[],int n_data_parameter
 					next_b_element->b_stack_graph=NULL;
 				} else {
 					b_element->b_stack_graph=g_fstore (
-						(b_element->b_stack_offset+global_block.block_graph_b_stack_begin_displacement)<<2,
+						(b_element->b_stack_offset+global_block.block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,
 						B_STACK_POINTER,graph->instruction_parameters[0].p,
 						b_element->b_stack_load_graph,next_b_element->b_stack_load_graph
 					);
@@ -1132,12 +1208,12 @@ static void b_stack_stores (int n_parameters,ULONG vector[],int n_data_parameter
 				b_element=next_b_element;					
 				continue;
 			}	
-				
+#endif				
 			if (graph==b_element->b_stack_load_graph && graph->instruction_code!=GREGISTER)
 				b_element->b_stack_graph=NULL;
 			else
 				b_element->b_stack_graph=g_store (
-					(b_element->b_stack_offset+global_block.block_graph_b_stack_begin_displacement)<<2,
+					(b_element->b_stack_offset+global_block.block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,
 					B_STACK_POINTER,graph,b_element->b_stack_load_graph
 				);
 		}
@@ -1216,8 +1292,12 @@ static void b_stack_stores (int n_parameters,ULONG vector[],int n_data_parameter
 				&& mc68881_flag)
 			{
 				++number_of_f_register_parameters;
+#ifdef G_A64
+				displacement+=1;
+#else
 				displacement+=2;
 				++parameter_n;
+#endif
 			} else
 				break;
 		} else {
@@ -1268,7 +1348,9 @@ static int set_basic_block_begin_d_registers
 		} else {
 			if (n_f_registers<N_FLOAT_PARAMETER_REGISTERS && mc68881_flag)
 				++n_f_registers;
+#ifndef G_A64
 			++offset;
+#endif
 		}
 				
 	stack_displacement=0;
@@ -1319,6 +1401,7 @@ static int set_basic_block_begin_d_registers
 					} else {
 						graph=element->b_stack_load_graph;
 						if (graph!=NULL){
+#ifndef G_A64
 							if (graph->instruction_code==GFHIGH &&
 								graph->instruction_parameters[0].p->instruction_code==GFLOAD)
 							{
@@ -1346,7 +1429,7 @@ static int set_basic_block_begin_d_registers
 								fload_graph->instruction_parameters[0].p=graph;
 								fload_graph->instruction_parameters[1].p=low_graph;
 							}
-
+#endif
 							graph->instruction_code=GREGISTER;
 							graph->inode_arity=0;
 #ifdef MORE_PARAMETER_REGISTERS
@@ -1439,7 +1522,11 @@ static int set_basic_block_begin_d_registers
 				if ((element=*element_p)!=NULL){
 					if (element->b_stack_offset==offset){
 						if ((graph=element->b_stack_load_graph)!=NULL &&
+#ifdef G_A64
+							graph->instruction_code==GFROMF)
+#else
 							graph->instruction_code==GFHIGH)
+#endif
 						{
 							r_graph=graph->instruction_parameters[0].p;
 							r_graph->instruction_code=GFREGISTER;
@@ -1448,6 +1535,7 @@ static int set_basic_block_begin_d_registers
 						}
 						element=element->b_stack_next;
 					}
+#ifndef G_A64
 					if (element!=NULL && element->b_stack_offset==offset+1 &&
 						(graph=element->b_stack_load_graph)!=NULL &&
 						graph->instruction_code==GFLOW)
@@ -1457,6 +1545,7 @@ static int set_basic_block_begin_d_registers
 						r_graph->inode_arity=0;
 						r_graph->instruction_parameters[0].i=n_f_registers;
 					}
+#endif
 				}
 				
 				if (r_graph==NULL){
@@ -1468,24 +1557,26 @@ static int set_basic_block_begin_d_registers
 				
    				if ((element=*element_p)!=NULL && element->b_stack_offset==offset){
 					if (element->b_stack_flags & ELEMENT_MAY_BE_REMOVED && element->b_stack_graph==NULL){
-#ifdef g_fhighlow
+#ifdef G_A64
+						graph=g_fromf (r_graph);
+#else
 						graph=g_new_node (GFHIGH,0,2*sizeof (union instruction_parameter));
 						graph->instruction_parameters[1].p=NULL;
-#else
-						graph=g_new_node (GFHIGH,0,sizeof (union instruction_parameter));
-#endif
 						graph->instruction_parameters[0].p=r_graph;
-												
+#endif												
 						element->b_stack_graph=NULL;
 						element->b_stack_load_graph=NULL;
 					} else {
 						graph=element->b_stack_load_graph;
 						if (graph!=NULL){
+#ifdef G_A64
+							graph->instruction_code=GFROMF;
+							graph->inode_arity=0;
+							graph->instruction_parameters[0].p=r_graph;
+#else
 							graph->instruction_code=GFHIGH;
 							graph->inode_arity=0;
 							graph->instruction_parameters[0].p=r_graph;
-#ifdef g_fhighlow
-							graph->instruction_parameters[1].p=NULL;
 #endif
 						} else
 							++f_register_not_used_flag;
@@ -1493,16 +1584,14 @@ static int set_basic_block_begin_d_registers
 					
 					element_p=&(*element_p)->b_stack_next;
 				} else {			
-					register struct b_stack *new_element;
-
-#ifdef g_fhighlow
+					struct b_stack *new_element;
+#ifdef G_A64
+					graph=g_fromf (r_graph);
+#else
 					graph=g_new_node (GFHIGH,0,2*sizeof (union instruction_parameter));
 					graph->instruction_parameters[1].p=NULL;
-#else
-					graph=g_new_node (GFHIGH,0,sizeof (union instruction_parameter));
-#endif
 					graph->instruction_parameters[0].p=r_graph;
-								
+#endif								
 					new_element=allocate_struct_from_heap (b_stack);
 					new_element->b_stack_offset=offset;
 					new_element->b_stack_flags=0;
@@ -1514,6 +1603,7 @@ static int set_basic_block_begin_d_registers
 					element_p=&new_element->b_stack_next;
 				}
 				
+#ifndef G_A64
 				++offset;
 				
 				if (all_parameters_in_registers)
@@ -1524,12 +1614,8 @@ static int set_basic_block_begin_d_registers
 					
 					element=*element_p;
 					if (element->b_stack_flags & ELEMENT_MAY_BE_REMOVED && element->b_stack_graph==NULL){
-#ifdef g_fhighlow
 						graph=g_new_node (GFLOW,0,2*sizeof (union instruction_parameter));
 						graph->instruction_parameters[1].p=NULL;
-#else
-						graph=g_new_node (GFLOW,0,sizeof (union instruction_parameter));
-#endif
 						graph->instruction_parameters[0].p=r_graph;
 						
 						element->b_stack_graph=NULL;
@@ -1540,9 +1626,7 @@ static int set_basic_block_begin_d_registers
 							graph->instruction_code=GFLOW;
 							graph->inode_arity=0;
 							graph->instruction_parameters[0].p=r_graph;
-#ifdef g_fhighlow
 							graph->instruction_parameters[1].p=NULL;
-#endif
 						} else
 							++f_register_not_used_flag;
 					}
@@ -1551,12 +1635,9 @@ static int set_basic_block_begin_d_registers
 				} else {			
 					register struct b_stack *new_element;
 					
-#ifdef g_fhighlow
 					graph=g_new_node (GFLOW,0,2*sizeof (union instruction_parameter));
 					graph->instruction_parameters[1].p=NULL;
-#else
-					graph=g_new_node (GFLOW,0,sizeof (union instruction_parameter));
-#endif
+
 					graph->instruction_parameters[0].p=r_graph;
 								
 					new_element=allocate_struct_from_heap (b_stack);
@@ -1569,7 +1650,7 @@ static int set_basic_block_begin_d_registers
 					*element_p=new_element;
 					element_p=&new_element->b_stack_next;
 				}
-				
+#endif
 				f_register_parameter_node[n_f_registers]=
 					f_register_not_used_flag!=2 ? r_graph : NULL;
 			}
@@ -1590,18 +1671,32 @@ static void compute_b_load_offsets (register struct b_stack *b_element,int offse
 			switch (load_graph->instruction_code){
 				case GLOAD:
 					load_graph->instruction_parameters[0].i=
-						(b_element->b_stack_offset<<2)+offset;
+						(b_element->b_stack_offset<<STACK_ELEMENT_LOG_SIZE)+offset;
 					break;
 				case GREGISTER:
 				case GFREGISTER:
 					break;
+#ifdef G_A64
+				case GFROMF:
+				{
+					INSTRUCTION_GRAPH graph_1;
+					
+					graph_1=load_graph->instruction_parameters[0].p;
+					if (graph_1->instruction_code==GFLOAD)
+						graph_1->instruction_parameters[0].i = (b_element->b_stack_offset<<STACK_ELEMENT_LOG_SIZE)+offset;
+					else if (graph_1->instruction_code!=GFREGISTER)
+						internal_error_in_function ("compute_b_load_offsets");
+
+					break;
+				}
+#else
 				case GFHIGH:
 				{
 					INSTRUCTION_GRAPH graph_1;
 					
 					graph_1=load_graph->instruction_parameters[0].p;
 					if (graph_1->instruction_code==GFLOAD)
-						graph_1->instruction_parameters[0].i = (b_element->b_stack_offset<<2)+offset;
+						graph_1->instruction_parameters[0].i = (b_element->b_stack_offset<<STACK_ELEMENT_LOG_SIZE)+offset;
 					else if (graph_1->instruction_code!=GFREGISTER)
 						internal_error_in_function ("compute_b_load_offsets");
 
@@ -1613,12 +1708,13 @@ static void compute_b_load_offsets (register struct b_stack *b_element,int offse
 					
 					graph_1=load_graph->instruction_parameters[0].p;
 					if (graph_1->instruction_code==GFLOAD)
-						graph_1->instruction_parameters[0].i = ((b_element->b_stack_offset-1)<<2)+offset;
+						graph_1->instruction_parameters[0].i = ((b_element->b_stack_offset-1)<<STACK_ELEMENT_LOG_SIZE)+offset;
 					else if (graph_1->instruction_code!=GFREGISTER)
 						internal_error_in_function ("compute_b_load_offsets");
 								
 					break;
 				}
+#endif
 				default:
 					internal_error_in_function ("compute_b_load_offsets");
 			}
@@ -1666,9 +1762,9 @@ static void remove_end_stack_element
 			INSTRUCTION_GRAPH graph;
 
 			if (!b_stack_flag)
-				graph=g_load (-(offset+stack_begin_displacement+1)<<2,A_STACK_POINTER);
+				graph=g_load (-(offset+stack_begin_displacement+1)<<STACK_ELEMENT_LOG_SIZE,A_STACK_POINTER);
 			else
-				graph=g_load ((offset+stack_begin_displacement)<<2,B_STACK_POINTER);
+				graph=g_load ((offset+stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 		
 			graph->node_mark=offset<stack_top_offset ? 0 : 2;
 			
@@ -1724,9 +1820,9 @@ static void remove_begin_stack_element
 			INSTRUCTION_GRAPH graph;
 
 			if (!b_stack_flag)
-				graph=g_load (-(offset+stack_begin_displacement+1)<<2,A_STACK_POINTER);
+				graph=g_load (-(offset+stack_begin_displacement+1)<<STACK_ELEMENT_LOG_SIZE,A_STACK_POINTER);
 			else
-				graph=g_load ((offset+stack_begin_displacement)<<2,B_STACK_POINTER);
+				graph=g_load ((offset+stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 			
 			graph->node_mark= offset<stack_top_offset ? 0 : 2;
 			
@@ -1801,9 +1897,9 @@ static void remove_begin_stack_element
 				INSTRUCTION_GRAPH graph;
 	
 				if (!b_stack_flag)
-					graph=g_load (-(offset+stack_begin_displacement+1)<<2,A_STACK_POINTER);
+					graph=g_load (-(offset+stack_begin_displacement+1)<<STACK_ELEMENT_LOG_SIZE,A_STACK_POINTER);
 				else
-					graph=g_load ((offset+stack_begin_displacement)<<2,B_STACK_POINTER);
+					graph=g_load ((offset+stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 				
 				graph->node_mark= offset<stack_top_offset ? 0 : 2;
 				
@@ -2153,8 +2249,13 @@ static void remove_not_used_b_stack_elements (struct block_graph *block_graph,st
 					(	(b_element_2!=NULL && b_element_2->b_stack_offset==offset_2)
 					?  ((load_graph=b_element_2->b_stack_load_graph)==NULL || 
 						(!load_graph->node_mark && 
-						 !((load_graph->instruction_code==GFHIGH ||
+						 !(
+#ifdef G_A64
+							load_graph->instruction_code==GFROMF
+#else
+							(load_graph->instruction_code==GFHIGH ||
 						   load_graph->instruction_code==GFLOW)
+#endif
 						  && load_graph->instruction_parameters[0].p->node_mark)))
 					:  offset_2<next_block_graph->block_graph_b_stack_top_offset)))
 			{
@@ -2206,8 +2307,13 @@ static void remove_not_used_b_stack_elements (struct block_graph *block_graph,st
 				if ((b_element_2!=NULL && b_element_2->b_stack_offset==offset_2)
 					?  ((load_graph=b_element_2->b_stack_load_graph)==NULL || 
 						(!load_graph->node_mark && 
-						 !((load_graph->instruction_code==GFHIGH ||
+						 !(
+#ifdef G_A64
+							load_graph->instruction_code==GFROMF
+#else
+							(load_graph->instruction_code==GFHIGH ||
 						   load_graph->instruction_code==GFLOW)
+#endif
 						  && load_graph->instruction_parameters[0].p->node_mark)))
 					:  offset_2<next_block_graph->block_graph_b_stack_top_offset)
 				{
@@ -2521,9 +2627,14 @@ static void insert_dummy_graphs_for_unused_b_stack_elements
 		if (b_element_2->b_stack_flags & ELEMENT_MAY_BE_REMOVED || 
 			((load_graph=b_element_2->b_stack_load_graph)==NULL ||
 			 (!load_graph->node_mark && 
-			  !((load_graph->instruction_code==GFHIGH || 
-				 load_graph->instruction_code==GFLOW) && 
-				load_graph->instruction_parameters[0].p->node_mark))))
+			  !(
+#ifdef G_A64
+				load_graph->instruction_code==GFROMF
+#else
+				(load_graph->instruction_code==GFHIGH || 
+				 load_graph->instruction_code==GFLOW)
+#endif
+				&& load_graph->instruction_parameters[0].p->node_mark))))
 		{
 			offset_1=b_element_2->b_stack_offset+stack_offset_1_min_2;
 		
@@ -2655,8 +2766,13 @@ static void mark_stack_graphs_1
 					(b_element_2!=NULL && b_element_2->b_stack_offset==required_offset
 					  && b_element_2->b_stack_load_graph!=NULL 
 					  && (b_element_2->b_stack_load_graph->node_mark==2 || 
-						  ((b_element_2->b_stack_load_graph->instruction_code==GFHIGH
+						  (
+#ifdef G_A64
+						  b_element_2->b_stack_load_graph->instruction_code==GFROMF
+#else
+						  (b_element_2->b_stack_load_graph->instruction_code==GFHIGH
 							|| b_element_2->b_stack_load_graph->instruction_code==GFLOW)
+#endif
 						   && b_element_2->b_stack_load_graph->instruction_parameters[0].p->node_mark==2))))
 				{
 					b_element_1->b_stack_flags|=ELEMENT_USED_BEFORE_JSR;
@@ -2682,7 +2798,12 @@ static void mark_stack_graphs_1
 			load_graph=b_element_2->b_stack_load_graph;
 			if (load_graph!=NULL && 
 				(load_graph->node_mark==2 || 
-					((load_graph->instruction_code==GFHIGH || load_graph->instruction_code==GFLOW)
+					(
+#ifdef G_A64
+					 load_graph->instruction_code==GFROMF
+#else
+					 (load_graph->instruction_code==GFHIGH || load_graph->instruction_code==GFLOW)
+#endif
 					 && load_graph->instruction_parameters[0].p->node_mark==2)) && 
 				(offset=b_element_2->b_stack_offset+stack_offset_difference)>=first_non_parameter_offset)
 			{		
@@ -2691,6 +2812,7 @@ static void mark_stack_graphs_1
 					b_element_1=*b_element_1_p;
 				}
 				
+#ifndef G_A64
 				if (load_graph->instruction_code==GFHIGH && 
 					(next_b_element_2=b_element_2->b_stack_next)!=NULL && 
 					next_b_element_2->b_stack_offset==b_element_2->b_stack_offset+1 && 
@@ -2717,19 +2839,19 @@ static void mark_stack_graphs_1
 					
 					graph_1->instruction_code=GFHIGH;
 					graph_1->instruction_parameters[0].p=f_graph;
-#ifdef g_fhighlow
 					graph_1->instruction_parameters[1].p=next_graph_1;
-#endif
 					graph_1->node_mark=2;
 					
 					next_graph_1->instruction_code=GFLOW;
 					next_graph_1->instruction_parameters[0].p=f_graph;
-#ifdef g_fhighlow
 					next_graph_1->instruction_parameters[1].p=graph_1;
-#endif
 					next_graph_1->node_mark=2;					
 				} else
+#endif
 				if (b_element_1==NULL || b_element_1->b_stack_offset!=offset){
+#ifdef G_A64
+					if (load_graph->instruction_code==GFROMF)
+#else
 					if (load_graph->instruction_code==GFHIGH &&
 						(next_b_element_2=b_element_2->b_stack_next)!=NULL &&
 						next_b_element_2->b_stack_offset==b_element_2->b_stack_offset+1 && 
@@ -2737,6 +2859,7 @@ static void mark_stack_graphs_1
 						next_load_graph->instruction_code==GFLOW && 
 						next_load_graph->instruction_parameters[0].p==load_graph->instruction_parameters[0].p && 
 						(b_element_1==NULL || b_element_1->b_stack_offset!=offset+1))
+#endif
 					{
 						register struct b_stack *new_element;
 						INSTRUCTION_GRAPH f_graph,l_graph,h_graph;
@@ -2744,15 +2867,24 @@ static void mark_stack_graphs_1
 						/* printf ("%d# ",offset); */
 				
 						f_graph=g_fload
-							((offset+block_graph->block_graph_b_stack_begin_displacement)<<2,B_STACK_POINTER);
+							((offset+block_graph->block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 						f_graph->node_mark=2;
 
-#ifdef g_fhighlow
-						g_fhighlow (h_graph,l_graph,f_graph);
+#ifdef G_A64
+						f_graph=g_fromf (f_graph);
+						f_graph->node_mark=2;
+
+						new_element=allocate_struct_from_heap (b_stack);
+						new_element->b_stack_offset=offset;
+						new_element->b_stack_flags=ELEMENT_USED_BEFORE_JSR;
+						new_element->b_stack_graph=f_graph;
+						new_element->b_stack_load_graph=f_graph;
+					
+						new_element->b_stack_next=b_element_1;
+						*b_element_1_p=new_element;
+						b_element_1_p=&new_element->b_stack_next;
 #else
-						h_graph=g_fhigh (f_graph);
-						l_graph=g_flow (f_graph);
-#endif
+						g_fhighlow (h_graph,l_graph,f_graph);
 						h_graph->node_mark=2;
 						l_graph->node_mark=2;
 						
@@ -2777,6 +2909,7 @@ static void mark_stack_graphs_1
 						b_element_1_p=&new_element->b_stack_next;
 						
 						b_element_2=next_b_element_2;
+#endif
 					} else {
 						register struct b_stack *new_element;
 						INSTRUCTION_GRAPH graph;
@@ -2784,7 +2917,7 @@ static void mark_stack_graphs_1
 						/* printf ("%d ",offset); */
 		
 						graph=g_load
-							((offset+block_graph->block_graph_b_stack_begin_displacement)<<2,B_STACK_POINTER);
+							((offset+block_graph->block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 						graph->node_mark=2;
 						
 						new_element=allocate_struct_from_heap (b_stack);
@@ -2827,14 +2960,24 @@ static void mark_stack_graphs_1
 				/* printf ("%d$# ",offset); */
 
 				f_graph=g_fload
-					((offset+block_graph->block_graph_b_stack_begin_displacement)<<2,B_STACK_POINTER);
+					((offset+block_graph->block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 				f_graph->node_mark=2;
-#ifdef g_fhighlow
+
+#ifdef G_A64
+				f_graph=g_fromf (f_graph);
+				f_graph->node_mark=2;
+				
+				new_element=allocate_struct_from_heap (b_stack);
+				new_element->b_stack_offset=offset;
+				new_element->b_stack_flags=ELEMENT_USED_BEFORE_JSR;
+				new_element->b_stack_graph=f_graph;
+				new_element->b_stack_load_graph=f_graph;
+			
+				new_element->b_stack_next=b_element_1;
+				*b_element_1_p=new_element;
+				b_element_1_p=&new_element->b_stack_next;
+#else
 				g_fhighlow (h_graph,l_graph,f_graph);
-#else		
-				h_graph=g_fhigh (f_graph);
-				l_graph=g_flow (f_graph);
-#endif
 				h_graph->node_mark=2;
 				l_graph->node_mark=2;
 				
@@ -2859,6 +3002,7 @@ static void mark_stack_graphs_1
 				b_element_1_p=&new_element->b_stack_next;
 				
 				++offset;
+#endif
 			} else {
 				register struct b_stack *new_element;
 				INSTRUCTION_GRAPH graph;
@@ -2866,7 +3010,7 @@ static void mark_stack_graphs_1
 				/* printf ("%d$ ",offset); */
 	
 				graph=g_load
-					((offset+block_graph->block_graph_b_stack_begin_displacement)<<2,B_STACK_POINTER);
+					((offset+block_graph->block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 				graph->node_mark=2;
 					
 				new_element=allocate_struct_from_heap (b_stack);
@@ -2969,7 +3113,7 @@ static void calculate_and_linearize_graphs (int n_elements,INSTRUCTION_GRAPH gra
 	local_data_offset=
 		(global_block.block_graph_b_stack_top_offset+
 		 global_block.block_graph_b_stack_begin_displacement+
-		 global_block.block_graph_b_stack_end_displacement)<<2;
+		 global_block.block_graph_b_stack_end_displacement)<<STACK_ELEMENT_LOG_SIZE;
 	if (local_data_offset>0)
 		local_data_offset=0;
 
@@ -3100,7 +3244,7 @@ void linearize_stack_graphs_with_overflow_test (INSTRUCTION_GRAPH test_overflow_
 		
 		local_data_offset= (global_block.block_graph_b_stack_top_offset+
 							global_block.block_graph_b_stack_begin_displacement+
-			 				global_block.block_graph_b_stack_end_displacement)<<2;
+			 				global_block.block_graph_b_stack_end_displacement)<<STACK_ELEMENT_LOG_SIZE;
 		if (local_data_offset>0)
 			local_data_offset=0;
 
@@ -3200,10 +3344,10 @@ static int stack_access_and_adjust_a_stack_pointer (int extra_b_offset,int do_no
 	
 	a_offset=-(	global_block.block_graph_a_stack_top_offset+
 				global_block.block_graph_a_stack_begin_displacement+
-				global_block.block_graph_a_stack_end_displacement)<<2;
+				global_block.block_graph_a_stack_end_displacement)<<STACK_ELEMENT_LOG_SIZE;
 	b_offset=(	global_block.block_graph_b_stack_top_offset+
 				global_block.block_graph_b_stack_begin_displacement+
-				global_block.block_graph_b_stack_end_displacement)<<2;
+				global_block.block_graph_b_stack_end_displacement)<<STACK_ELEMENT_LOG_SIZE;
 	
 	minimum_b_offset= local_data_offset<b_offset ? local_data_offset : b_offset;
 	
@@ -3391,10 +3535,10 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 	new_block->block_n_begin_a_parameter_registers=n_a_registers;
 	new_block->block_n_begin_d_parameter_registers=n_d_registers+1;
 #ifdef SEPARATE_A_AND_B_STACK_OVERFLOW_CHECKS
-	new_block->block_a_stack_check_size=(n_a_registers)<<2;
-	new_block->block_b_stack_check_size=(n_d_registers<<2) + (n_f_registers<<3);
+	new_block->block_a_stack_check_size=(n_a_registers)<<STACK_ELEMENT_LOG_SIZE;
+	new_block->block_b_stack_check_size=(n_d_registers<<STACK_ELEMENT_LOG_SIZE) + (n_f_registers<<3);
 #else
-	new_block->block_stack_check_size=((n_a_registers+n_d_registers)<<2) + (n_f_registers<<3);
+	new_block->block_stack_check_size=((n_a_registers+n_d_registers)<<STACK_ELEMENT_LOG_SIZE) + (n_f_registers<<3);
 #endif
 	
 	new_block->block_next=last_block->block_next;
@@ -3417,7 +3561,7 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 	for (n=n_a_registers-1; n>=0; --n)
 		if (n!=node_a_register){
 			i_move_r_id (num_to_a_reg (n),a_offset,A_STACK_POINTER);
-			a_offset+=4;
+			a_offset+=STACK_ELEMENT_SIZE;
 		}
 	if (a_offset>0)
 		i_add_i_r (a_offset,A_STACK_POINTER);
@@ -3449,7 +3593,7 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 			i_move_r_pd (num_to_d_reg (n),B_STACK_POINTER);
 #	else	
 		for (n=0; n<n_d_registers; ++n){
-			b_offset+=4;
+			b_offset+=STACK_ELEMENT_SIZE;
 			i_move_r_id (num_to_d_reg (n),-b_offset,B_STACK_POINTER);
 		}
 #	endif
@@ -3534,7 +3678,7 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 #	else
 		for (n=n_d_registers-1; n>=0; --n){
 			i_move_id_r (-offset,B_STACK_POINTER,num_to_d_reg (n));
-			offset-=4;
+			offset-=STACK_ELEMENT_SIZE;
 		}
 		if (b_offset>0)
 			i_add_i_r (b_offset,B_STACK_POINTER);
@@ -3576,7 +3720,7 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 #	else
 		for (n=0; n<n_a_registers; ++n)
 			if (n!=node_a_register){
-				offset-=4;
+				offset-=STACK_ELEMENT_SIZE;
 				i_move_id_r (offset,A_STACK_POINTER,num_to_a_reg (n));
 			}
 		if (a_offset>0)
@@ -3687,7 +3831,9 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 				} else {
 					if (n_allocated_f_regs<N_FLOAT_PARAMETER_REGISTERS && mc68881_flag)
 						++n_allocated_f_regs;
+#ifndef G_A64
 					++n;
+#endif
 				}
 #ifdef I486
 			i_btst_i_id (2,0,num_to_a_reg (block_graph->block_graph_end_a_stack_size
@@ -3733,7 +3879,7 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 			
 #if ! (defined (sparc) || defined (G_POWER))
 			b_offset=local_register_allocation_and_adjust_a_stack_pointer
-				(end_b_stack_size==global_block.block_graph_b_stack_end_displacement ? 4 : 0);
+				(end_b_stack_size==global_block.block_graph_b_stack_end_displacement ? STACK_ELEMENT_SIZE : 0);
 #else
 			b_offset=local_register_allocation_and_adjust_a_stack_pointer (0);
 #endif
@@ -3742,7 +3888,7 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 			{
 				int return_offset;
 				
-				return_offset = (end_b_stack_size-global_block.block_graph_b_stack_end_displacement)<<2;
+				return_offset = (end_b_stack_size-global_block.block_graph_b_stack_end_displacement)<<STACK_ELEMENT_LOG_SIZE;
 
 				if (return_offset==0 && b_offset!=0)
 					i_jsr_l_idu (block_graph->block_graph_last_instruction_label,b_offset);
@@ -3795,7 +3941,7 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 			}
 # else
 			i_jsr_l_id (block_graph->block_graph_last_instruction_label,
-						 (end_b_stack_size-global_block.block_graph_b_stack_end_displacement)<<2);
+						 (end_b_stack_size-global_block.block_graph_b_stack_end_displacement)<<STACK_ELEMENT_LOG_SIZE);
 # endif
 #endif
 			if (block_check){
@@ -3812,10 +3958,10 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 					 next_block_graph->block_graph_b_stack_begin_displacement)-
 					(block_graph->block_graph_end_b_stack_size-
 					 block_graph->block_graph_b_stack_end_displacement);
-				block_a_stack_displacement+=a_stack_change<<2;
-				block_b_stack_displacement+=b_stack_change<<2;
-				block_graph->block_graph_a_stack_displacement+=a_stack_change<<2;
-				block_graph->block_graph_b_stack_displacement+=b_stack_change<<2;
+				block_a_stack_displacement+=a_stack_change<<STACK_ELEMENT_LOG_SIZE;
+				block_b_stack_displacement+=b_stack_change<<STACK_ELEMENT_LOG_SIZE;
+				block_graph->block_graph_a_stack_displacement+=a_stack_change<<STACK_ELEMENT_LOG_SIZE;
+				block_graph->block_graph_b_stack_displacement+=b_stack_change<<STACK_ELEMENT_LOG_SIZE;
 #else
 				int stack_change;
 				
@@ -3828,8 +3974,8 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 					 next_block_graph->block_graph_b_stack_begin_displacement)-
 					(block_graph->block_graph_end_b_stack_size-
 					 block_graph->block_graph_b_stack_end_displacement);
-				block_stack_displacement+=stack_change<<2;
-				block_graph->block_graph_stack_displacement+=stack_change<<2;
+				block_stack_displacement+=stack_change<<STACK_ELEMENT_LOG_SIZE;
+				block_graph->block_graph_stack_displacement+=stack_change<<STACK_ELEMENT_LOG_SIZE;
 #endif
 			}
 
@@ -4012,9 +4158,9 @@ void generate_code_for_previous_blocks (int jmp_jsr_or_rtn_flag)
 			
 			if (block_graph->block_graph_kind!=JSR_EVAL_BLOCK){
 				compute_a_load_offsets (next_block_graph->block_graph_a_stack,
-					next_block_graph->block_graph_a_stack_begin_displacement<<2);
+					next_block_graph->block_graph_a_stack_begin_displacement<<STACK_ELEMENT_LOG_SIZE);
 				compute_b_load_offsets (next_block_graph->block_graph_b_stack,
-					next_block_graph->block_graph_b_stack_begin_displacement<<2);
+					next_block_graph->block_graph_b_stack_begin_displacement<<STACK_ELEMENT_LOG_SIZE);
 			} else {
 				int a_stack_size,b_stack_size;
 				ULONG *vector;
@@ -4053,7 +4199,7 @@ void generate_code_for_previous_blocks (int jmp_jsr_or_rtn_flag)
 					   (&next_block_graph->block_graph_a_stack,a_stack_size,
 						next_block_graph->block_graph_a_register_parameter_node);
 				compute_a_load_offsets (next_block_graph->block_graph_a_stack,
-					next_block_graph->block_graph_a_stack_begin_displacement<<2);
+					next_block_graph->block_graph_a_stack_begin_displacement<<STACK_ELEMENT_LOG_SIZE);
 				
 				next_block_graph->block_graph_b_stack_begin_displacement=
 					set_basic_block_begin_d_registers
@@ -4067,7 +4213,7 @@ void generate_code_for_previous_blocks (int jmp_jsr_or_rtn_flag)
 #endif
 						);
 				compute_b_load_offsets (next_block_graph->block_graph_b_stack,
-					next_block_graph->block_graph_b_stack_begin_displacement<<2);
+					next_block_graph->block_graph_b_stack_begin_displacement<<STACK_ELEMENT_LOG_SIZE);
 			}
 		}
 

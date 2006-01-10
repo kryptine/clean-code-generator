@@ -56,10 +56,12 @@ void i_beq_l (LABEL *label);
 	extern LONG *i_bmi_i (VOID);
 	void i_bmi_l (LABEL *label);
 #endif
+#if defined (G_POWER) || defined (G_AI64)
+	void i_or_i_r (LONG value,int register_1);
+#endif
 #ifdef G_POWER
 	void i_and_i_r (LONG value,int register_1);
 	void i_bnep_l (LABEL *label);
-	void i_or_i_r (LONG value,int register_1);
 	void i_mtctr (int register_1);
 #endif
 #if defined (sparc) || defined (I486) || defined (G_POWER)
@@ -87,7 +89,7 @@ void i_move_id_r (int offset,int register_1,int register_2);
 	void i_movew_id_idu (int offset1,int register_1,int offset2,int register_2);
 	void i_movew_r_idu (int register_1,int offset,int register_2);
 #endif
-void i_move_i_r (LONG i,int register_1);
+void i_move_i_r (CleanInt i,int register_1);
 void i_move_l_r (LABEL *label,int register_1);
 #ifdef M68000
 void i_move_pi_id (int register_1,int offset_2,int register_2);

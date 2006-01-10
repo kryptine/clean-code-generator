@@ -613,6 +613,8 @@ static void argument_error (VOID)
 extern int compiler_id;
 #endif
 
+extern int intel_asm;
+
 #ifdef MAIN_CLM
 # if !(defined (__MWERKS__) && defined (__cplusplus))
 #  ifdef CG_PPC_XO
@@ -697,6 +699,8 @@ int main (int argc,char **argv)
 			else if (!strcmp (s,"pt"))
 				profile_table_flag=1;
 #endif
+			else if (!strcmp (s,"intelasm"))
+				intel_asm=1;
 			else if (!strcmp (s,"mc68000")){
 				mc68000_flag=1;
 				mc68881_flag=0;

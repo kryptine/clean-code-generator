@@ -390,6 +390,90 @@ INSTRUCTION_GRAPH g_fill_r (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,
 	return instruction; 
 }
 
+#ifdef G_A64
+INSTRUCTION_GRAPH g_fp_arg (INSTRUCTION_GRAPH graph_1)
+{
+	if (graph_1->instruction_code==GFROMF)
+		return graph_1->instruction_parameters[0].p;
+
+	if (graph_1->instruction_code==GLOAD){
+		INSTRUCTION_GRAPH fload_graph;
+				
+		fload_graph=g_fload (graph_1->instruction_parameters[0].i,graph_1->instruction_parameters[1].i);
+		
+		graph_1->instruction_code=GFROMF;
+		graph_1->instruction_parameters[0].p=fload_graph;
+
+		return fload_graph;
+	}
+
+	if (graph_1->instruction_code==GLOAD_ID){
+		INSTRUCTION_GRAPH fload_graph;
+				
+		fload_graph=
+			g_fload_id (graph_1->instruction_parameters[0].i,graph_1->instruction_parameters[1].p);
+
+		graph_1->instruction_code=GFROMF;
+		graph_1->instruction_parameters[0].p=fload_graph;
+
+		return fload_graph;
+	}
+
+	if (graph_1->instruction_code==GMOVEMI){
+		INSTRUCTION_GRAPH fmovemi_graph,movem_graph;
+		int number;
+				
+		movem_graph=graph_1->instruction_parameters[0].p;
+		number=graph_1->inode_arity;
+
+		fmovemi_graph=g_new_node (GFMOVEMI,number,2*sizeof (union instruction_parameter));
+		
+		fmovemi_graph->instruction_parameters[0].p=movem_graph;
+		fmovemi_graph->instruction_parameters[1].i=0;
+		
+		movem_graph->instruction_parameters[2+number].p=fmovemi_graph;
+		movem_graph->instruction_parameters[2+number+1].p=NULL;
+
+		graph_1->instruction_code=GFROMF;
+		graph_1->instruction_parameters[0].p=fmovemi_graph;
+		
+		return fmovemi_graph;		
+	}
+
+	if (graph_1->instruction_code==GLOAD_X){
+		INSTRUCTION_GRAPH fload_graph,*previous_loadx;
+
+		previous_loadx=&load_indexed_list;
+
+		/* added 25-10-2001 */
+		while (*previous_loadx!=NULL && *previous_loadx!=graph_1)
+		/* while (*previous_loadx!=graph_1) */
+			previous_loadx=&(*previous_loadx)->instruction_parameters[3].p;
+		
+		fload_graph=g_new_node (GFLOAD_X,0,4*sizeof (union instruction_parameter));
+		
+		fload_graph->instruction_parameters[0].p=graph_1->instruction_parameters[0].p;
+		fload_graph->instruction_parameters[1].i=graph_1->instruction_parameters[1].i;
+		fload_graph->instruction_parameters[2].p=graph_1->instruction_parameters[2].p;
+		fload_graph->instruction_parameters[3].p=graph_1->instruction_parameters[3].p;
+
+		/* added 25-10-2001 */
+		if (*previous_loadx!=NULL)
+		/* */
+			*previous_loadx=fload_graph;
+
+		fload_graph->instruction_d_min_a_cost+=1;
+		
+		graph_1->instruction_code=GFROMF;
+		graph_1->instruction_parameters[0].p=fload_graph;
+		/* graph_1->instruction_parameters[3].p=fload_graph; */
+
+		return fload_graph;
+	}
+
+	return g_tof (graph_1);	
+}
+#else
 INSTRUCTION_GRAPH g_fjoin (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2)
 {
 	if (graph_1->instruction_code==GFHIGH && graph_2->instruction_code==GFLOW
@@ -408,10 +492,10 @@ INSTRUCTION_GRAPH g_fjoin (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2)
 		graph_2->instruction_code=GFLOW;
 		graph_1->instruction_parameters[0].p=fload_graph;
 		graph_2->instruction_parameters[0].p=fload_graph;
-#ifdef g_fhighlow
+
 		graph_1->instruction_parameters[1].p=graph_2;
 		graph_2->instruction_parameters[1].p=graph_1;
-#endif
+
 		return fload_graph;
 	}
 
@@ -529,6 +613,7 @@ INSTRUCTION_GRAPH g_fjoin (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2)
 
 	return g_instruction_2 (GFJOIN,graph_1,graph_2);
 }
+#endif
 
 INSTRUCTION_GRAPH g_fload (int offset,int stack)
 {
@@ -591,16 +676,29 @@ INSTRUCTION_GRAPH g_fload_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INST
 }
 
 INSTRUCTION_GRAPH g_fstore (int offset,int reg_1,INSTRUCTION_GRAPH graph_1,
+#ifdef G_A64
+	INSTRUCTION_GRAPH graph_2)
+#else
 	INSTRUCTION_GRAPH graph_2,INSTRUCTION_GRAPH graph_3)
+#endif
 {
-	register INSTRUCTION_GRAPH instruction;
+	INSTRUCTION_GRAPH instruction;
 	
+#ifdef G_A64
+	instruction=g_new_node (GFSTORE,0,4*sizeof (union instruction_parameter));
+#else
 	instruction=g_new_node (GFSTORE,0,5*sizeof (union instruction_parameter));
-	
+#endif
 	instruction->instruction_parameters[0].i=offset;
 	instruction->instruction_parameters[1].i=reg_1;
 	instruction->instruction_parameters[2].p=graph_1;
 	
+#ifdef G_A64
+	if (graph_2 && graph_2->instruction_code==GTOF)
+		instruction->instruction_parameters[3].p=graph_2->instruction_parameters[0].p;
+	else
+		instruction->instruction_parameters[3].p=graph_2;
+#else
 	if (graph_2 && (graph_2->instruction_code==GFLOW || graph_2->instruction_code==GFHIGH))
 		instruction->instruction_parameters[3].p=graph_2->instruction_parameters[0].p;
 	else
@@ -610,7 +708,7 @@ INSTRUCTION_GRAPH g_fstore (int offset,int reg_1,INSTRUCTION_GRAPH graph_1,
 		instruction->instruction_parameters[4].p=graph_3->instruction_parameters[0].p;
 	else
 		instruction->instruction_parameters[4].p=graph_3;
-		
+#endif		
 	return instruction;
 }
 
@@ -661,13 +759,13 @@ INSTRUCTION_GRAPH g_load (int offset,int stack)
 	return instruction;
 }
 
-INSTRUCTION_GRAPH g_load_i (LONG value)
+INSTRUCTION_GRAPH g_load_i (CleanInt value)
 {
 	INSTRUCTION_GRAPH instruction;
 	
 	instruction=g_new_node (GLOAD_I,0,sizeof (union instruction_parameter));
 	
-	instruction->instruction_parameters[0].i=value;
+	instruction->instruction_parameters[0].imm=value;
 	
 	return instruction;
 }
@@ -876,7 +974,11 @@ INSTRUCTION_GRAPH g_store (int offset,int reg_1,INSTRUCTION_GRAPH graph_1,
 	instruction->instruction_parameters[1].i=reg_1;
 	instruction->instruction_parameters[2].p=graph_1;
 	
+#ifdef G_A64
+	if (graph_2 && graph_2->instruction_code==GTOF)
+#else
 	if (graph_2 && (graph_2->instruction_code==GFLOW || graph_2->instruction_code==GFHIGH))
+#endif
 		instruction->instruction_parameters[3].p=graph_2->instruction_parameters[0].p;
 	else
 		instruction->instruction_parameters[3].p=graph_2;
@@ -1272,7 +1374,7 @@ void code_fill2_r (char descriptor_name[],int a_size,int b_size,int root_offset,
 		++b_n;
 	}
 	
-	graph_3=g_fill_m (g_load_id (8,graph_1),a_size+b_size-1);
+	graph_3=g_fill_m (g_load_id (2*STACK_ELEMENT_SIZE,graph_1),a_size+b_size-1);
 	
 	parameter=&graph_3->instruction_parameters[1];
 
@@ -1357,7 +1459,7 @@ void code_fill3_r (char descriptor_name[],int a_size,int b_size,int root_offset,
 	b_n=0;
 
 	if (bits[0]=='0'){
-		graph_5=g_load_id (4,graph_0);
+		graph_5=g_load_id (STACK_ELEMENT_SIZE,graph_0);
 		if (a_n<a_size)
 			++a_n;
 		else
@@ -1373,7 +1475,7 @@ void code_fill3_r (char descriptor_name[],int a_size,int b_size,int root_offset,
 		}
 	}
 	
-	graph_0=g_load_id (8,graph_0);
+	graph_0=g_load_id (2*STACK_ELEMENT_SIZE,graph_0);
 
 	graph_3=g_fill_m (graph_0,a_size+b_size-1);
 	
@@ -1404,7 +1506,7 @@ void code_fill3_r (char descriptor_name[],int a_size,int b_size,int root_offset,
 	s_put_a (root_offset,graph_4);
 }
 
-#define ARGUMENTS_OFFSET	4
+#define ARGUMENTS_OFFSET	STACK_ELEMENT_SIZE
 
 void code_push_args_u (int a_offset,int arity,int n_arguments)
 {
@@ -1422,13 +1524,13 @@ void code_push_args_u (int a_offset,int arity,int n_arguments)
 
 		if (n_arguments!=1)
 			if (n_arguments==2 && arity==2){
-				graph_3=g_load_id (8-NODE_POINTER_OFFSET,graph_1);
+				graph_3=g_load_id (2*STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1);
 				*--graph_p=graph_3;
 				s_push_a (graph_3);
 			} else {
 				INSTRUCTION_GRAPH graph_4;
 				
-				graph_3=g_load_id (8-NODE_POINTER_OFFSET,graph_1);
+				graph_3=g_load_id (2*STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1);
 				--n_arguments;
 				
 				if (n_arguments==1){
@@ -1444,7 +1546,7 @@ void code_push_args_u (int a_offset,int arity,int n_arguments)
 						
 							--n_arguments;
 		
-							graph_5=g_load_id ((n_arguments<<2)-NODE_POINTER_OFFSET,graph_3);
+							graph_5=g_load_id ((n_arguments<<STACK_ELEMENT_LOG_SIZE)-NODE_POINTER_OFFSET,graph_3);
 							*--graph_p=graph_5;
 							s_push_a (graph_5);
 						}
@@ -1494,7 +1596,7 @@ void code_push_r_args_u (int a_offset,int a_size,int b_size)
 			return;
 		case 2:
 			graph_2=g_load_id (ARGUMENTS_OFFSET,graph_1);
-			graph_3=g_load_id (8,graph_1);
+			graph_3=g_load_id (2*STACK_ELEMENT_SIZE,graph_1);
 			*--graph_p=graph_3;
 			*--graph_p=graph_2;
 			switch (b_size){
@@ -1513,7 +1615,7 @@ void code_push_r_args_u (int a_offset,int a_size,int b_size)
 			return;
 		default:
 			graph_2=g_load_id (ARGUMENTS_OFFSET,graph_1);
-			graph_3=g_load_id (8,graph_1);
+			graph_3=g_load_id (2*STACK_ELEMENT_SIZE,graph_1);
 
 #ifdef M68000
 			if (a_size+b_size-1>=8){
@@ -1522,14 +1624,14 @@ void code_push_r_args_u (int a_offset,int a_size,int b_size)
 	
 				while (b_size>a_size && b_size>1){
 					--b_size;			
-					graph_5=g_load_id ((b_size-1)<<2,graph_3);
+					graph_5=g_load_id ((b_size-1)<<STACK_ELEMENT_LOG_SIZE,graph_3);
 					*--graph_p=graph_5;
 					s_push_b (graph_5);
 				}
 	
 				while (a_size>1){
 					--a_size;
-					graph_5=g_load_id ((a_size-1)<<2,graph_3);
+					graph_5=g_load_id ((a_size-1)<<STACK_ELEMENT_LOG_SIZE,graph_3);
 					*--graph_p=graph_5;
 					s_push_a (graph_5);
 				}				
@@ -1588,7 +1690,7 @@ void code_push_r_arg_u (int a_offset,int a_size,int b_size,int a_arg_offset,int 
 				break;
 			case 2:
 				graph_2=g_load_id (ARGUMENTS_OFFSET,graph_1);
-				graph_3=g_load_id (8,graph_1);
+				graph_3=g_load_id (2*STACK_ELEMENT_SIZE,graph_1);
 				*--graph_p=graph_3;
 				*--graph_p=graph_2;
 				break;
@@ -1597,7 +1699,7 @@ void code_push_r_arg_u (int a_offset,int a_size,int b_size,int a_arg_offset,int 
 				int ab_size;
 				
 				graph_2=g_load_id (ARGUMENTS_OFFSET,graph_1);
-				graph_3=g_load_id (8,graph_1);
+				graph_3=g_load_id (2*STACK_ELEMENT_SIZE,graph_1);
 
 				ab_size=a_size+b_size-1;
 #ifdef M68000
@@ -1605,7 +1707,7 @@ void code_push_r_arg_u (int a_offset,int a_size,int b_size,int a_arg_offset,int 
 #endif
 					while (ab_size>0){
 						--ab_size;
-						graph_5=g_load_id (ab_size<<2,graph_3);
+						graph_5=g_load_id (ab_size<<STACK_ELEMENT_LOG_SIZE,graph_3);
 						*--graph_p=graph_5;
 					}				
 #ifdef M68000
@@ -2293,6 +2395,10 @@ static char ccall_error_string[] = "Error in ccall of '%s'";
 #	endif
 #endif
 
+#ifdef G_AI64
+# define REGISTER_RBP (-5)
+#endif
+
 #ifdef ALIGN_C_CALLS
 # define B_STACK_REGISTER REGISTER_O0
 #else
@@ -2335,9 +2441,9 @@ void code_ccall (char *c_function_name,char *s,int length)
 
 #if defined (sparc) || defined (G_POWER)
 		int	c_parameter_n;
-#	ifdef G_POWER
+# ifdef G_POWER
 		int c_offset,c_fp_parameter_n;
-#	endif
+# endif
 #elif defined (I486)
 		int c_offset;		
 #else
@@ -2380,13 +2486,14 @@ void code_ccall (char *c_function_name,char *s,int length)
 				min_index=l;
 				break;
 			case 'I':
-				b_offset+=4;
+			case 'p':
+				b_offset+=STACK_ELEMENT_SIZE;
 				if (!float_parameters)
 					++n_clean_b_register_parameters;
 				continue;
-#if defined (I486) || defined (G_POWER)
+# if (defined (I486) && !defined (G_AI64)) || defined (G_POWER)
 			case 'r':
-#endif
+# endif
 			case 'R':
 				float_parameters=1;
 				b_offset+=8;
@@ -2394,7 +2501,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			case 'S':
 			case 's':
 			case 'A':
-				a_offset+=4;
+				a_offset+=STACK_ELEMENT_SIZE;
 				continue;
 			case 'O':
 			case 'F':
@@ -2412,7 +2519,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 							error_s (ccall_error_string,c_function_name);
 					}
 				}
-				b_offset+=4;
+				b_offset+=STACK_ELEMENT_SIZE;
 				if (!float_parameters)
 					++n_clean_b_register_parameters;
 				continue;
@@ -2433,14 +2540,15 @@ void code_ccall (char *c_function_name,char *s,int length)
 	for (++l; l<length; ++l){
 		switch (s[l]){
 			case 'I':
-				b_result_offset+=4;
+			case 'p':
+				b_result_offset+=STACK_ELEMENT_SIZE;
 				continue;
 			case 'R':
 				float_parameters=1;
 				b_result_offset+=8;
 				continue;
 			case 'S':
-				a_result_offset+=4;
+				a_result_offset+=STACK_ELEMENT_SIZE;
 				continue;
 			case ':':
 				if (l==min_index+1 || l==length-1)
@@ -2453,6 +2561,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 					for (++l; l<length; ++l){
 						switch (s[l]){
 							case 'I':
+							case 'p':
 								if (!extra_float_parameters)
 									++n_extra_clean_b_register_parameters;
 								break;
@@ -2487,19 +2596,19 @@ void code_ccall (char *c_function_name,char *s,int length)
 
  	end_basic_block_with_registers (0,n_clean_b_register_parameters+n_extra_clean_b_register_parameters,e_vector);
 
-	b_offset-=n_clean_b_register_parameters<<2;
+	b_offset-=n_clean_b_register_parameters<<STACK_ELEMENT_LOG_SIZE;
 
 	if (n_extra_clean_b_register_parameters!=0){
 		int n,offset;
 			
-		offset=-4;
+		offset=-STACK_ELEMENT_SIZE;
 		for (n=0; n<n_extra_clean_b_register_parameters-1; ++n){
 # ifdef i486
 				i_move_r_pd (REGISTER_D0+n,B_STACK_POINTER);
 # else
 				i_move_r_id (REGISTER_D0+n,offset,B_STACK_POINTER);
 # endif
-			offset-=4;
+			offset-=STACK_ELEMENT_SIZE;
 		}
 
 # ifdef G_POWER
@@ -2523,14 +2632,15 @@ void code_ccall (char *c_function_name,char *s,int length)
 		result=s[min_index+1];
 		switch (result){
 			case 'I':
-				b_result_offset-=4;
+			case 'p':
+				b_result_offset-=STACK_ELEMENT_SIZE;
 				break;
 			case 'R':
 				b_result_offset-=8;
 				break;
 			case 'S':
 			case 'A':
-				a_result_offset-=4;
+				a_result_offset-=STACK_ELEMENT_SIZE;
 				
 		}
 		first_pointer_result_index=min_index+2;
@@ -2538,7 +2648,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 #endif
 
 	if (!function_address_parameter){
-#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
+#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
 		{
 		char label_name [202];
 
@@ -2577,19 +2687,20 @@ void code_ccall (char *c_function_name,char *s,int length)
 # endif
 			b_a_offset=b_o;
 
-#ifdef ALIGN_C_CALLS
+# ifdef ALIGN_C_CALLS
 			i_move_r_r (B_STACK_POINTER,REGISTER_O0);
 			i_or_i_r (28,B_STACK_POINTER);
-#endif
+# endif
 
 			c_parameter_n=(b_offset+a_offset>>2)+n_clean_b_register_parameters-(function_address_parameter=='F');
 			
 			for (l=first_pointer_result_index; l<length; ++l){
 				switch (s[l]){
 					case 'I':
+					case 'p':
 						ccall_load_b_offset (b_o,c_parameter_n);
 						++c_parameter_n;
-						b_o+=4;
+						b_o+=STACK_ELEMENT_SIZE;
 						break;
 					case 'R':
 						ccall_load_b_offset (b_o,c_parameter_n);
@@ -2597,7 +2708,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 						b_o+=8;
 						break;
 					case 'S':
-						b_a_offset-=4;
+						b_a_offset-=STACK_ELEMENT_SIZE;
 						ccall_load_b_offset (b_a_offset,c_parameter_n);
 						++c_parameter_n;
 						break;
@@ -2627,6 +2738,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 		for (l=0; l<min_index; ++l){
 			switch (s[l]){
 				case 'I':
+				case 'p':
 					if (clean_b_register_parameter_n < n_clean_b_register_parameters){
 						int clean_b_reg_n;
 						
@@ -2644,7 +2756,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 							i_move_id_r (b_o,B_STACK_REGISTER,REGISTER_A3);
 							i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
 						}
-						b_o+=4;
+						b_o+=STACK_ELEMENT_SIZE;
 					}					
 					break;
 # ifdef G_POWER
@@ -2696,17 +2808,17 @@ void code_ccall (char *c_function_name,char *s,int length)
 					b_o+=8;
 					break;
 				case 'S':
-					a_o-=4;
+					a_o-=STACK_ELEMENT_SIZE;
 					ccall_load_string_or_array_offset (4,c_parameter_n,a_o);
 					++c_parameter_n;
 					break;
 				case 's':
-					a_o-=4;
+					a_o-=STACK_ELEMENT_SIZE;
 					ccall_load_string_or_array_offset (8,c_parameter_n,a_o);
 					++c_parameter_n;
 					break;
 				case 'A':
-					a_o-=4;
+					a_o-=STACK_ELEMENT_SIZE;
 					ccall_load_string_or_array_offset (12,c_parameter_n,a_o);
 					++c_parameter_n;
 					break;
@@ -2796,6 +2908,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 		for (l=first_pointer_result_index; l<length; ++l){
 			switch (s[l]){
 				case 'I':
+				case 'p':
 				case 'R':
 					break;
 				case 'S':
@@ -2805,7 +2918,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 					i_move_id_r (0,B_STACK_POINTER,REGISTER_A0);
 					i_jsr_l_id (string_to_string_node_label,0);
 					i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
-					i_add_i_r (4,A_STACK_POINTER);
+					i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
 					break;
 				case 'V':
 					break;
@@ -2816,14 +2929,15 @@ void code_ccall (char *c_function_name,char *s,int length)
 		
 		switch (result){
 			case 'I':
+			case 'p':
 				i_move_r_r (C_PARAMETER_REGISTER_0,REGISTER_D0);
 				begin_new_basic_block();
 				init_b_stack (1,i_vector);
 				break;
 			case 'R':
-#ifdef G_POWER
+# ifdef G_POWER
 				i_fmove_fr_fr (1-14,0);
-#endif
+# endif
 				begin_new_basic_block();
 				init_b_stack (2,r_vector);
 				break;
@@ -2832,7 +2946,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 					string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
 
 				i_move_r_r (C_PARAMETER_REGISTER_0,REGISTER_A0);
-				i_sub_i_r (4,B_STACK_POINTER);
+				i_sub_i_r (STACK_ELEMENT_SIZE,B_STACK_POINTER);
 				i_jsr_l_id (string_to_string_node_label,0);
 
 				begin_new_basic_block();
@@ -2845,6 +2959,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 				error_s (ccall_error_string,c_function_name);
 		}
 #elif defined (I486)
+# ifndef G_AI64
 		{
 		int c_offset_before_pushing_arguments,function_address_reg;
 		
@@ -2861,22 +2976,23 @@ void code_ccall (char *c_function_name,char *s,int length)
 		for (l=length-1; l>=first_pointer_result_index; --l){
 			switch (s[l]){
 				case 'I':
-					b_o-=4;
+				case 'p':
+					b_o-=STACK_ELEMENT_SIZE;
 					i_lea_id_r (b_o+c_offset,B_STACK_POINTER,REGISTER_A0);
 					i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
-					c_offset+=4;
+					c_offset+=STACK_ELEMENT_SIZE;
 					break;
 				case 'R':
 					b_o-=8;
 					i_lea_id_r (b_o+c_offset,B_STACK_POINTER,REGISTER_A0);
 					i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
-					c_offset+=4;
+					c_offset+=STACK_ELEMENT_SIZE;
 					break;
 				case 'S':
 					i_lea_id_r (a_o+c_offset,B_STACK_POINTER,REGISTER_A0);
 					i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
-					a_o+=4;
-					c_offset+=4;
+					a_o+=STACK_ELEMENT_SIZE;
+					c_offset+=STACK_ELEMENT_SIZE;
 					break;
 				case 'V':
 					break;
@@ -2893,7 +3009,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			reg_n=0;
 			l=0;
 			while (reg_n<n_clean_b_register_parameters && l<min_index){
-				if (s[l]=='I' || s[l]=='F' || s[l]=='O'){
+				if (s[l]=='I' || s[l]=='p' || s[l]=='F' || s[l]=='O'){
 					++reg_n;
 					last_register_parameter_index=l;
 				}
@@ -2906,14 +3022,15 @@ void code_ccall (char *c_function_name,char *s,int length)
 			for (l=min_index-1; l>=0; --l){
 				switch (s[l]){
 					case 'I':
+					case 'p':
 						if (l<=last_register_parameter_index){
 							i_move_r_pd (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,B_STACK_POINTER);
 							++reg_n;
 						} else {
-							b_o-=4;
+							b_o-=STACK_ELEMENT_SIZE;
 							i_move_id_pd (b_o+c_offset,B_STACK_POINTER,B_STACK_POINTER);
 						}
-						c_offset+=4;
+						c_offset+=STACK_ELEMENT_SIZE;
 						break;
 #ifdef I486
 					case 'r':
@@ -2956,24 +3073,24 @@ void code_ccall (char *c_function_name,char *s,int length)
 						break;
 					case 'S':
 						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
-						i_add_i_r (4,REGISTER_A0);
+						i_add_i_r (STACK_ELEMENT_SIZE,REGISTER_A0);
 						i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
-						a_o+=4;
-						c_offset+=4;
+						a_o+=STACK_ELEMENT_SIZE;
+						c_offset+=STACK_ELEMENT_SIZE;
 						break;
 					case 's':
 						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
 						i_add_i_r (8,REGISTER_A0);
 						i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
-						a_o+=4;
-						c_offset+=4;
+						a_o+=STACK_ELEMENT_SIZE;
+						c_offset+=STACK_ELEMENT_SIZE;
 						break;
 					case 'A':
 						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
 						i_add_i_r (12,REGISTER_A0);
 						i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
-						a_o+=4;
-						c_offset+=4;
+						a_o+=STACK_ELEMENT_SIZE;
+						c_offset+=STACK_ELEMENT_SIZE;
 						break;
 					case 'F':
 					case 'O':
@@ -2990,7 +3107,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 
 							if (function_address_parameter=='O'){
 								i_move_r_pd (clean_b_reg_n,B_STACK_POINTER);
-								c_offset+=4;
+								c_offset+=STACK_ELEMENT_SIZE;
 							}
 							
 							++reg_n;
@@ -3063,6 +3180,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 		for (l=length-1; l>=first_pointer_result_index; --l){
 			switch (s[l]){
 				case 'I':
+				case 'p':
 				case 'R':
 					break;
 				case 'S':
@@ -3071,7 +3189,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 					i_move_pi_r (B_STACK_POINTER,REGISTER_A0);
 					i_jsr_l (string_to_string_node_label,0);
 					i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
-					i_add_i_r (4,A_STACK_POINTER);
+					i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
 					break;
 				case 'V':
 					break;
@@ -3082,6 +3200,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			
 		switch (result){
 			case 'I':
+			case 'p':
 				begin_new_basic_block();
 				init_b_stack (1,i_vector);
 				break;
@@ -3105,6 +3224,305 @@ void code_ccall (char *c_function_name,char *s,int length)
 			default:
 				error_s (ccall_error_string,c_function_name);
 		}
+# else /* G_AI64 */
+		{
+		int c_offset_before_pushing_arguments,function_address_reg,c_parameter_n;
+		
+		a_o=-b_result_offset-a_result_offset;
+		b_o=0;
+				
+		if (a_result_offset+b_result_offset>b_offset){
+			i_sub_i_r (a_result_offset+b_result_offset-b_offset,B_STACK_POINTER);
+			c_offset=a_result_offset+b_result_offset;
+		}
+
+		c_offset_before_pushing_arguments=c_offset;
+
+		c_parameter_n=((a_offset+b_offset+a_result_offset+b_result_offset)>>3)+n_clean_b_register_parameters;
+
+		i_move_r_r (B_STACK_POINTER,REGISTER_RBP);
+		if (c_parameter_n>=4 && (c_parameter_n & 1)!=0){
+			i_sub_i_r (8,B_STACK_POINTER);
+			i_or_i_r (8,B_STACK_POINTER);		
+		} else {
+			i_or_i_r (8,B_STACK_POINTER);		
+			i_sub_i_r (8,B_STACK_POINTER);
+		}
+
+		for (l=length-1; l>=first_pointer_result_index; --l){
+			switch (s[l]){
+				case 'I':
+				case 'p':
+					b_o-=STACK_ELEMENT_SIZE;
+					if (--c_parameter_n<4)
+						i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0-c_parameter_n);
+					else {
+						i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
+						i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+						c_offset+=STACK_ELEMENT_SIZE;
+					}
+					break;
+				case 'R':
+					b_o-=8;
+					if (--c_parameter_n<4)
+						i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0-c_parameter_n);
+					else {
+						i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
+						i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+						c_offset+=STACK_ELEMENT_SIZE;
+					}
+					break;
+				case 'S':
+					if (--c_parameter_n<4)
+						i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0-c_parameter_n);
+					else {
+						i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
+						i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+						c_offset+=STACK_ELEMENT_SIZE;
+					}
+					a_o+=STACK_ELEMENT_SIZE;
+					break;
+				case 'V':
+					break;
+				default:
+					error_s (ccall_error_string,c_function_name);
+			}
+		}
+		
+		{
+			int last_register_parameter_index,reg_n;
+			
+			last_register_parameter_index=-1;
+			
+			reg_n=0;
+			l=0;
+			while (reg_n<n_clean_b_register_parameters && l<min_index){
+				if (s[l]=='I' || s[l]=='p' || s[l]=='F' || s[l]=='O'){
+					++reg_n;
+					last_register_parameter_index=l;
+				}
+				++l;
+			}
+			
+			reg_n=0;
+			a_o=-a_offset;
+			b_o=0;
+			for (l=min_index-1; l>=0; --l){
+				switch (s[l]){
+					case 'I':
+					case 'p':
+						if (--c_parameter_n<4){
+							if (l<=last_register_parameter_index){
+								i_move_r_r (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,REGISTER_A0-c_parameter_n);
+								++reg_n;
+							} else {
+								b_o-=STACK_ELEMENT_SIZE;
+								i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0-c_parameter_n);
+							}
+						} else {
+							if (l<=last_register_parameter_index){
+								i_move_r_pd (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,B_STACK_POINTER);
+								++reg_n;
+							} else {
+								b_o-=STACK_ELEMENT_SIZE;
+								i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
+								i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+							}
+							c_offset+=STACK_ELEMENT_SIZE;
+						}
+						break;
+					case 'R':
+						b_o-=8;
+						i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
+						i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+						c_offset+=8;
+						break;
+					case 'S':
+						if (--c_parameter_n<4){
+							i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0-c_parameter_n);
+							i_add_i_r (STACK_ELEMENT_SIZE,REGISTER_A0-c_parameter_n);
+						} else {
+							i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
+							i_add_i_r (STACK_ELEMENT_SIZE,REGISTER_A0);
+							i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+							c_offset+=STACK_ELEMENT_SIZE;
+						}
+						a_o+=STACK_ELEMENT_SIZE;
+						break;
+					case 's':
+						if (--c_parameter_n<4){
+							i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0-c_parameter_n);
+							i_add_i_r (2*STACK_ELEMENT_SIZE,REGISTER_A0-c_parameter_n);							
+						} else {
+							i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
+							i_add_i_r (2*STACK_ELEMENT_SIZE,REGISTER_A0);
+							i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+							c_offset+=STACK_ELEMENT_SIZE;
+						}
+						a_o+=STACK_ELEMENT_SIZE;
+						break;
+					case 'A':
+						if (--c_parameter_n<4){
+							i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0-c_parameter_n);
+							i_add_i_r (3*STACK_ELEMENT_SIZE,REGISTER_A0-c_parameter_n);
+						} else {
+							i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
+							i_add_i_r (3*STACK_ELEMENT_SIZE,REGISTER_A0);
+							i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+							c_offset+=STACK_ELEMENT_SIZE;
+						}
+						a_o+=STACK_ELEMENT_SIZE;
+						break;
+					case 'F':
+					case 'O':
+					case '*':
+					case ']':
+						/* while (l>=0 && !(s[l]=='F' || s[l]=='O')) bug in watcom c */
+						while (l>=0 && (s[l]!='F' && s[l]!='O'))
+							--l;
+						
+						if (l<=last_register_parameter_index){
+							int clean_b_reg_n,i;
+							
+							clean_b_reg_n=REGISTER_D0+n_extra_clean_b_register_parameters+reg_n;
+
+							if (function_address_parameter=='O'){
+								i_move_r_pd (clean_b_reg_n,B_STACK_POINTER);
+								c_offset+=STACK_ELEMENT_SIZE;
+							}
+							
+							++reg_n;
+
+							function_address_reg=clean_b_reg_n;
+							i=l;
+							while (i+1<length && (s[i+1]=='*' || s[i+1]=='[')){
+								int n;
+								
+								++i;
+								n=0;
+								
+								if (s[i]=='['){
+									++i;
+									while (i<length && (unsigned)(s[i]-'0')<(unsigned)10){
+										n=n*10+(s[i]-'0');
+										++i;
+									}
+								}
+								
+								i_move_id_r (n,clean_b_reg_n,clean_b_reg_n);
+							}
+							break;
+						}
+					default:
+						error_s (ccall_error_string,c_function_name);
+				}
+			}
+		}
+
+		if (save_state_in_global_variables){
+			i_move_r_l (-4/*ESI*/,saved_a_stack_p_label);
+			i_move_r_l (-5/*EDI*/,saved_heap_p_label);
+		}
+
+		i_sub_i_r (32,B_STACK_POINTER);
+		if (!function_address_parameter)
+			i_jsr_l (label,0);
+		else
+			i_jsr_r (function_address_reg);
+
+		/* i_add_i_r (32,B_STACK_POINTER); */
+		
+		if (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset)==0)
+			i_move_r_r (REGISTER_RBP,B_STACK_POINTER);
+		else
+			i_lea_id_r (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset),REGISTER_RBP,B_STACK_POINTER);	
+
+		if (save_state_in_global_variables){
+			i_move_l_r (saved_a_stack_p_label,-4/*ESI*/);
+			i_move_l_r (saved_heap_p_label,-5/*EDI*/);
+		}
+
+		if (callee_pops_arguments)
+			c_offset=c_offset_before_pushing_arguments;
+		
+		if (a_offset!=0)
+			i_sub_i_r (a_offset,A_STACK_POINTER);
+		/*
+		if (c_offset-(b_result_offset+a_result_offset)!=0)
+			i_add_i_r (c_offset-(b_result_offset+a_result_offset),B_STACK_POINTER);
+		*/
+		}
+		
+		for (l=length-1; l>=first_pointer_result_index; --l){
+			switch (s[l]){
+				case 'S':
+					if (string_to_string_node_label==NULL)
+						string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
+					i_move_pi_r (B_STACK_POINTER,REGISTER_A0);
+					i_jsr_l (string_to_string_node_label,0);
+					i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
+					i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
+					break;
+				case 'I':
+				case 'p':
+				case 'R':
+				case 'V':
+					break;
+				default:
+					error_s (ccall_error_string,c_function_name);
+			}
+		}
+		
+		b_o=0;
+		for (l=first_pointer_result_index; l<length; ++l){
+			switch (s[l]){
+				case 'I':
+					i_movesw_id_r (b_o,B_STACK_POINTER,REGISTER_RBP);
+					i_move_r_id (REGISTER_RBP,b_o,B_STACK_POINTER);
+					b_o+=STACK_ELEMENT_SIZE;
+					break;
+				case 'p':
+					b_o+=STACK_ELEMENT_SIZE;
+					break;
+				case 'R':
+					b_o+=8;
+					break;
+				case 'S':
+				case 'V':
+					break;
+				default:
+					error_s (ccall_error_string,c_function_name);
+			}
+		}
+
+		switch (result){
+			case 'I':
+				i_movesw_r_r (REGISTER_D0,REGISTER_D0);
+			case 'p':
+				begin_new_basic_block();
+				init_b_stack (1,i_vector);
+				break;
+			case 'R':
+				begin_new_basic_block();
+				init_b_stack (2,r_vector);
+				break;
+			case 'S':
+				if (string_to_string_node_label==NULL)
+					string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
+
+				i_move_r_r (REGISTER_D0,REGISTER_A0);
+				i_jsr_l (string_to_string_node_label,0);
+
+				begin_new_basic_block();
+				init_a_stack (1);
+				break;
+			case 'V':
+				begin_new_basic_block();
+				break;
+			default:
+				error_s (ccall_error_string,c_function_name);
+		}
+# endif
 #endif
 }
 

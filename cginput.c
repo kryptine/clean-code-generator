@@ -238,6 +238,39 @@ static int parse_integer (LONG *integer_p)
 	return 1;
 }
 
+static int parse_clean_integer (CleanInt *integer_p)
+{
+	CleanInt integer;
+	int minus_sign;
+	
+	minus_sign=0;
+	if (last_char=='+' || last_char=='-'){
+		if (last_char=='-')
+			minus_sign=!minus_sign;
+		last_char=getc (abc_file);
+	}
+	
+	if (!is_digit_character (last_char))
+		abc_parser_error_i ("Integer expected at line %d\n",line_number);
+		
+	integer=last_char-'0';
+	last_char=getc (abc_file);
+	
+	while (is_digit_character (last_char)){
+		integer*=10;
+		integer+=last_char-'0';
+		last_char=getc (abc_file);
+	}
+	
+	skip_spaces_and_tabs();
+	
+	if (minus_sign)
+		integer=-integer;
+	*integer_p=integer;
+	
+	return 1;
+}
+
 static int parse_hexadecimal_number (int *n_p)
 {
 	register int n;
@@ -740,9 +773,9 @@ static int parse_instruction_c (InstructionP instruction)
 
 static int parse_instruction_i (InstructionP instruction)
 {
-	LONG i;
+	CleanInt i;
 	
-	if (!parse_integer (&i))
+	if (!parse_clean_integer (&i))
 		return 0;
 	instruction->instruction_code_function (i);
 	return 1;
@@ -1303,8 +1336,10 @@ static int parse_directive_n_n_t (InstructionP instruction)
 			case 'r':	case 'R':
 				vector_p[i>>LOG_SMALL_VECTOR_SIZE] |= (1<< (i & MASK_SMALL_VECTOR_SIZE));
 				i+=1;
+#ifndef G_A64
 				vector_p[i>>LOG_SMALL_VECTOR_SIZE] |= (1<< (i & MASK_SMALL_VECTOR_SIZE));
 				i+=1;	
+#endif
 				break;
 			default:
 				abc_parser_error_i ("B, C, F, I, P or R expected at line %d\n",line_number);
@@ -2446,8 +2481,10 @@ static int parse_binary_directive_nnt (BInstructionP instruction)
 			case 'r':	case 'R':
 				vector_p[i>>LOG_SMALL_VECTOR_SIZE] |= (1<< (i & MASK_SMALL_VECTOR_SIZE));
 				i+=1;
+#ifndef G_A64
 				vector_p[i>>LOG_SMALL_VECTOR_SIZE] |= (1<< (i & MASK_SMALL_VECTOR_SIZE));
 				i+=1;	
+#endif
 				break;
 			default:
 				abc_parser_error_i ("B, C, F, I, P or R expected at line %d\n",line_number);

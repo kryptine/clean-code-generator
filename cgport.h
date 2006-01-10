@@ -2,6 +2,13 @@
 #define FINALIZERS
 #define NEW_APPLY
 
+#ifdef _WIN64
+# define G_AI64
+#endif
+#ifdef G_AI64
+# define G_A64
+#endif
+
 #if defined (__MWERKS__) || defined (__MRC__)
 # define POWER
 # ifdef __cplusplus
@@ -67,6 +74,16 @@
 #	else
 #		define M68000
 #	endif
+#endif
+
+#ifndef G_A64
+# define STACK_ELEMENT_SIZE 4
+# define STACK_ELEMENT_LOG_SIZE 2
+# define CleanInt LONG
+#else
+# define STACK_ELEMENT_SIZE 8
+# define STACK_ELEMENT_LOG_SIZE 3
+# define CleanInt __int64
 #endif
 
 #if defined (I486) || (defined (G_POWER) || defined (ALIGN_C_CALLS)) || defined (MACH_O)

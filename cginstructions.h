@@ -25,7 +25,7 @@ extern INSTRUCTION_GRAPH g_fload_x (INSTRUCTION_GRAPH graph_1,int offset,int shi
 extern INSTRUCTION_GRAPH g_lea (LABEL *label);
 extern INSTRUCTION_GRAPH g_lea_i (LABEL *label,int offset);
 extern INSTRUCTION_GRAPH g_load (int offset,int stack);
-extern INSTRUCTION_GRAPH g_load_i (LONG value);
+extern INSTRUCTION_GRAPH g_load_i (CleanInt value);
 extern INSTRUCTION_GRAPH g_load_id (int offset,INSTRUCTION_GRAPH graph_1);
 extern INSTRUCTION_GRAPH g_load_b_x (INSTRUCTION_GRAPH graph_1,int offset,int sign_extend,INSTRUCTION_GRAPH graph_2);
 extern INSTRUCTION_GRAPH g_load_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2);

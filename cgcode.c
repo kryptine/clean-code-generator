@@ -28,7 +28,11 @@
 #	define PROFILE_OFFSET 12
 #  endif
 # else
+#  ifndef G_AI64
 #	define PROFILE_OFFSET 10
+#  else
+#	define PROFILE_OFFSET 12
+#  endif
 # endif
 #endif
 
@@ -47,8 +51,13 @@
 #	include "cgpwas.h"
 #else
 # ifdef I486
+#  ifdef G_AI64
+#	include "cgaas.h"
+#	include "cgawas.h"
+#  else
 #	include "cgias.h"
 #	include "cgiwas.h"
+#  endif
 # else
 #  ifdef SOLARIS
 #	include "cgswas.h"
@@ -67,10 +76,18 @@
 #define GEN_OBJ
 
 #ifdef NEW_DESCRIPTORS
+# ifdef G_A64
+#  define ARITY_0_DESCRIPTOR_OFFSET (-8)
+# else
 #  define ARITY_0_DESCRIPTOR_OFFSET (-4)
+# endif
 #else
 # if defined (M68000) || (defined (NO_STRING_ADDRES_IN_DESCRIPTOR) && (defined (G_POWER) || defined (I486)))
-# define ARITY_0_DESCRIPTOR_OFFSET (-8)
+#  ifdef G_A64
+#  	define ARITY_0_DESCRIPTOR_OFFSET (-12)
+#  else
+#  	define ARITY_0_DESCRIPTOR_OFFSET (-8)
+#  endif
 # else
 #  define ARITY_0_DESCRIPTOR_OFFSET (-12)
 # endif
@@ -83,6 +100,12 @@
 # else
 #  define DESCRIPTOR_ARITY_OFFSET (-6)
 # endif
+#endif
+
+#ifdef G_A64
+# define SIZE_OF_REAL_IN_STACK_ELEMENTS 1
+#else
+# define SIZE_OF_REAL_IN_STACK_ELEMENTS 2
 #endif
 
 #ifdef THINK_C
@@ -105,22 +128,22 @@
 
 #ifdef NEW_ARRAYS
 # ifdef ARRAY_SIZE_BEFORE_DESCRIPTOR
-#  define ARRAY_ELEMENTS_OFFSET 4
+#  define ARRAY_ELEMENTS_OFFSET STACK_ELEMENT_SIZE
 # else
-#  define ARRAY_ELEMENTS_OFFSET 8
+#  define ARRAY_ELEMENTS_OFFSET (2<<STACK_ELEMENT_LOG_SIZE)
 # endif
 #else
-# define ARRAY_ELEMENTS_OFFSET 12
+# define ARRAY_ELEMENTS_OFFSET (3<<STACK_ELEMENT_LOG_SIZE)
 #endif
 
 #if defined (NEW_ARRAYS) || defined (ALIGN_REAL_ARRAYS)
 # ifdef ARRAY_SIZE_BEFORE_DESCRIPTOR
-#  define REAL_ARRAY_ELEMENTS_OFFSET 4
+#  define REAL_ARRAY_ELEMENTS_OFFSET STACK_ELEMENT_SIZE
 # else
-#  define REAL_ARRAY_ELEMENTS_OFFSET 8
+#  define REAL_ARRAY_ELEMENTS_OFFSET (2<<STACK_ELEMENT_LOG_SIZE)
 # endif
 #else
-# define REAL_ARRAY_ELEMENTS_OFFSET 12
+# define REAL_ARRAY_ELEMENTS_OFFSET (3<<STACK_ELEMENT_LOG_SIZE)
 #endif
 
 #ifdef __MWERKS__
@@ -159,12 +182,21 @@ INSTRUCTION_GRAPH load_indexed_list;
 
 ULONG e_vector[] = { 0 };
 ULONG i_vector[] = { 0 };
+#ifdef G_A64
+ULONG r_vector[] = { 1 };
+#else
 ULONG r_vector[] = { 3 };
+#endif
 ULONG i_i_vector[] = { 0 };
 ULONG i_i_i_vector[]= { 0 };
 ULONG i_i_i_i_i_vector[]= { 0 };
+#ifdef G_A64
+static ULONG i_r_vector[] = { 2 };
+static ULONG r_r_vector[]= { 3 };
+#else
 static ULONG i_r_vector[] = { 6 };
 static ULONG r_r_vector[]= { 15 };
+#endif
 
 static ULONG *demanded_vector;
 int demanded_a_stack_size=0;
@@ -309,14 +341,14 @@ LABEL			*r_to_i_buffer_label;
 #endif
 
 LABEL			*collect_0_label,*collect_1_label,*collect_2_label,
-#ifndef I486
+#if !(defined (I486) && !defined (G_AI64))
 				*collect_3_label,
 #endif
 #ifdef G_POWER
 				*collect_00_label,*collect_01_label,*collect_02_label,*collect_03_label,
 				*eval_01_label,*eval_11_label,*eval_02_label,*eval_12_label,*eval_22_label,
 #endif
-#if defined (I486) && defined (GEN_OBJ)
+#if defined (I486) && defined (GEN_OBJ) && !defined (G_AI64)
 				*collect_0l_label,*collect_1l_label,*collect_2l_label,*end_heap_label,
 #endif
 				*system_sp_label,*EMPTY_label;
@@ -398,10 +430,22 @@ LABEL *new_local_label (int label_flags)
 }
 
 #define DESCRIPTOR_OFFSET	2
-#define ARGUMENTS_OFFSET	4
+#define ARGUMENTS_OFFSET	STACK_ELEMENT_SIZE
 
 static void code_monadic_real_operator (int g_code)
 {
+#ifdef G_A64
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
+
+	graph_1=s_get_b (0);
+	graph_2=g_fp_arg (graph_1);
+
+	graph_3=g_instruction_1 (g_code,graph_2);
+
+	graph_4=g_fromf (graph_3);
+
+	s_put_b (0,graph_4);
+#else
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
 	
 	graph_2=s_get_b (1);
@@ -414,6 +458,7 @@ static void code_monadic_real_operator (int g_code)
 
 	s_put_b (1,graph_6);
 	s_put_b (0,graph_5);
+#endif
 }
 
 static int eval_label_number;
@@ -431,14 +476,20 @@ static void code_monadic_sane_operator (LABEL *label)
 	graph=g_lea (label2);
 #endif
 
+#ifdef G_A64
+	s_push_b (s_get_b (0));
+	s_put_b (1,NULL);
+	insert_basic_block (JSR_BLOCK,0,1+1,r_vector,label);
+#else
 	s_push_b (s_get_b (0));
 	s_put_b (1,s_get_b (2));
-#ifdef M68000
+# ifdef M68000
 	s_put_b (2,graph);
-#else
+# else
 	s_put_b (2,NULL);
-#endif
+# endif
 	insert_basic_block (JSR_BLOCK,0,2+1,r_vector,label);
+#endif
 
 #ifdef M68000
 	new_label=fast_memory_allocate_type (struct block_label);
@@ -469,17 +520,23 @@ static void code_dyadic_sane_operator (LABEL *label)
 
 	s_push_b (s_get_b (0));
 	s_put_b (1,s_get_b (2));
+#ifdef G_A64
+	s_put_b (2,NULL);
+
+	insert_basic_block (JSR_BLOCK,0,2+1,r_r_vector,label);
+#else
 	s_put_b (2,s_get_b (3));
 	s_put_b (3,s_get_b (4));
 
-#ifdef M68000
+# ifdef M68000
 	if (!mc68881_flag)
 		s_put_b (4,graph);
 	else
-#endif
+# endif
 		s_put_b (4,NULL);
 
 	insert_basic_block (JSR_BLOCK,0,4+1,r_r_vector,label);
+#endif
 
 #ifdef M68000
 	if (!mc68881_flag){
@@ -512,7 +569,7 @@ void code_acosR (VOID)
 	if (acos_real==NULL)
 		acos_real=enter_label ("acos_real",IMPORT_LABEL);
 	code_monadic_sane_operator (acos_real);
-	init_b_stack (2,r_vector);
+	init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 }
 
 void code_addI (VOID)
@@ -577,16 +634,31 @@ void code_addIo (VOID)
 
 void code_addR (VOID)
 {
+#ifdef G_A64
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
+
+	graph_1=s_pop_b();
+	graph_2=g_fp_arg (graph_1);
+
+	graph_3=s_get_b (0);
+	graph_4=g_fp_arg (graph_3);
+
+	graph_5=g_fadd (graph_4,graph_2);
+
+	graph_6=g_fromf (graph_5);
+
+	s_put_b (0,graph_6);
+#else
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7,graph_8,graph_9;
 
-#ifdef M68000	
+# ifdef M68000	
 	if (!mc68881_flag){
 		if (add_real==NULL)
 			add_real=enter_label ("add_real",IMPORT_LABEL);
 		code_dyadic_sane_operator (add_real);
 		init_b_stack (2,r_vector);
 	} else {
-#endif
+# endif
 		graph_1=s_pop_b();
 		graph_2=s_pop_b();
 		graph_3=g_fjoin (graph_1,graph_2);
@@ -601,8 +673,9 @@ void code_addR (VOID)
 
 		s_put_b (1,graph_9);
 		s_put_b (0,graph_8);
-#ifdef M68000
+# ifdef M68000
 	}
+# endif
 #endif
 }
 
@@ -639,7 +712,7 @@ void code_asinR (VOID)
 	if (asin_real==NULL)
 		asin_real=enter_label ("asin_real",IMPORT_LABEL);
 	code_monadic_sane_operator (asin_real);
-	init_b_stack (2,r_vector);
+	init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 }
 
 void code_atanR (VOID)
@@ -650,7 +723,7 @@ void code_atanR (VOID)
 		if (atan_real==NULL)
 			atan_real=enter_label ("atan_real",IMPORT_LABEL);
 		code_monadic_sane_operator (atan_real);
-		init_b_stack (2,r_vector);
+		init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 #ifdef M68000
 	} else
 		code_monadic_real_operator (GFATAN);
@@ -1007,7 +1080,7 @@ void code_buildC (int value)
 		if (static_characters_label==NULL)
 			static_characters_label=enter_label ("static_characters",IMPORT_LABEL | DATA_LABEL);
 
-		graph_4=g_lea_i (static_characters_label,(value<<3)+NODE_POINTER_OFFSET);
+		graph_4=g_lea_i (static_characters_label,(value<<(1+STACK_ELEMENT_LOG_SIZE))+NODE_POINTER_OFFSET);
 		s_push_a (graph_4);
 		return;
 	}
@@ -1067,7 +1140,11 @@ static INSTRUCTION_GRAPH int_descriptor_graph (void)
 		graph=last_INT_descriptor_graph;
 	else {
 		if (INT_label==NULL)
+#ifdef G_AI64
+			INT_label=enter_label ("dINT",IMPORT_LABEL | DATA_LABEL);
+#else
 			INT_label=enter_label ("INT",IMPORT_LABEL | DATA_LABEL);
+#endif
 
 		graph=g_load_des_i (INT_label,0);
 
@@ -1080,7 +1157,7 @@ static INSTRUCTION_GRAPH int_descriptor_graph (void)
 	return graph;
 }
 
-void code_buildI (LONG value)
+void code_buildI (CleanInt value)
 {
 	INSTRUCTION_GRAPH graph_3,graph_4,graph_5;
 
@@ -1088,7 +1165,7 @@ void code_buildI (LONG value)
 		if (small_integers_label==NULL)
 			small_integers_label=enter_label ("small_integers",IMPORT_LABEL | DATA_LABEL);
 	
-		graph_5=g_lea_i (small_integers_label,(value<<3)+NODE_POINTER_OFFSET);
+		graph_5=g_lea_i (small_integers_label,(value<<(STACK_ELEMENT_LOG_SIZE+1))+NODE_POINTER_OFFSET);
 		s_push_a (graph_5);
 		return;
 	}
@@ -1163,13 +1240,20 @@ void code_buildR_b (int b_offset)
 	graph_2=real_descriptor_graph();
 
 	graph_3=s_get_b (b_offset);
+#ifndef G_A64
 	graph_4=s_get_b (b_offset+1);
+#endif
 
+#ifdef M68000
 	if (!mc68881_flag)		
 		graph_5=g_create_3 (graph_2,graph_3,graph_4);
 	else
+#endif
+#ifdef G_A64
+	graph_5=g_create_r (graph_2,g_fp_arg (graph_3));
+#else
 		graph_5=g_create_r (graph_2,g_fjoin (graph_3,graph_4));
-
+#endif
 	s_push_a (graph_5);
 }
 
@@ -1237,7 +1321,7 @@ void code_CtoAC (VOID)
 
 #ifdef ARRAY_SIZE_BEFORE_DESCRIPTOR
 	graph_4=g_create_3 (graph_2,graph_1,graph_3);
-	graph_4=g_add (g_load_i (4),graph_4);
+	graph_4=g_add (g_load_i (STACK_ELEMENT_SIZE),graph_4);
 #else
 	graph_4=g_create_3 (graph_1,graph_2,graph_3);
 #endif
@@ -1332,9 +1416,14 @@ static void code_create_arrayR (VOID)
 #endif
 		s_push_b (s_get_b (0));
 		s_put_b (1,s_get_b (2));
+#ifdef G_A64
+		s_put_b (2,NULL);
+		insert_basic_block (JSR_BLOCK,0,2+1,i_r_vector,create_arrayR_label);
+#else
 		s_put_b (2,s_get_b (3));
 		s_put_b (3,NULL);
 		insert_basic_block (JSR_BLOCK,0,3+1,i_r_vector,create_arrayR_label);
+#endif
 #ifdef M68000
 	}
 #endif
@@ -1703,7 +1792,7 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 
 void code_cosR (VOID)
 {
-#ifdef I486
+#if defined (I486) && !defined (G_AI64)
 	code_monadic_real_operator (GFCOS);
 #else
 #	ifdef M68000
@@ -1712,7 +1801,7 @@ void code_cosR (VOID)
 		if (cos_real==NULL)
 			cos_real=enter_label ("cos_real",IMPORT_LABEL);
 		code_monadic_sane_operator (cos_real);
-		init_b_stack (2,r_vector);
+		init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 #	ifdef M68000
 	} else
 		code_monadic_real_operator (GFCOS);
@@ -1834,16 +1923,31 @@ void code_divI (VOID)
 
 void code_divR (VOID)
 {
+#ifdef G_A64
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
+
+	graph_1=s_pop_b();
+	graph_2=g_fp_arg (graph_1);
+
+	graph_3=s_get_b (0);
+	graph_4=g_fp_arg (graph_3);
+
+	graph_5=g_fdiv (graph_4,graph_2);
+
+	graph_6=g_fromf (graph_5);
+
+	s_put_b (0,graph_6);
+#else
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7,graph_8,graph_9;
 
-#ifdef M68000
+# ifdef M68000
 	if (!mc68881_flag){
 		if (div_real==NULL)
 			div_real=enter_label ("div_real",IMPORT_LABEL);
 		code_dyadic_sane_operator (div_real);
 		init_b_stack (2,r_vector);
 	} else {
-#endif
+# endif
 		graph_1=s_pop_b();
 		graph_2=s_pop_b();
 		graph_3=g_fjoin (graph_1,graph_2);
@@ -1858,8 +1962,9 @@ void code_divR (VOID)
 
 		s_put_b (0,graph_8);
 		s_put_b (1,graph_9);
-#ifdef M68000
+# ifdef M68000
 	}
+# endif
 #endif
 }
 
@@ -2047,9 +2152,22 @@ void code_eqI_b (LONG value,int b_offset)
 
 void code_eqR (VOID)
 {
+#ifdef G_A64
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
+
+	graph_1=s_pop_b();
+	graph_2=g_fp_arg (graph_1);
+
+	graph_3=s_pop_b();
+	graph_4=g_fp_arg (graph_3);
+
+	graph_5=g_fcmp_eq (graph_4,graph_2);
+
+	s_push_b (graph_5);
+#else
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7;
 
-#ifdef M68000
+# ifdef M68000
 	if (!mc68881_flag){
 		if (eq_real==NULL)
 			eq_real=enter_label ("eq_real",IMPORT_LABEL);
@@ -2057,7 +2175,7 @@ void code_eqR (VOID)
 		code_dyadic_sane_operator (eq_real);		
 		init_b_stack (1,i_vector);
 	} else {
-#endif
+# endif
 		graph_1=s_pop_b();
 		graph_2=s_pop_b();
 		graph_3=g_fjoin (graph_1,graph_2);
@@ -2069,8 +2187,9 @@ void code_eqR (VOID)
 		graph_7=g_fcmp_eq (graph_6,graph_3);
 	
 		s_push_b (graph_7);
-#ifdef M68000
+# ifdef M68000
 	}
+# endif
 #endif
 }
 
@@ -2146,10 +2265,14 @@ void code_eqR_b (double value,int b_offset)
 		init_b_stack (1,i_vector);
 	} else {
 #endif
+#ifdef G_A64
+		graph_1=s_get_b (b_offset);
+		graph_3=g_fp_arg (graph_1);
+#else
 		graph_1=s_get_b (b_offset);
 		graph_2=s_get_b (b_offset+1);
 		graph_3=g_fjoin (graph_1,graph_2);
-	
+#endif
 		graph_4=g_fload_i (value);
 
 		graph_5=g_fcmp_eq (graph_4,graph_3);
@@ -2171,7 +2294,7 @@ void code_eqAC_a (char *string,int string_length)
 	string_label=w_code_length_and_string (string,string_length);
 	
 	graph_1=s_pop_a();
-	graph_2=g_lea_i (string_label,-4);
+	graph_2=g_lea_i (string_label,-STACK_ELEMENT_SIZE);
 	
 	s_push_a (graph_2);
 	s_push_a (graph_1);
@@ -2309,7 +2432,7 @@ void code_expR (VOID)
 	if (exp_real==NULL)
 		exp_real=enter_label ("exp_real",IMPORT_LABEL);
 	code_monadic_sane_operator (exp_real);
-	init_b_stack (2,r_vector);
+	init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 }
 
 void code_fill_r (char descriptor_name[],int a_size,int b_size,int root_offset,int a_offset,int b_offset)
@@ -2857,7 +2980,7 @@ void code_fill2 (char descriptor_name[],int arity,int a_offset,char bits[])
 		--a_offset;
 	}
 	
-	graph_3=g_fill_m (g_load_id (8-NODE_POINTER_OFFSET,graph_1),arity-1);
+	graph_3=g_fill_m (g_load_id (2*STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1),arity-1);
 
 	parameter=&graph_3->instruction_parameters[1];
 	for (argument_n=1; argument_n<arity; ++argument_n){
@@ -2929,13 +3052,13 @@ void code_fill3 (char descriptor_name[],int arity,int a_offset,char bits[])
 	}
 
 	if (bits[0]=='0')
-		graph_5=g_load_id (4,graph_0);
+		graph_5=g_load_id (STACK_ELEMENT_SIZE,graph_0);
 	else {
 		graph_5=s_pop_a();
 		--a_offset;
 	}
 
-	graph_0=g_load_id (8,graph_0);
+	graph_0=g_load_id (2*STACK_ELEMENT_SIZE,graph_0);
 
 	a_n=1;	
 
@@ -3035,7 +3158,7 @@ void code_fillC (int value,int a_offset)
 		graph_1->inode_arity=1;
 		
 		graph_1->instruction_parameters[0].l=static_characters_label;
-		graph_1->instruction_parameters[1].i=(value<<3)+NODE_POINTER_OFFSET;
+		graph_1->instruction_parameters[1].i=(value<<(1+STACK_ELEMENT_LOG_SIZE))+NODE_POINTER_OFFSET;
 		
 		return;
 	}
@@ -3153,14 +3276,23 @@ void code_fillR_b (int b_offset,int a_offset)
 
 	graph_4=real_descriptor_graph();	
 	graph_1=s_get_b (b_offset);
+#ifndef G_A64
 	graph_2=s_get_b (b_offset+1);
+#endif
 	
 	graph_5=s_get_a (a_offset);
 	
+#ifdef M68000
 	if (!mc68881_flag)
 		graph_6=g_fill_4 (graph_5,graph_4,graph_1,graph_2);
-	else {
+	else
+#endif
+	{
+#ifdef G_A64
+		graph_3=g_fp_arg (graph_1);
+#else
 		graph_3=g_fjoin (graph_1,graph_2);
+#endif
 		graph_6=g_fill_r (graph_5,graph_4,graph_3);
 	}
 	
@@ -3233,7 +3365,7 @@ void code_fillcaf (char *label_name,int a_stack_size,int b_stack_size)
 		caf_listp_label=enter_label ("caf_listp",DATA_LABEL | IMPORT_LABEL);
 		
 		graph_5=g_lea (caf_listp_label);
-		graph_6=g_sub (g_load_i (4),g_load_id (0,graph_5));
+		graph_6=g_sub (g_load_i (STACK_ELEMENT_SIZE),g_load_id (0,graph_5));
 		graph_7=g_fill_2 (graph_6,graph_2);
 		graph_8=g_fill_2 (graph_5,g_keep (graph_7,graph_2));
 		
@@ -3243,6 +3375,11 @@ void code_fillcaf (char *label_name,int a_stack_size,int b_stack_size)
 	} else {
 		graph_3=s_get_b (0);
 
+#ifdef G_A64
+		if (b_stack_size>0 && graph_3->instruction_code==GFROMF)
+			graph_4=g_fromf (g_fkeep (graph_2,g_fp_arg (graph_3)));
+		else
+#else
 		if (b_stack_size>=2 && graph_3->instruction_code==GFHIGH){
 			graph_4=s_get_b (1);
 			if (graph_4->instruction_code==GFLOW &&
@@ -3260,6 +3397,7 @@ void code_fillcaf (char *label_name,int a_stack_size,int b_stack_size)
 				return;
 			}
 		}
+#endif
 
 		graph_4=g_keep (graph_2,graph_3);
 		s_put_b (0,graph_4);
@@ -3347,9 +3485,22 @@ void code_gtI (VOID)
 
 void code_gtR (VOID)
 {
-	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7;
+#ifdef G_A64
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
 	
-#ifdef M68000
+	graph_1=s_pop_b();
+	graph_2=g_fp_arg (graph_1);
+
+	graph_3=s_pop_b();
+	graph_4=g_fp_arg (graph_3);
+
+	graph_5=g_fcmp_gt (graph_4,graph_2);
+
+	s_push_b (graph_5);
+#else
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7;
+
+# ifdef M68000
 	if (!mc68881_flag){
 		if (gt_real==NULL)
 			gt_real=enter_label ("gt_real",IMPORT_LABEL);
@@ -3357,7 +3508,7 @@ void code_gtR (VOID)
 		code_dyadic_sane_operator (gt_real);
 		init_b_stack (1,i_vector);
 	} else {
-#endif
+# endif
 		graph_1=s_pop_b();
 		graph_2=s_pop_b();
 		graph_3=g_fjoin (graph_1,graph_2);
@@ -3369,8 +3520,9 @@ void code_gtR (VOID)
 		graph_7=g_fcmp_gt (graph_6,graph_3);
 	
 		s_push_b (graph_7);
-#ifdef M68000
+# ifdef M68000
 	}
+# endif
 #endif
 }
 
@@ -3412,7 +3564,7 @@ void code_incI (VOID)
 	s_put_b (0,graph_3);
 }
 
-void code_instruction (int i)
+void code_instruction (CleanInt i)
 {
 	i_word_i (i);
 }
@@ -3480,9 +3632,15 @@ void code_ItoR (VOID)
 		graph_1=s_pop_b();
 		graph_2=g_fitor (graph_1);
 
+#ifdef G_A64
+		graph_3=g_fromf (graph_2);
+#else
 		g_fhighlow (graph_3,graph_4,graph_2);
+#endif
 
+#ifndef G_A64
 		s_push_b (graph_4);
+#endif
 		s_push_b (graph_3);
 #ifdef M68000
 	}
@@ -3774,13 +3932,13 @@ void code_jmp_eval_upd (VOID)
 #	else
 		i_move_r_id (REGISTER_D0,0,REGISTER_A0);
 #		ifdef I486
-			i_move_id_id (4,REGISTER_A1,4,REGISTER_A0);
-			i_move_id_id (8,REGISTER_A1,8,REGISTER_A0);
+			i_move_id_id (STACK_ELEMENT_SIZE,REGISTER_A1,STACK_ELEMENT_SIZE,REGISTER_A0);
+			i_move_id_id (2*STACK_ELEMENT_SIZE,REGISTER_A1,2*STACK_ELEMENT_SIZE,REGISTER_A0);
 #		else
-			i_move_id_r (4,REGISTER_A1,REGISTER_D1);
-			i_move_id_r (8,REGISTER_A1,REGISTER_D2);
-			i_move_r_id (REGISTER_D1,4,REGISTER_A0);
-			i_move_r_id (REGISTER_D2,8,REGISTER_A0);
+			i_move_id_r (STACK_ELEMENT_SIZE,REGISTER_A1,REGISTER_D1);
+			i_move_id_r (2*STACK_ELEMENT_SIZE,REGISTER_A1,REGISTER_D2);
+			i_move_r_id (REGISTER_D1,STACK_ELEMENT_SIZE,REGISTER_A0);
+			i_move_r_id (REGISTER_D2,2*STACK_ELEMENT_SIZE,REGISTER_A0);
 #		endif
 #	endif
 
@@ -4139,7 +4297,7 @@ void code_lnR (VOID)
 	if (ln_real==NULL)
 		ln_real=enter_label ("ln_real",IMPORT_LABEL);
 	code_monadic_sane_operator (ln_real);
-	init_b_stack (2,r_vector);
+	init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 }
 
 void code_log10R (VOID)
@@ -4153,7 +4311,7 @@ void code_log10R (VOID)
 	if (log10_real==NULL)
 		log10_real=enter_label ("log10_real",IMPORT_LABEL);
 	code_monadic_sane_operator (log10_real);
-	init_b_stack (2,r_vector);
+	init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 }
 
 void code_ltC (VOID)
@@ -4180,16 +4338,29 @@ void code_ltI (VOID)
 
 void code_ltR (VOID)
 {
+#ifdef G_A64
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
+	
+	graph_1=s_pop_b();
+	graph_2=g_fp_arg (graph_1);
+
+	graph_3=s_pop_b();
+	graph_4=g_fp_arg (graph_3);
+
+	graph_5=g_fcmp_lt (graph_4,graph_2);
+
+	s_push_b (graph_5);
+#else
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7;
 	
-#ifdef M68000
+# ifdef M68000
 	if (!mc68881_flag){
 		if (lt_real==NULL)
 			lt_real=enter_label ("lt_real",IMPORT_LABEL);
 		code_dyadic_sane_operator (lt_real);
 		init_b_stack (1,i_vector);
 	} else {
-#endif
+# endif
 		graph_1=s_pop_b();
 		graph_2=s_pop_b();
 		graph_3=g_fjoin (graph_1,graph_2);
@@ -4201,8 +4372,9 @@ void code_ltR (VOID)
 		graph_7=g_fcmp_lt (graph_6,graph_3);
 	
 		s_push_b (graph_7);
-#ifdef M68000
+# ifdef M68000
 	}
+# endif
 #endif
 }
 
@@ -4391,16 +4563,31 @@ void code_mulIo (VOID)
 
 void code_mulR (VOID)
 {
+#ifdef G_A64
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
+	
+	graph_1=s_pop_b();
+	graph_2=g_fp_arg (graph_1);
+
+	graph_3=s_get_b (0);
+	graph_4=g_fp_arg (graph_3);
+
+	graph_5=g_fmul (graph_4,graph_2);
+
+	graph_6=g_fromf (graph_5);
+
+	s_put_b (0,graph_6);
+#else
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7,graph_8,graph_9;
 	
-#ifdef M68000
+# ifdef M68000
 	if (!mc68881_flag){
 		if (mul_real==NULL)
 			mul_real=enter_label ("mul_real",IMPORT_LABEL);
 		code_dyadic_sane_operator (mul_real);
 		init_b_stack (2,r_vector);
 	} else {
-#endif
+# endif
 		graph_1=s_pop_b();
 		graph_2=s_pop_b();
 		graph_3=g_fjoin (graph_1,graph_2);
@@ -4415,8 +4602,9 @@ void code_mulR (VOID)
 
 		s_put_b (0,graph_8);
 		s_put_b (1,graph_9);
-#ifdef M68000
+# ifdef M68000
 	}
+# endif
 #endif
 }
 
@@ -4517,7 +4705,7 @@ void code_negR (void)
 		if (neg_real==NULL)
 			neg_real=enter_label ("neg_real",IMPORT_LABEL);
 		code_monadic_sane_operator (neg_real);
-		init_b_stack (2,r_vector);
+		init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 	} else
 #endif
 	code_monadic_real_operator (GFNEG);
@@ -4595,7 +4783,7 @@ void code_powR (VOID)
 		pow_real=enter_label ("pow_real",IMPORT_LABEL);
 
 	code_dyadic_sane_operator (pow_real);
-	init_b_stack (2,r_vector);
+	init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 }
 
 void code_print (char *string,int length)
@@ -4658,6 +4846,12 @@ void code_print_real (VOID)
 		print_real_label=enter_label ("print_real",IMPORT_LABEL);
 
 	graph_1=s_pop_b();
+#ifdef G_A64
+	s_push_b (NULL);
+	s_push_b (graph_1);
+
+	insert_basic_block (JSR_BLOCK,0,1+1,r_vector,print_real_label);
+#else
 	graph_2=s_pop_b();
 	
 	s_push_b (NULL);
@@ -4665,6 +4859,7 @@ void code_print_real (VOID)
 	s_push_b (graph_1);
 
 	insert_basic_block (JSR_BLOCK,0,2+1,r_vector,print_real_label);
+#endif
 }
 
 void code_print_sc (char *string,int length)
@@ -4782,17 +4977,17 @@ void code_pushcaf (char *label_name,int a_stack_size,int b_stack_size)
 	{
 		int offset;
 		
-		offset=n_arguments<<2;
+		offset=n_arguments<<STACK_ELEMENT_LOG_SIZE;
 
 		while (b_stack_size>0){
 			s_push_b (g_load_id (offset,graph_1));
-			offset-=4;
+			offset-=STACK_ELEMENT_SIZE;
 			--b_stack_size;
 		}
 	
 		while (a_stack_size>0){
 			s_push_a (g_load_id (offset,graph_1));
-			offset-=4;
+			offset-=STACK_ELEMENT_SIZE;
 			--a_stack_size;
 		}
 	}
@@ -4803,7 +4998,7 @@ void code_pushA_a (int a_offset)
 	INSTRUCTION_GRAPH graph_1,graph_2;
 	
 	graph_1=s_get_a (a_offset);
-	graph_2=g_load_id (4,graph_1);
+	graph_2=g_load_id (STACK_ELEMENT_SIZE,graph_1);
 	
 	s_push_a (graph_2);
 }
@@ -4897,7 +5092,7 @@ void code_pushF_a (int a_offset)
 	s_push_b (graph_4);
 }
 
-void code_pushI (LONG i)
+void code_pushI (CleanInt i)
 {
 	INSTRUCTION_GRAPH graph_1;
 	
@@ -4972,10 +5167,16 @@ void code_pushR (double v)
 	} else {
 		graph_1=g_fload_i (v);
 
+#ifdef G_A64
+		graph_2=g_fromf (graph_1);
+#else
 		g_fhighlow (graph_2,graph_3,graph_1);
+#endif
 	}
 	
+#ifndef G_A64
 	s_push_b (graph_3);
+#endif
 	s_push_b (graph_2);
 }
 
@@ -4995,11 +5196,16 @@ void code_pushR_a (int a_offset)
 		graph_4=g_load_id (ARGUMENTS_OFFSET-NODE_POINTER_OFFSET+4,graph_1);
 	} else {
 		graph_2=g_fload_id (ARGUMENTS_OFFSET-NODE_POINTER_OFFSET,graph_1);
-
+#ifdef G_A64
+		graph_3=g_fromf (graph_2);
+#else
 		g_fhighlow (graph_3,graph_4,graph_2);
+#endif
 	}
 	
+#ifndef G_A64
 	s_push_b (graph_4);
+#endif
 	s_push_b (graph_3);
 }
 
@@ -5084,12 +5290,12 @@ void code_push_arg (int a_offset,int arity,int argument_number)
 
 	graph_1=s_get_a (a_offset);
 	if (argument_number<2 || (argument_number==2 && arity==2))
-		graph_2=g_load_id (argument_number<<2,graph_1);
+		graph_2=g_load_id (argument_number<<STACK_ELEMENT_LOG_SIZE,graph_1);
 	else {
 		INSTRUCTION_GRAPH graph_3;
 		
-		graph_3=g_load_id (8,graph_1);
-		graph_2=g_load_id ((argument_number-2)<<2,graph_3);
+		graph_3=g_load_id (2*STACK_ELEMENT_SIZE,graph_1);
+		graph_2=g_load_id ((argument_number-2)<<STACK_ELEMENT_LOG_SIZE,graph_3);
 	}
 	
 	s_push_a (graph_2);
@@ -5136,12 +5342,12 @@ void code_push_args (int a_offset,int arity,int n_arguments)
 
 	if (n_arguments!=1)
 		if (n_arguments==2 && arity==2){
-			graph_3=g_load_id (8-NODE_POINTER_OFFSET,graph_1);
+			graph_3=g_load_id (2*STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1);
 			s_push_a (graph_3);
 		} else {
 			INSTRUCTION_GRAPH graph_4;
 			
-			graph_3=g_load_id (8-NODE_POINTER_OFFSET,graph_1);
+			graph_3=g_load_id (2*STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1);
 			--n_arguments;
 			
 			if (n_arguments==1){
@@ -5156,7 +5362,7 @@ void code_push_args (int a_offset,int arity,int n_arguments)
 					
 						--n_arguments;
 	
-						graph_5=g_load_id ((n_arguments<<2)-NODE_POINTER_OFFSET,graph_3);
+						graph_5=g_load_id ((n_arguments<<STACK_ELEMENT_LOG_SIZE)-NODE_POINTER_OFFSET,graph_3);
 	
 						s_push_a (graph_5);
 					}
@@ -5185,9 +5391,9 @@ void code_push_arraysize (char element_descriptor[],int a_size,int b_size)
 
 	graph_1=s_pop_a();
 #ifdef ARRAY_SIZE_BEFORE_DESCRIPTOR
-	graph_2=g_load_id (-4,graph_1);
+	graph_2=g_load_id (-STACK_ELEMENT_SIZE,graph_1);
 #else
-	graph_2=g_load_id (4,graph_1);
+	graph_2=g_load_id (STACK_ELEMENT_SIZE,graph_1);
 #endif
 	s_push_b (graph_2);
 }
@@ -5231,7 +5437,7 @@ static void push_record_arguments (INSTRUCTION_GRAPH graph_1,int a_size,int b_si
 			return;
 		case 2:
 			graph_2=g_load_id (ARGUMENTS_OFFSET-NODE_POINTER_OFFSET,graph_1);
-			graph_3=g_load_id (8-NODE_POINTER_OFFSET,graph_1);
+			graph_3=g_load_id (2*STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1);
 			switch (b_size){
 				case 0:
 					s_push_a (graph_3);
@@ -5248,7 +5454,7 @@ static void push_record_arguments (INSTRUCTION_GRAPH graph_1,int a_size,int b_si
 			return;
 		default:
 			graph_2=g_load_id (ARGUMENTS_OFFSET-NODE_POINTER_OFFSET,graph_1);
-			graph_3=g_load_id (8-NODE_POINTER_OFFSET,graph_1);
+			graph_3=g_load_id (2*STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1);
 
 #ifdef M68000
 			if (a_size+b_size-1>=8){
@@ -5257,13 +5463,13 @@ static void push_record_arguments (INSTRUCTION_GRAPH graph_1,int a_size,int b_si
 	
 				while (b_size>a_size && b_size>1){
 					--b_size;			
-					graph_5=g_load_id (((b_size-1)<<2)-NODE_POINTER_OFFSET,graph_3);
+					graph_5=g_load_id (((b_size-1)<<STACK_ELEMENT_LOG_SIZE)-NODE_POINTER_OFFSET,graph_3);
 					s_push_b (graph_5);
 				}
 	
 				while (a_size>1){
 					--a_size;
-					graph_5=g_load_id (((a_size-1)<<2)-NODE_POINTER_OFFSET,graph_3);
+					graph_5=g_load_id (((a_size-1)<<STACK_ELEMENT_LOG_SIZE)-NODE_POINTER_OFFSET,graph_3);
 					s_push_a (graph_5);
 				}				
 #ifdef M68000
@@ -5322,11 +5528,11 @@ void code_push_r_args_a (int a_offset,int a_size,int b_size,int argument_number,
 	for (; n_arguments>0; --n_arguments){
 		--argument_number;
 		if (argument_number<2 || (argument_number==2 && a_size+b_size==2))
-			graph_2=g_load_id (argument_number<<2,graph_1);
+			graph_2=g_load_id (argument_number<<STACK_ELEMENT_LOG_SIZE,graph_1);
 		else {
 			if (graph_3==NULL)
-				graph_3=g_load_id (8,graph_1);
-			graph_2=g_load_id ((argument_number-2)<<2,graph_3);
+				graph_3=g_load_id (2*STACK_ELEMENT_SIZE,graph_1);
+			graph_2=g_load_id ((argument_number-2)<<STACK_ELEMENT_LOG_SIZE,graph_3);
 		}
 		s_push_a (graph_2); 
 	}	
@@ -5343,11 +5549,11 @@ void code_push_r_args_b (int a_offset,int a_size,int b_size,int argument_number,
 	for (; n_arguments>0; --n_arguments){
 		--argument_number;
 		if (argument_number<2 || (argument_number==2 && a_size+b_size==2))
-			graph_2=g_load_id (argument_number<<2,graph_1);
+			graph_2=g_load_id (argument_number<<STACK_ELEMENT_LOG_SIZE,graph_1);
 		else {
 			if (graph_3==NULL)
-				graph_3=g_load_id (8,graph_1);
-			graph_2=g_load_id ((argument_number-2)<<2,graph_3);
+				graph_3=g_load_id (2*STACK_ELEMENT_SIZE,graph_1);
+			graph_2=g_load_id ((argument_number-2)<<STACK_ELEMENT_LOG_SIZE,graph_3);
 		}
 		s_push_b (graph_2);
 	}
@@ -5401,7 +5607,7 @@ void code_push_node (char *label_name,int n_arguments)
 #ifdef I486
 			argument_n=n_arguments;
 			while (argument_n!=0){
-				graph_5=g_load_id ((argument_n<<2)-NODE_POINTER_OFFSET,graph_1);
+				graph_5=g_load_id ((argument_n<<STACK_ELEMENT_LOG_SIZE)-NODE_POINTER_OFFSET,graph_1);
 				--argument_n;
 				s_push_a (graph_5);
 			}
@@ -5416,7 +5622,7 @@ void code_push_node (char *label_name,int n_arguments)
 			}
 #endif
 		} else {
-			graph_4=g_load_id (4-NODE_POINTER_OFFSET,graph_1);
+			graph_4=g_load_id (STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1);
 			s_push_a (graph_4);
 		}
 	}
@@ -5477,7 +5683,7 @@ void code_push_node_u (char *label_name,int a_size,int b_size)
 #ifdef I486
 			argument_n=a_size+b_size;
 			while (argument_n!=0){
-				graph_5=g_load_id ((argument_n<<2)-NODE_POINTER_OFFSET,graph_1);
+				graph_5=g_load_id ((argument_n<<(STACK_ELEMENT_LOG_SIZE))-NODE_POINTER_OFFSET,graph_1);
 				--argument_n;
 				if (argument_n<a_size)
 					s_push_a (graph_5);
@@ -5485,7 +5691,7 @@ void code_push_node_u (char *label_name,int a_size,int b_size)
 					s_push_b (graph_5);
 			}
 #else
-			graph_4=g_movem (4-NODE_POINTER_OFFSET,graph_1,a_size+b_size);
+			graph_4=g_movem (STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1,a_size+b_size);
 		
 			argument_n=a_size+b_size;
 			while (argument_n!=0){
@@ -5498,7 +5704,7 @@ void code_push_node_u (char *label_name,int a_size,int b_size)
 			}
 #endif
 		} else {
-			graph_4=g_load_id (4-NODE_POINTER_OFFSET,graph_1);
+			graph_4=g_load_id (STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1);
 			if (a_size>0)
 				s_push_a (graph_4);
 			else
@@ -5741,18 +5947,18 @@ static INSTRUCTION_GRAPH g_lsl_3_add_12 (INSTRUCTION_GRAPH graph_1)
 		graph_1_arg_1=graph_1->instruction_parameters[0].p;
 		graph_1_arg_2=graph_1->instruction_parameters[1].p;
 		if (graph_1_arg_1->instruction_code==GLOAD_I)
-			return g_add (g_load_i (12+(graph_1_arg_1->instruction_parameters[0].i<<3)),g_lsl_3 (graph_1_arg_2));
+			return g_add (g_load_i (REAL_ARRAY_ELEMENTS_OFFSET+(graph_1_arg_1->instruction_parameters[0].i<<3)),g_lsl_3 (graph_1_arg_2));
 		if (graph_1_arg_2->instruction_code==GLOAD_I)
-			return g_add (g_load_i (12+(graph_1_arg_2->instruction_parameters[0].i<<3)),g_lsl_3 (graph_1_arg_1));
+			return g_add (g_load_i (REAL_ARRAY_ELEMENTS_OFFSET+(graph_1_arg_2->instruction_parameters[0].i<<3)),g_lsl_3 (graph_1_arg_1));
 	} else if (graph_1->instruction_code==GSUB){
 		INSTRUCTION_GRAPH graph_1_arg_1,graph_1_arg_2;
 		
 		graph_1_arg_1=graph_1->instruction_parameters[0].p;
 		graph_1_arg_2=graph_1->instruction_parameters[1].p;
 		if (graph_1_arg_1->instruction_code==GLOAD_I)
-			return g_add (g_load_i (12-(graph_1_arg_1->instruction_parameters[0].i<<3)),g_lsl_3 (graph_1_arg_2));
+			return g_add (g_load_i (REAL_ARRAY_ELEMENTS_OFFSET-(graph_1_arg_1->instruction_parameters[0].i<<3)),g_lsl_3 (graph_1_arg_2));
 		if (graph_1_arg_2->instruction_code==GLOAD_I)
-			return g_sub (g_lsl_3 (graph_1_arg_1),g_load_i (12+(graph_1_arg_2->instruction_parameters[0].i<<3)));
+			return g_sub (g_lsl_3 (graph_1_arg_1),g_load_i (REAL_ARRAY_ELEMENTS_OFFSET+(graph_1_arg_2->instruction_parameters[0].i<<3)));
 	}
 	graph_2=g_add (g_load_i (REAL_ARRAY_ELEMENTS_OFFSET),g_lsl_3 (graph_1));
 #endif
@@ -5816,10 +6022,10 @@ static void code_replaceI (VOID)
 	graph_3=s_get_b (0);
 
 	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
-		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>STACK_ELEMENT_LOG_SIZE))
 	{
 		int offset;
-		offset=ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<2);
+		offset=ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<STACK_ELEMENT_LOG_SIZE);
 
 		graph_5=g_load_x (graph_1,offset,0,NULL);
 		graph_4=g_store_x (graph_3,graph_1,offset,0,NULL);
@@ -5838,9 +6044,9 @@ static void code_replaceI (VOID)
 		{
 			int offset;
 			
-			graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,2,graph_2,&offset);
-			graph_5=g_load_x (graph_1,offset,2,graph_2);
-			graph_4=g_store_x (graph_3,graph_1,offset,2,graph_2);
+			graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,STACK_ELEMENT_LOG_SIZE,graph_2,&offset);
+			graph_5=g_load_x (graph_1,offset,STACK_ELEMENT_LOG_SIZE,graph_2);
+			graph_4=g_store_x (graph_3,graph_1,offset,STACK_ELEMENT_LOG_SIZE,graph_2);
 		}
 #else
 		graph_2=g_lsl_2_add_12 (graph_2);
@@ -5926,11 +6132,11 @@ static void code_lazy_replace (VOID)
 	graph_3=s_pop_b();
 
 	if (!check_index_flag && graph_3->instruction_code==GLOAD_I &&
-		LESS_UNSIGNED (graph_3->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
+		LESS_UNSIGNED (graph_3->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>STACK_ELEMENT_LOG_SIZE))
 	{
 		int offset;
 		
-		offset=ARRAY_ELEMENTS_OFFSET+(graph_3->instruction_parameters[0].i<<2);
+		offset=ARRAY_ELEMENTS_OFFSET+(graph_3->instruction_parameters[0].i<<STACK_ELEMENT_LOG_SIZE);
 		graph_5=g_load_x (graph_1,offset,0,NULL);
 		graph_4=g_store_x (graph_2,graph_1,offset,0,NULL);
 	} else {
@@ -5948,9 +6154,9 @@ static void code_lazy_replace (VOID)
 		{
 			int offset;
 
-			graph_3=optimize_array_index (ARRAY_ELEMENTS_OFFSET,2,graph_3,&offset);
-			graph_5=g_load_x (graph_1,offset,2,graph_3);
-			graph_4=g_store_x (graph_2,graph_1,offset,2,graph_3);
+			graph_3=optimize_array_index (ARRAY_ELEMENTS_OFFSET,STACK_ELEMENT_LOG_SIZE,graph_3,&offset);
+			graph_5=g_load_x (graph_1,offset,STACK_ELEMENT_LOG_SIZE,graph_3);
+			graph_4=g_store_x (graph_2,graph_1,offset,STACK_ELEMENT_LOG_SIZE,graph_3);
 		}
 #else
 		graph_3=g_lsl_2_add_12 (graph_3);
@@ -5971,7 +6177,9 @@ static void code_replaceR (VOID)
 	graph_2=s_pop_b();	
 
 	graph_3=s_pop_b();
+#ifndef G_A64
 	graph_4=s_pop_b();
+#endif
 
 	if (check_index_flag)
 		graph_2=g_bounds (graph_1,graph_2);
@@ -5995,7 +6203,7 @@ static void code_replaceR (VOID)
 				graph_9=g_load_x (graph_1,REAL_ARRAY_ELEMENTS_OFFSET,0,graph_6);
 				graph_10=g_load_x (graph_1,REAL_ARRAY_ELEMENTS_OFFSET+4,0,graph_6);
 				graph_7=g_store_x (graph_3,graph_1,REAL_ARRAY_ELEMENTS_OFFSET,0,graph_6);
-				graph_8=g_store_x (graph_4,graph_7,16,0,graph_6);
+				graph_8=g_store_x (graph_4,graph_7,REAL_ARRAY_ELEMENTS_OFFSET+4,0,graph_6);
 			} else {
 				graph_9=g_load_x (graph_1,REAL_ARRAY_ELEMENTS_OFFSET,3,graph_2);
 				graph_10=g_load_x (graph_1,REAL_ARRAY_ELEMENTS_OFFSET+4,3,graph_2);
@@ -6006,8 +6214,11 @@ static void code_replaceR (VOID)
 	} else
 #endif
 	{
+#ifdef G_A64
+		graph_7=g_fp_arg (graph_3);
+#else
 		graph_7=g_fjoin (graph_3,graph_4);
-
+#endif
 		if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
 			LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-REAL_ARRAY_ELEMENTS_OFFSET)>>3))
 		{
@@ -6039,12 +6250,18 @@ static void code_replaceR (VOID)
 		graph_8->inode_arity |= LOAD_STORE_ALIGNED_REAL;
 #endif
 
+#ifdef G_A64
+		graph_9=g_fromf (graph_4);
+#else
 		g_fhighlow (graph_9,graph_10,graph_4);
+#endif
 	}
 
 	s_put_a (0,graph_8);
 
+#ifndef G_A64
 	s_push_b (graph_10);
+#endif
 	s_push_b (graph_9);
 }
 
@@ -6056,19 +6273,19 @@ static void code_r_replace (int a_size,int b_size)
 	graph_1=s_get_a (0);
 	graph_2=s_pop_b();
 	
-	element_size=(a_size+b_size)<<2;
+	element_size=(a_size+b_size)<<STACK_ELEMENT_LOG_SIZE;
 	
 	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
-		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-12-(element_size-4))/element_size))
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET-(element_size-STACK_ELEMENT_SIZE))/element_size))
 	{
-		offset=12+graph_2->instruction_parameters[0].i*element_size;
+		offset=ARRAY_ELEMENTS_OFFSET+graph_2->instruction_parameters[0].i*element_size;
 		graph_3=NULL;
 	} else {
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
 
-		offset=12;
-		graph_3=multiply_by_constant ((a_size+b_size)<<2,graph_2);
+		offset=3<<STACK_ELEMENT_LOG_SIZE;
+		graph_3=multiply_by_constant ((a_size+b_size)<<STACK_ELEMENT_LOG_SIZE,graph_2);
 
 #if defined (sparc) || defined (G_POWER)
 		graph_3=g_add (graph_1,graph_3);
@@ -6079,8 +6296,8 @@ static void code_r_replace (int a_size,int b_size)
 		INSTRUCTION_GRAPH graph_4,graph_5;
 		
 		graph_4=s_get_a (i+1);
-		graph_5=g_load_x (graph_1,offset+(i<<2),0,graph_3);
-		graph_1=g_store_x (graph_4,graph_1,offset+(i<<2),0,graph_3);
+		graph_5=g_load_x (graph_1,offset+(i<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
+		graph_1=g_store_x (graph_4,graph_1,offset+(i<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
 		
 		s_put_a (i,graph_5);
 	}
@@ -6090,6 +6307,7 @@ static void code_r_replace (int a_size,int b_size)
 		
 		graph_4=s_get_b (i);
 
+#ifndef G_A64
 		if (graph_4->instruction_code==GFHIGH && i+1<b_size){
 			INSTRUCTION_GRAPH graph_5;
 			
@@ -6098,8 +6316,8 @@ static void code_r_replace (int a_size,int b_size)
 				INSTRUCTION_GRAPH graph_6,graph_7,graph_8,graph_9;
 				
 				graph_6=g_fjoin (graph_4,graph_5);
-				graph_7=g_fload_x (graph_1,offset+((a_size+i)<<2),0,graph_3);
-				graph_1=g_fstore_x (graph_6,graph_1,offset+((a_size+i)<<2),0,graph_3);
+				graph_7=g_fload_x (graph_1,offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
+				graph_1=g_fstore_x (graph_6,graph_1,offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
 
 				g_fhighlow (graph_8,graph_9,graph_7);
 	
@@ -6110,9 +6328,10 @@ static void code_r_replace (int a_size,int b_size)
 				continue;
 			}
 		}
+#endif
 
-		graph_5=g_load_x (graph_1,offset+((a_size+i)<<2),0,graph_3);
-		graph_1=g_store_x (graph_4,graph_1,offset+((a_size+i)<<2),0,graph_3);
+		graph_5=g_load_x (graph_1,offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
+		graph_1=g_store_x (graph_4,graph_1,offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
 		
 		s_put_b (i,graph_5);
 	}
@@ -6142,9 +6361,9 @@ void code_replace (char element_descriptor[],int a_size,int b_size)
 				element_descriptor[4]=='\0')
 			{
 #ifdef ARRAY_SIZE_BEFORE_DESCRIPTOR
-				code_replaceBC (4,0);
+				code_replaceBC (STACK_ELEMENT_SIZE,0);
 #else
-				code_replaceBC (8,0);
+				code_replaceBC (2*STACK_ELEMENT_SIZE,0);
 #endif
 				return;	
 			}
@@ -6209,12 +6428,12 @@ void code_repl_arg (int arity,int argument_n)
 	graph_1=s_pop_a();
 	
 	if (argument_n<2 || (argument_n==2 && arity==2))
-		graph_2=g_load_id (argument_n<<2,graph_1);
+		graph_2=g_load_id (argument_n<<STACK_ELEMENT_LOG_SIZE,graph_1);
 	else {
 		INSTRUCTION_GRAPH graph_3;
 		
-		graph_3=g_load_id (8,graph_1);
-		graph_2=g_load_id ((argument_n-2)<<2,graph_3);
+		graph_3=g_load_id (2<<STACK_ELEMENT_LOG_SIZE,graph_1);
+		graph_2=g_load_id ((argument_n-2)<<STACK_ELEMENT_LOG_SIZE,graph_3);
 	}
 	
 	s_push_a (graph_2);
@@ -6232,12 +6451,12 @@ void code_repl_args (int arity,int n_arguments)
 
 	if (n_arguments!=1)
 		if (n_arguments==2 && arity==2){
-			graph_3=g_load_id (8-NODE_POINTER_OFFSET,graph_1);
+			graph_3=g_load_id (2*STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1);
 			s_push_a (graph_3);
 		} else {
 			INSTRUCTION_GRAPH graph_4;
 			
-			graph_3=g_load_id (8-NODE_POINTER_OFFSET,graph_1);
+			graph_3=g_load_id (2*STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,graph_1);
 			--n_arguments;
 			
 			if (n_arguments==1){
@@ -6252,7 +6471,7 @@ void code_repl_args (int arity,int n_arguments)
 					
 						--n_arguments;
 	
-						graph_5=g_load_id ((n_arguments<<2)-NODE_POINTER_OFFSET,graph_3);
+						graph_5=g_load_id ((n_arguments<<STACK_ELEMENT_LOG_SIZE)-NODE_POINTER_OFFSET,graph_3);
 						s_push_a (graph_5);
 					}
 #ifndef I486
@@ -6306,11 +6525,11 @@ void code_repl_r_args_a (int a_size,int b_size,int argument_number,int n_argumen
 	for (; n_arguments>0; --n_arguments){
 		--argument_number;
 		if (argument_number<2 || (argument_number==2 && a_size+b_size==2))
-			graph_2=g_load_id (argument_number<<2,graph_1);
+			graph_2=g_load_id (argument_number<<STACK_ELEMENT_LOG_SIZE,graph_1);
 		else {
 			if (graph_3==NULL)
-				graph_3=g_load_id (8,graph_1);
-			graph_2=g_load_id ((argument_number-2)<<2,graph_3);
+				graph_3=g_load_id (2<<STACK_ELEMENT_LOG_SIZE,graph_1);
+			graph_2=g_load_id ((argument_number-2)<<STACK_ELEMENT_LOG_SIZE,graph_3);
 		}
 		s_push_a (graph_2); 
 	}	
@@ -6499,9 +6718,13 @@ void code_RtoI (VOID)
 		r_to_i_buffer_label=enter_label ("r_to_i_buffer",IMPORT_LABEL);
 # endif
 	graph_1=s_pop_b();
+
+# ifdef G_A64
+	graph_3=g_fp_arg (graph_1);
+# else
 	graph_2=s_pop_b();
 	graph_3=g_fjoin (graph_1,graph_2);
-	
+# endif
 	graph_4=g_frtoi (graph_3);
 	
 	s_push_b (graph_4);
@@ -6536,9 +6759,9 @@ static void code_lazy_select (VOID)
 	graph_2=s_pop_b();
 
 	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
-		(unsigned long) graph_2->instruction_parameters[0].i < (unsigned long) ((MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
+		(unsigned long) graph_2->instruction_parameters[0].i < (unsigned long) ((MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>STACK_ELEMENT_LOG_SIZE))
 	{
-		graph_3=g_load_x (graph_1,ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<2),0,NULL);
+		graph_3=g_load_x (graph_1,ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<STACK_ELEMENT_LOG_SIZE),0,NULL);
 	} else {
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
@@ -6553,8 +6776,8 @@ static void code_lazy_select (VOID)
 		{
 			int offset;
 
-			graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,2,graph_2,&offset);
-			graph_3=g_load_x (graph_1,offset,2,graph_2);
+			graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,STACK_ELEMENT_LOG_SIZE,graph_2,&offset);
+			graph_3=g_load_x (graph_1,offset,STACK_ELEMENT_LOG_SIZE,graph_2);
 		}
 #else
 		graph_2=g_lsl_2_add_12 (graph_2);
@@ -6619,9 +6842,9 @@ static void code_selectI (VOID)
 #endif
 
 	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
-		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>STACK_ELEMENT_LOG_SIZE))
 	{
-		graph_3=g_load_x (graph_1,ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<2),0,NULL);
+		graph_3=g_load_x (graph_1,ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<STACK_ELEMENT_LOG_SIZE),0,NULL);
 	} else {
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
@@ -6636,8 +6859,8 @@ static void code_selectI (VOID)
 		{
 			int offset;
 
-			graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,2,graph_2,&offset);
-			graph_3=g_load_x (graph_1,offset,2,graph_2);
+			graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,STACK_ELEMENT_LOG_SIZE,graph_2,&offset);
+			graph_3=g_load_x (graph_1,offset,STACK_ELEMENT_LOG_SIZE,graph_2);
 		}
 #else
 		graph_2=g_lsl_2_add_12 (graph_2);
@@ -6707,10 +6930,16 @@ static void code_selectR (VOID)
 		graph_4->inode_arity |= LOAD_STORE_ALIGNED_REAL;
 #endif
 
+#ifdef G_A64
+		graph_5=g_fromf (graph_4);
+#else
 		g_fhighlow (graph_5,graph_6,graph_4);
+#endif
 	}
 	
+#ifndef G_A64
 	s_push_b (graph_6);
+#endif
 	s_push_b (graph_5);
 }
 
@@ -6723,19 +6952,19 @@ static void code_r_select (int a_size,int b_size)
 	graph_1=s_pop_a();
 	graph_2=s_pop_b();
 	
-	element_size=(a_size+b_size)<<2;
+	element_size=(a_size+b_size)<<STACK_ELEMENT_LOG_SIZE;
 	
 	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
-		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-12-(element_size-4))/element_size))
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET-(element_size-STACK_ELEMENT_SIZE))/element_size))
 	{
-		offset=12+graph_2->instruction_parameters[0].i*element_size;
+		offset=ARRAY_ELEMENTS_OFFSET+graph_2->instruction_parameters[0].i*element_size;
 		graph_3=NULL;
 	} else {
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
 
-		offset=12;
-		graph_3=multiply_by_constant ((a_size+b_size)<<2,graph_2);
+		offset=ARRAY_ELEMENTS_OFFSET;
+		graph_3=multiply_by_constant ((a_size+b_size)<<STACK_ELEMENT_LOG_SIZE,graph_2);
 
 #if defined (sparc) || defined (G_POWER)
 		graph_3=g_add (graph_1,graph_3);
@@ -6745,14 +6974,14 @@ static void code_r_select (int a_size,int b_size)
 	for (i=a_size-1; i>=0; --i){
 		INSTRUCTION_GRAPH graph_4;
 		
-		graph_4=g_load_x (graph_1,offset+(i<<2),0,graph_3);
+		graph_4=g_load_x (graph_1,offset+(i<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
 		s_push_a (graph_4);
 	}
 
 	for (i=b_size-1; i>=0; --i){
 		INSTRUCTION_GRAPH graph_4;
 		
-		graph_4=g_load_x (graph_1,offset+((a_size+i)<<2),0,graph_3);
+		graph_4=g_load_x (graph_1,offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
 		s_push_b (graph_4);
 	}
 }
@@ -6780,9 +7009,9 @@ void code_select (char element_descriptor[],int a_size,int b_size)
 				element_descriptor[4]=='\0')
 			{
 #ifdef ARRAY_SIZE_BEFORE_DESCRIPTOR
-				code_selectBC (4,0);
+				code_selectBC (STACK_ELEMENT_SIZE,0);
 #else
-				code_selectBC (8,0);
+				code_selectBC (2*STACK_ELEMENT_SIZE,0);
 #endif
 				return;	
 			}
@@ -6956,7 +7185,7 @@ void code_sliceS (int source_offset,int destination_offset)
 
 void code_sinR (VOID)
 {
-#ifdef I486
+#if defined (I486) && !defined (G_AI64)
 	code_monadic_real_operator (GFSIN);
 #else
 # ifdef M68000
@@ -6965,7 +7194,7 @@ void code_sinR (VOID)
 		if (sin_real==NULL)
 			sin_real=enter_label ("sin_real",IMPORT_LABEL);
 		code_monadic_sane_operator (sin_real);
-		init_b_stack (2,r_vector);
+		init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 # ifdef M68000
 	} else
 		code_monadic_real_operator (GFSIN);
@@ -6980,7 +7209,7 @@ void code_sqrtR (VOID)
 		if (sqrt_real==NULL)
 			sqrt_real=enter_label ("sqrt_real",IMPORT_LABEL);
 		code_monadic_sane_operator (sqrt_real);
-		init_b_stack (2,r_vector);
+		init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 	} else
 		code_monadic_real_operator (GFSQRT);
 #else
@@ -6988,7 +7217,7 @@ void code_sqrtR (VOID)
 	if (sqrt_real==NULL)
 		sqrt_real=enter_label ("sqrt_real",IMPORT_LABEL);
 	code_monadic_sane_operator (sqrt_real);
-	init_b_stack (2,r_vector);
+	init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 # else
 	code_monadic_real_operator (GFSQRT);
 # endif
@@ -7039,16 +7268,31 @@ void code_subIo (VOID)
 
 void code_subR (VOID)
 {
+#ifdef G_A64
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7;
+
+	graph_1=s_pop_b();
+	graph_2=g_fp_arg (graph_1);
+
+	graph_3=s_get_b (0);
+	graph_4=g_fp_arg (graph_3);
+
+	graph_5=g_fsub (graph_4,graph_2);
+
+	graph_6=g_fromf (graph_5);
+
+	s_put_b (0,graph_6);
+#else
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7,graph_8,graph_9;
 
-#ifdef M68000	
+# ifdef M68000	
 	if (!mc68881_flag){
 		if (sub_real==NULL)
 			sub_real=enter_label ("sub_real",IMPORT_LABEL);
 		code_dyadic_sane_operator (sub_real);
 		init_b_stack (2,r_vector);
 	} else {
-#endif
+# endif
 		graph_1=s_pop_b();
 		graph_2=s_pop_b();
 		graph_3=g_fjoin (graph_1,graph_2);
@@ -7063,8 +7307,9 @@ void code_subR (VOID)
 
 		s_put_b (1,graph_9);
 		s_put_b (0,graph_8);
-#ifdef M68000
+# ifdef M68000
 	}
+# endif
 #endif
 }
 
@@ -7076,7 +7321,7 @@ void code_tanR (VOID)
 		if (tan_real==NULL)
 			tan_real=enter_label ("tan_real",IMPORT_LABEL);
 		code_monadic_sane_operator (tan_real);
-		init_b_stack (2,r_vector);
+		init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 #ifdef M68000
 	} else
 		code_monadic_real_operator (GFTAN);
@@ -7137,9 +7382,9 @@ static void code_lazy_update (VOID)
 	graph_3=s_pop_b();
 
 	if (!check_index_flag && graph_3->instruction_code==GLOAD_I &&
-		LESS_UNSIGNED (graph_3->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
+		LESS_UNSIGNED (graph_3->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>STACK_ELEMENT_LOG_SIZE))
 	{
-		graph_4=g_store_x (graph_2,graph_1,ARRAY_ELEMENTS_OFFSET+(graph_3->instruction_parameters[0].i<<2),0,NULL);
+		graph_4=g_store_x (graph_2,graph_1,ARRAY_ELEMENTS_OFFSET+(graph_3->instruction_parameters[0].i<<STACK_ELEMENT_LOG_SIZE),0,NULL);
 	} else {
 		if (check_index_flag)
 			graph_3=g_bounds (graph_1,graph_3);
@@ -7154,8 +7399,8 @@ static void code_lazy_update (VOID)
 		{
 			int offset;
 
-			graph_3=optimize_array_index (ARRAY_ELEMENTS_OFFSET,2,graph_3,&offset);
-			graph_4=g_store_x (graph_2,graph_1,offset,2,graph_3);
+			graph_3=optimize_array_index (ARRAY_ELEMENTS_OFFSET,STACK_ELEMENT_LOG_SIZE,graph_3,&offset);
+			graph_4=g_store_x (graph_2,graph_1,offset,STACK_ELEMENT_LOG_SIZE,graph_3);
 		}
 #else
 		graph_3=g_lsl_2_add_12 (graph_3);
@@ -7219,9 +7464,9 @@ static void code_updateI (VOID)
 #endif
 
 	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
-		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>STACK_ELEMENT_LOG_SIZE))
 	{
-		graph_4=g_store_x (graph_3,graph_1,ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<2),0,NULL);
+		graph_4=g_store_x (graph_3,graph_1,ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<STACK_ELEMENT_LOG_SIZE),0,NULL);
 	} else {
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
@@ -7236,8 +7481,8 @@ static void code_updateI (VOID)
 		{
 			int offset;
 
-			graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,2,graph_2,&offset);
-			graph_4=g_store_x (graph_3,graph_1,offset,2,graph_2);
+			graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,STACK_ELEMENT_LOG_SIZE,graph_2,&offset);
+			graph_4=g_store_x (graph_3,graph_1,offset,STACK_ELEMENT_LOG_SIZE,graph_2);
 		}
 #else
 		graph_2=g_lsl_2_add_12 (graph_2);
@@ -7256,7 +7501,9 @@ static void code_updateR (VOID)
 	graph_2=s_pop_b();	
 
 	graph_3=s_pop_b();
+#ifndef G_A64
 	graph_4=s_pop_b();
+#endif
 
 	if (check_index_flag)
 		graph_2=g_bounds (graph_1,graph_2);
@@ -7285,8 +7532,11 @@ static void code_updateR (VOID)
 	} else
 #endif
 	{
+#ifdef G_A64
+		graph_7=g_fp_arg (graph_3);
+#else
 		graph_7=g_fjoin (graph_3,graph_4);
-
+#endif
 		if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
 			LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-REAL_ARRAY_ELEMENTS_OFFSET)>>3))
 		{
@@ -7341,12 +7591,12 @@ static void code_r_update (int a_size,int b_size)
 	graph_1=s_pop_a();
 	graph_2=s_pop_b();
 	
-	element_size=(a_size+b_size)<<2;
+	element_size=(a_size+b_size)<<STACK_ELEMENT_LOG_SIZE;
 	
 	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
-		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-12-(element_size-4))/element_size))
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET-(element_size-STACK_ELEMENT_SIZE))/element_size))
 	{
-		offset=12+graph_2->instruction_parameters[0].i*element_size;
+		offset=ARRAY_ELEMENTS_OFFSET+graph_2->instruction_parameters[0].i*element_size;
 		graph_3=NULL;
 	} else {
 		INSTRUCTION_GRAPH select_graph;
@@ -7354,7 +7604,7 @@ static void code_r_update (int a_size,int b_size)
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
 
-		offset=12;
+		offset=3<<STACK_ELEMENT_LOG_SIZE;
 		graph_3=multiply_by_constant (element_size,graph_2);
 
 #if defined (sparc) || defined (G_POWER)
@@ -7385,7 +7635,7 @@ static void code_r_update (int a_size,int b_size)
 		INSTRUCTION_GRAPH graph_4;
 		
 		graph_4=s_pop_a();
-		graph_1=g_store_x (graph_4,graph_1,offset+(i<<2),0,graph_3);
+		graph_1=g_store_x (graph_4,graph_1,offset+(i<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
 	}
 
 	for (i=0; i<b_size; ++i){
@@ -7393,6 +7643,21 @@ static void code_r_update (int a_size,int b_size)
 		
 		graph_4=s_pop_b();
 		
+#ifdef G_A64
+		if (graph_4->instruction_code==GFROMF){
+			INSTRUCTION_GRAPH graph_5;
+
+			graph_5=g_fp_arg (graph_4);
+# if defined (sparc) || defined (G_POWER)
+			if (offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE)!=0 && graph_3!=NULL)
+				graph_1=g_fstore_x (graph_5,graph_1,0,0,g_add (g_load_i (offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE)),graph_3));
+			else
+# endif
+			graph_1=g_fstore_x (graph_5,graph_1,offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
+
+			continue;
+		}		
+#else
 		if (graph_4->instruction_code==GFHIGH && i+1<b_size){
 			INSTRUCTION_GRAPH graph_5,graph_6;
 			
@@ -7404,23 +7669,24 @@ static void code_r_update (int a_size,int b_size)
 
 				if (! (	graph_6->instruction_code==GFLOAD_X &&
 						graph_6->instruction_parameters[0].p==graph_7 &&
-						graph_6->instruction_parameters[1].i==((offset+((a_size+i)<<2))<<2) &&
+						graph_6->instruction_parameters[1].i==((offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE))<<2) &&
 						graph_6->instruction_parameters[2].p==graph_3))
 				{
-					graph_1=g_fstore_x (graph_6,graph_1,offset+((a_size+i)<<2),0,graph_3);
+					graph_1=g_fstore_x (graph_6,graph_1,offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
 				}
 				
 				++i;
 				continue;
 			}
 		}
+#endif
 
 		if (! ( graph_4->instruction_code==GLOAD_X &&
 				graph_4->instruction_parameters[0].p==graph_7 &&
-				graph_4->instruction_parameters[1].i==((offset+((a_size+i)<<2))<<2) &&
+				graph_4->instruction_parameters[1].i==((offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE))<<2) &&
 				graph_4->instruction_parameters[2].p==graph_3))
 		{
-			graph_1=g_store_x (graph_4,graph_1,offset+((a_size+i)<<2),0,graph_3);
+			graph_1=g_store_x (graph_4,graph_1,offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
 		}
 	}
 	
@@ -7450,9 +7716,9 @@ void code_update (char element_descriptor[],int a_size,int b_size)
 				element_descriptor[4]=='\0')
 			{
 #ifdef ARRAY_SIZE_BEFORE_DESCRIPTOR
-				code_updateBC (4);
+				code_updateBC (STACK_ELEMENT_SIZE);
 #else
-				code_updateBC (8);
+				code_updateBC (2*STACK_ELEMENT_SIZE);
 #endif
 				return;	
 			}
@@ -7565,10 +7831,18 @@ void code_caf (char *label_name,int a_stack_size,int b_stack_size)
 
 	if (a_stack_size>0){
 #if defined (GEN_MAC_OBJ) || defined (GEN_OBJ)
+# ifdef G_A64
+		store_word64_in_data_section (0);
+# else
 		store_long_word_in_data_section (0);
+# endif
 #endif
 		if (assembly_flag)
+#ifdef G_A64
+			w_as_word64_in_data_section ((__int64)0);
+#else
 			w_as_long_in_data_section (0);
+#endif
 	}
 
 #ifdef GEN_MAC_OBJ
@@ -7591,10 +7865,18 @@ void code_caf (char *label_name,int a_stack_size,int b_stack_size)
 
 	for (n=0; n<=n_arguments; ++n){
 #if defined (GEN_MAC_OBJ) || defined (GEN_OBJ)
+# ifdef G_A64
+		store_word64_in_data_section (0);
+# else
 		store_long_word_in_data_section (0);
+# endif
 #endif
 		if (assembly_flag)
+#ifdef G_A64
+			w_as_word64_in_data_section ((__int64)0);
+#else
 			w_as_long_in_data_section (0);
+#endif
 	}
 }
 
@@ -7925,7 +8207,11 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 	store_word_in_data_section (arity);
 # else
 #  ifdef GEN_OBJ
+#   ifdef I486
+	store_long_word_in_data_section ((arity<<16) | lazy_record_flag);
+#   else
 	store_2_words_in_data_section (lazy_record_flag,arity);
+#   endif
 #  endif
 # endif
 	if (assembly_flag){
@@ -8110,6 +8396,12 @@ void code_descs (char label_name[],char node_entry_label_name[],char *result_des
 	LABEL *string_label,*label;
 	int string_code_label_id;
 
+#ifdef G_AI64
+	if (result_descriptor_name[0]=='I' && result_descriptor_name[1]=='N' &&
+		result_descriptor_name[2]=='T' && result_descriptor_name[3]=='\0')
+		result_descriptor_name="dINT";
+#endif
+
 #if defined (NO_FUNCTION_NAMES)
 	descriptor_name_length=0;
 #endif
@@ -8166,14 +8458,14 @@ void code_descs (char label_name[],char node_entry_label_name[],char *result_des
 
 #ifdef GEN_OBJ
 	store_2_words_in_data_section (0,8);
-	store_2_words_in_data_section (offset1<<2,offset2<<2);
+	store_2_words_in_data_section (offset1<<STACK_ELEMENT_LOG_SIZE,offset2<<STACK_ELEMENT_LOG_SIZE);
 	store_2_words_in_data_section (1,0);
 #endif
 	if (assembly_flag){
 		w_as_word_in_data_section (0);
 		w_as_word_in_data_section (8);
-		w_as_word_in_data_section (offset1<<2);
-		w_as_word_in_data_section (offset2<<2);
+		w_as_word_in_data_section (offset1<<STACK_ELEMENT_LOG_SIZE);
+		w_as_word_in_data_section (offset2<<STACK_ELEMENT_LOG_SIZE);
 		w_as_word_in_data_section (1);
 		w_as_word_in_data_section (0);
 	}
@@ -8470,7 +8762,11 @@ void code_pb (char string[],int string_length)
 
 # ifdef GEN_OBJ
 	define_data_label (profile_function_label);
+#  ifdef G_A64
+	store_word64_in_data_section (0);
+#  else
 	store_long_word_in_data_section (0);
+#  endif
 	store_c_string_in_data_section (string,string_length);
 # endif
 	
@@ -8489,7 +8785,11 @@ void code_pb (char string[],int string_length)
 #  endif
 		w_as_define_data_label (profile_function_label->label_number);
 # endif
+# ifdef G_A64
+		w_as_word64_in_data_section ((__int64)0);
+# else
 		w_as_long_in_data_section (0);
+# endif
 		w_as_c_string_in_data_section (string,string_length);
 	}
 #endif
@@ -8646,7 +8946,37 @@ void code_string (char label_name[],char string[],int string_length)
 
 void code_module (char label_name[],char string[],int string_length)
 {	
+#ifdef G_A64
+	LABEL *label;
+
+	label=enter_label (label_name,LOCAL_LABEL
+#ifdef G_POWER
+								  | DATA_LABEL | STRING_LABEL
+#endif
+	);
+
+	if (label->label_id>=0)
+		error_s ("Label %d defined twice\n",label_name);
+	label->label_id=next_label_id++;
+
+#ifdef FUNCTION_LEVEL_LINKING
+	as_new_data_module();
+	if (assembly_flag)
+		w_as_new_data_module();
+#endif
+
+# ifdef GEN_OBJ
+	define_data_label (label);
+	store_abc_string4_in_data_section (string,string_length);
+# endif
+	
+	if (assembly_flag)
+		w_as_abc_string_and_label_in_data_section (string,string_length,label_name);
+
+	module_label=label;
+#else
 	module_label=code_string_or_module (label_name,string,string_length);
+#endif
 }
 
 void code_label (char *label_name)
@@ -8947,10 +9277,10 @@ void initialize_coding (VOID)
 	collect_0_label=enter_label ("collect_0",IMPORT_LABEL);
 	collect_1_label=enter_label ("collect_1",IMPORT_LABEL);
 	collect_2_label=enter_label ("collect_2",IMPORT_LABEL);
-#ifndef I486
+#if !(defined (I486) && !defined (G_AI64))
 	collect_3_label=enter_label ("collect_3",IMPORT_LABEL);
 #endif
-#if defined (I486) && defined (GEN_OBJ)
+#if defined (I486) && defined (GEN_OBJ) && !defined (G_AI64)
 	collect_0l_label=enter_label ("collect_0l",IMPORT_LABEL);
 	collect_1l_label=enter_label ("collect_1l",IMPORT_LABEL);
 	collect_2l_label=enter_label ("collect_2l",IMPORT_LABEL);

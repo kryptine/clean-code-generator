@@ -2485,9 +2485,14 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			graph->order_alterable=0;
 			return;
 		case GALLOCATE:
+#ifdef G_A64
+		case GFROMF:
+		case GTOF:
+#else
 		case GFJOIN:
 		case GFHIGH:
 		case GFLOW:
+#endif
 		case GFMOVEMI:
 			graph->u_aregs=graph->i_aregs=0;
 			graph->u_dregs=graph->i_dregs=0;
@@ -2583,6 +2588,7 @@ static void count_gstore_x_node (INSTRUCTION_GRAPH graph)
 	/* optime store_x for reals */
 	
 	low_graph=graph->instruction_parameters[0].p;
+#ifndef G_A64
 	if (low_graph->instruction_code==GFLOW){
 		h_store_x_graph=graph->instruction_parameters[1].p;
 		if (h_store_x_graph!=NULL
@@ -2601,6 +2607,7 @@ static void count_gstore_x_node (INSTRUCTION_GRAPH graph)
 			}
 		}
 	}
+#endif
 	
 	if (++graph->node_count==1){
 		count_graph (graph->instruction_parameters[0].p);
@@ -2630,7 +2637,9 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GFCMP_GT:
 		case GFCMP_LT:
 		case GFDIV:
+#ifndef G_A64
 		case GFJOIN:
+#endif
 		case GFMUL:
 		case GFREM:
 		case GFSUB:
@@ -2660,10 +2669,18 @@ void count_graph (INSTRUCTION_GRAPH graph)
 				count_graph (graph->instruction_parameters[1].p);
 			}
 			break;
+#ifdef G_A64
+		case GFROMF:
+		case GTOF:
+#endif
 		case GCNOT:
+#ifndef G_A64
 		case GFHIGH:
+#endif
 		case GFITOR:
+#ifndef G_A64
 		case GFLOW:
+#endif
 		case GFRTOI:
 		case GFCOS:
 		case GFSIN:
@@ -2815,7 +2832,9 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GFCMP_GT:
 		case GFCMP_LT:
 		case GFDIV:
+#ifndef G_A64
 		case GFJOIN:
+#endif
 		case GFMUL:
 		case GFREM:
 		case GFSUB:
@@ -2846,10 +2865,18 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 				mark_graph_2 (graph->instruction_parameters[1].p);
 			}
 			break;
+#ifdef G_A64
+		case GFROMF:
+		case GTOF:
+#endif
 		case GCNOT:
+#ifndef G_A64
 		case GFHIGH:
+#endif
 		case GFITOR:
+#ifndef G_A64
 		case GFLOW:
+#endif
 		case GFRTOI:
 		case GFCOS:
 		case GFSIN:
@@ -3016,7 +3043,9 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GFCMP_GT:
 		case GFCMP_LT:
 		case GFDIV:
+#ifndef G_A64
 		case GFJOIN:
+#endif
 		case GFMUL:
 		case GFREM:
 		case GFSUB:
@@ -3047,6 +3076,10 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 				mark_graph_2 (graph->instruction_parameters[1].p);
 			}
 			break;
+#ifdef G_A64
+		case GFROMF:
+		case GTOF:
+#endif
 		case GCNOT:
 		case GFITOR:
 		case GFRTOI:
@@ -3179,6 +3212,7 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 			if (!graph->node_mark)
 				graph->node_mark=1;
 			break;
+#ifndef G_A64
 		case GFHIGH:
 		case GFLOW:
 			if (!graph->node_mark){
@@ -3186,6 +3220,7 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 				mark_graph_1 (graph->instruction_parameters[0].p);
 			}
 			break;
+#endif
 #ifdef I486
 		case GDIVDU:
 			if (!graph->node_mark){
