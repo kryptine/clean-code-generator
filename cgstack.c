@@ -1577,6 +1577,7 @@ static int set_basic_block_begin_d_registers
 							graph->instruction_code=GFHIGH;
 							graph->inode_arity=0;
 							graph->instruction_parameters[0].p=r_graph;
+							graph->instruction_parameters[1].p=NULL;
 #endif
 						} else
 							++f_register_not_used_flag;
