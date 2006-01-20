@@ -4298,6 +4298,36 @@ void generate_code_for_previous_blocks (int jmp_jsr_or_rtn_flag)
 	}
 }
 
+#ifdef I486
+int end_basic_block_with_registers_and_return_address_and_return_b_stack_offset
+	(int n_a_parameters,int n_b_parameters,ULONG vector[],int n_data_parameter_registers)
+{
+	int b_stack_offset;
+
+	a_stack_load_register_values (n_a_parameters,N_ADDRESS_PARAMETER_REGISTERS);
+	b_stack_load_register_values (n_b_parameters,vector,n_data_parameter_registers
+# ifdef MORE_PARAMETER_REGISTERS
+							,N_ADDRESS_PARAMETER_REGISTERS-n_a_parameters
+# endif
+							);
+	
+	generate_code_for_previous_blocks (1);
+	
+	a_stack_stores (n_a_parameters,N_ADDRESS_PARAMETER_REGISTERS);
+	b_stack_stores (n_b_parameters,vector,n_data_parameter_registers
+# ifdef MORE_PARAMETER_REGISTERS
+				,N_ADDRESS_PARAMETER_REGISTERS-n_a_parameters,
+				global_block.block_graph_a_register_parameter_node,global_block.block_graph_d_register_parameter_node
+# endif
+				);
+	
+	linearize_stack_graphs();
+	b_stack_offset=local_register_allocation_and_adjust_a_stack_pointer (0);
+	
+	return b_stack_offset;
+}
+#endif
+
 int end_basic_block_with_registers_and_return_b_stack_offset (int n_a_parameters,int n_b_parameters,ULONG vector[],int n_address_parameter_registers)
 {
 	int b_stack_offset;

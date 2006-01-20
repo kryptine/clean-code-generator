@@ -6599,6 +6599,8 @@ void code_rtn (void)
 
 				if (n_data_registers>n_data_parameter_registers)
 					n_data_registers=n_data_parameter_registers;
+				else if (n_data_registers<n_data_parameter_registers)
+					n_data_parameter_registers=n_data_registers;
 				if (n_float_registers>n_float_parameter_registers)
 					n_float_registers=n_float_parameter_registers;				
 				return_address_offset=n_data_registers+(n_float_registers<<1);
@@ -6641,9 +6643,16 @@ void code_rtn (void)
 #ifndef I486
 	if (return_with_rts){
 #endif
+
+#ifdef I486
+		b_offset+=
+			end_basic_block_with_registers_and_return_address_and_return_b_stack_offset
+				(a_stack_size,b_stack_size,local_demanded_vector,n_data_parameter_registers);
+#else
 		b_offset+=
 			end_basic_block_with_registers_and_return_b_stack_offset
 				(a_stack_size,b_stack_size,local_demanded_vector,N_ADDRESS_PARAMETER_REGISTERS);
+#endif
 
 #if ! (defined (sparc) || defined (G_POWER))
 		if (b_offset!=0)

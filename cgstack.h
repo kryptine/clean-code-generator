@@ -39,6 +39,10 @@ extern void insert_basic_block_with_extra_parameters_on_stack (int block_graph_k
 
 extern void adjust_stack_pointers (VOID);
 extern void end_basic_block_with_registers (int n_a_parameters,int n_b_parameters,ULONG vector[]);
+#ifdef I486
+extern int end_basic_block_with_registers_and_return_address_and_return_b_stack_offset
+	(int n_a_parameters,int n_b_parameters,ULONG vector[],int n_data_parameter_registers);
+#endif
 extern int end_basic_block_with_registers_and_return_b_stack_offset
 	(int n_a_parameters,int n_b_parameters,ULONG vector[],int n_adress_parameter_registers);
 extern void end_stack_elements (int n_a_parameters,int n_b_parameters,ULONG vector[]);
