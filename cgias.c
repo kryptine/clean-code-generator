@@ -1653,8 +1653,18 @@ static void as_cmp_i_parameter (int i,struct parameter *parameter)
 {
 	switch (parameter->parameter_type){
 		case P_REGISTER:
-			as_i_r2 (0201,0070,0075,i,parameter->parameter_data.reg.r);
+		{
+			int r;
+			
+			r=parameter->parameter_data.reg.r;
+			if (i==0){
+				r=reg_num (r);
+				store_c (0205); /* test */
+				store_c (0300 | (r<<3) | r);
+			} else
+				as_i_r2 (0201,0070,0075,i,r);
 			return;
+		}
 		case P_INDIRECT:
 			as_i_id2 (0201,0070,i,parameter->parameter_offset,parameter->parameter_data.reg.r);
 			return;
@@ -4432,7 +4442,7 @@ static void as_profile_call (struct basic_block *block)
 			default: profile_label=profile_s_label;
 		}
 	}
-	store_c (0350);
+	store_c (0350); /* call */
 	store_l (0);
 	as_branch_label (profile_label,CALL_RELOCATION);
 }
@@ -4446,7 +4456,7 @@ static void as_apply_update_entry (struct basic_block *block)
 		as_profile_call (block);
 
 	if (block->block_n_node_arguments==-200){
-		store_c (0351);
+		store_c (0351); /* jmp */
 		store_l (0);
 		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
 
@@ -4460,7 +4470,7 @@ static void as_apply_update_entry (struct basic_block *block)
 		store_l (0);
 		as_branch_label (add_empty_node_labels[block->block_n_node_arguments+200],CALL_RELOCATION);
 
-		store_c (0351);
+		store_c (0351); /* jmp */
 		store_l (0);
 		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
 	}

@@ -1223,6 +1223,14 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 				parameter_0.parameter_type=P_REGISTER;
 				parameter_0.parameter_data.reg.r=REGISTER_O0;
 			}
+		case P_IMMEDIATE:
+			if (parameter_0.parameter_data.i==0 && parameter_1.parameter_type==P_REGISTER && size_flag==SIZE_LONG){
+				w_as_opcode (intel_asm ? "test" : "testl");
+				w_as_register (parameter_1.parameter_data.reg.r);
+				w_as_comma_register (parameter_1.parameter_data.reg.r);
+				w_as_newline();
+				return;
+			}
 	}
 
 	w_as_opcode (intel_asm ? "cmp" : "cmpl");

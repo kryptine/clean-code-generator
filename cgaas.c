@@ -1820,14 +1820,32 @@ static void as_sbb_instruction (struct instruction *instruction)
 	}
 }
 
+static void as_test_r_r (int r)
+{
+	int r_n;
+	
+	r_n=reg_num (r);
+	store_c (0x48 | ((r_n & 8)>>1) | ((r_n & 8)>>3));	
+	store_c (0205);
+	store_c (0300 | ((r_n & 7)<<3) | (r_n & 7));
+}
+
 enum { SIZE_LONG, SIZE_WORD, SIZE_BYTE };
 
 static void as_cmp_i_parameter (int i,struct parameter *parameter)
 {
 	switch (parameter->parameter_type){
 		case P_REGISTER:
-			as_i_r2 (0201,0070,0075,i,parameter->parameter_data.reg.r);
+		{
+			int r;
+			
+			r=parameter->parameter_data.reg.r;
+			if (i==0)
+				as_test_r_r (r);
+			else
+				as_i_r2 (0201,0070,0075,i,r);
 			return;
+		}
 		case P_INDIRECT:
 			as_i_id2 (0201,0070,i,parameter->parameter_offset,parameter->parameter_data.reg.r);
 			return;
@@ -2938,17 +2956,8 @@ static void as_tst_instruction (struct instruction *instruction)
 {
 	switch (instruction->instruction_parameters[0].parameter_type){
 		case P_REGISTER:
-		{
-			int r,r_n;
-			
-			r=instruction->instruction_parameters[0].parameter_data.reg.r;
-			r_n=reg_num (r);
-			
-			store_c (0x48 | ((r_n & 8)>>1) | ((r_n & 8)>>3));	
-			store_c (0205);
-			store_c (0300 | ((r_n & 7)<<3) | (r_n & 7));
+			as_test_r_r (instruction->instruction_parameters[0].parameter_data.reg.r);
 			break;
-		}
 		default:
 			as_cmp_i_parameter (0,&instruction->instruction_parameters[0]);
 			break;
