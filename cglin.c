@@ -4529,6 +4529,20 @@ static void linearize_load_graph (register INSTRUCTION_GRAPH load_graph)
 				case GFREGISTER:
 				case GGFREGISTER:
 					break;
+#if defined (G_A64)
+				case GFROMF:
+					load_graph=load_graph->instruction_parameters[0].p;
+					if (load_graph->node_count>0 && load_graph->instruction_code==GFLOAD){
+						int reg;
+						
+						reg=get_fregister();
+						
+						i_fmove_id_fr (load_graph->instruction_parameters[0].i,load_graph->instruction_parameters[1].i,reg);
+						
+						float_register_node (load_graph,reg);			
+					}
+					break;
+#endif
 				default:
 					internal_error_in_function ("linearize_load_graph");
 			}
@@ -5056,7 +5070,9 @@ static void move_float_ad_x (ADDRESS *ad_p,int offset,int areg,int dreg)
 			} else {
 # endif
 				i_move_id_x (ad_p->ad_offset,ad_p->ad_register,offset,areg,dreg);
+# ifndef G_A64
 				i_move_id_x (ad_p->ad_offset+4,ad_p->ad_register,offset+(4<<2),areg,dreg);
+# endif
 				if (--*ad_p->ad_count_p==0)
 					free_aregister (ad_p->ad_register);
 # ifdef M68000
@@ -7622,7 +7638,7 @@ static int selects_from_array (INSTRUCTION_GRAPH select_graph,INSTRUCTION_GRAPH 
 
 static void do_array_selects_before_update (INSTRUCTION_GRAPH select_graph,INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2)
 {
-	for (; select_graph!=NULL; select_graph=select_graph->instruction_parameters[3].p){
+	for (; select_graph!=NULL; ){
 		switch (select_graph->instruction_code){
 			case GLOAD_X:
 #if 1
@@ -7733,9 +7749,15 @@ static void do_array_selects_before_update (INSTRUCTION_GRAPH select_graph,INSTR
 #endif
 			case GGREGISTER:
 				break;
+#if defined (G_A64)
+			case GFROMF:
+				select_graph=select_graph->instruction_parameters[0].p;
+				continue;
+#endif
 			default:
 				internal_error_in_function ("do_array_selects_before_update");
 		}
+		select_graph=select_graph->instruction_parameters[3].p;
 	}
 }
 

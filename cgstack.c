@@ -1057,7 +1057,11 @@ static void b_stack_load_register_values (int n_parameters,ULONG vector[],int n_
 #ifdef MORE_PARAMETER_REGISTERS
 												+ n_extra_data_parameter_registers
 #endif
+#ifndef G_A64
 			:	(mc68881_flag && number_of_f_register_parameters_m_2++<(N_FLOAT_PARAMETER_REGISTERS<<1)))
+#else
+			:	(mc68881_flag && number_of_f_register_parameters_m_2++<N_FLOAT_PARAMETER_REGISTERS))
+#endif
 		{
 			if (*element_p!=NULL && (*element_p)->b_stack_offset==required_offset){
 				register struct b_stack *element;
@@ -1069,7 +1073,7 @@ static void b_stack_load_register_values (int n_parameters,ULONG vector[],int n_
 					element->b_stack_load_graph=graph;
 				}
 				element_p=&(*element_p)->b_stack_next;
-			} else{
+			} else {
 				graph=g_load ((required_offset+global_block.block_graph_b_stack_begin_displacement)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 			
 				new_element=allocate_struct_from_heap (b_stack);

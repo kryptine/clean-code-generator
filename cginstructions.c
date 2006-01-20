@@ -445,9 +445,7 @@ INSTRUCTION_GRAPH g_fp_arg (INSTRUCTION_GRAPH graph_1)
 
 		previous_loadx=&load_indexed_list;
 
-		/* added 25-10-2001 */
 		while (*previous_loadx!=NULL && *previous_loadx!=graph_1)
-		/* while (*previous_loadx!=graph_1) */
 			previous_loadx=&(*previous_loadx)->instruction_parameters[3].p;
 		
 		fload_graph=g_new_node (GFLOAD_X,0,4*sizeof (union instruction_parameter));
@@ -457,9 +455,7 @@ INSTRUCTION_GRAPH g_fp_arg (INSTRUCTION_GRAPH graph_1)
 		fload_graph->instruction_parameters[2].p=graph_1->instruction_parameters[2].p;
 		fload_graph->instruction_parameters[3].p=graph_1->instruction_parameters[3].p;
 
-		/* added 25-10-2001 */
 		if (*previous_loadx!=NULL)
-		/* */
 			*previous_loadx=fload_graph;
 
 		fload_graph->instruction_d_min_a_cost+=1;

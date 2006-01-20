@@ -3756,7 +3756,9 @@ void code_jmp (char label_name[])
 				if (test_bit (vector,parameter_n))
 					if (n_a_and_f_registers<N_FLOAT_PARAMETER_REGISTERS){
 						++n_a_and_f_registers;
+#ifndef G_A64
 						++parameter_n;
+#endif
 					} else
 						break;
 		}
@@ -4073,7 +4075,9 @@ static int too_many_b_stack_parameters_for_registers (int b_stack_size,int n_dat
 		if (demanded_vector[offset>>LOG_VECTOR_ELEMENT_SIZE] & (((ULONG)1)<<(offset & VECTOR_ELEMENT_MASK))){
 			if (++n_float_registers>n_float_parameter_registers)
 				break;
+#ifndef G_A64
 			++offset;
+#endif
 		} else
 			if (++n_data_registers>n_data_parameter_registers)
 				break;
@@ -6328,6 +6332,19 @@ static void code_r_replace (int a_size,int b_size)
 				continue;
 			}
 		}
+#else
+		if (graph_4->instruction_code==GFROMF){
+			INSTRUCTION_GRAPH graph_5,graph_6,graph_7;
+			
+			graph_5=graph_4->instruction_parameters[0].p;
+			graph_6=g_fload_x (graph_1,offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
+			graph_1=g_fstore_x (graph_5,graph_1,offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
+
+			graph_7=g_fromf (graph_6);
+
+			s_put_b (i,graph_7);
+			continue;
+		}
 #endif
 
 		graph_5=g_load_x (graph_1,offset+((a_size+i)<<STACK_ELEMENT_LOG_SIZE),0,graph_3);
@@ -6573,7 +6590,9 @@ void code_rtn (void)
 			if (local_demanded_vector[offset>>LOG_VECTOR_ELEMENT_SIZE] & (((ULONG)1)<<(offset & VECTOR_ELEMENT_MASK))){
 				if (++n_float_registers>n_float_parameter_registers)
 					break;
+#ifndef G_A64
 				++offset;
+#endif
 			} else
 				if (++n_data_registers>n_data_parameter_registers)
 					break;
@@ -6603,8 +6622,11 @@ void code_rtn (void)
 					n_data_parameter_registers=n_data_registers;
 				if (n_float_registers>n_float_parameter_registers)
 					n_float_registers=n_float_parameter_registers;				
+#ifndef G_A64
 				return_address_offset=n_data_registers+(n_float_registers<<1);
-				
+#else
+				return_address_offset=n_data_registers+n_float_registers;
+#endif
 				graph=s_get_b (b_stack_size);
 				for	(offset=b_stack_size-1; offset>=return_address_offset; --offset)
 					s_put_b (offset+1,s_get_b (offset));

@@ -1439,6 +1439,11 @@ static void calculate_store_x_operator (INSTRUCTION_GRAPH graph)
 			case GFREGISTER:
 				select_graph=select_graph->instruction_parameters[3].p;
 				break;
+#if defined (G_A64)
+			case GFROMF:
+				select_graph=select_graph->instruction_parameters[0].p;
+				break;
+#endif
 			default:
 				internal_error_in_function ("calculate_store_x_operator");
 		}
