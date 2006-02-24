@@ -3566,49 +3566,69 @@ void store_descriptor_string_in_data_section (char *string,int length,LABEL *str
 
 static void as_fmovel_instruction (struct instruction *instruction)
 {
-	int d_freg;
-	
-	d_freg=instruction->instruction_parameters[1].parameter_data.reg.r;
-	
-	switch (instruction->instruction_parameters[0].parameter_type){
-		case P_REGISTER:
-		{
-			int reg1_n;
+	if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+		if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
+			int s_freg,reg1_n;
 			
-			reg1_n=reg_num (instruction->instruction_parameters[0].parameter_data.reg.r);
+			s_freg=instruction->instruction_parameters[0].parameter_data.reg.r;
+			reg1_n=reg_num (instruction->instruction_parameters[1].parameter_data.reg.r);
+
+			/* cvtsd2si */
 
 			store_c (0xf2);
-			store_c (0x48 | ((d_freg & 8)>>1) | ((reg1_n & 8)>>3));
+			store_c (0x48 | ((s_freg & 8)>>1) | ((reg1_n & 8)>>3));
 			store_c (0x0f);
-			store_c (0x2a);
-			store_c (0xc0 | ((d_freg & 7)<<3) | (reg1_n & 7));
-
-			break;
-		}
-		case P_INDIRECT:
-			as_f_id_rexaw (0xf2,0x2a,instruction->instruction_parameters[0].parameter_offset,
-									 instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
-			break;
-		case P_INDEXED:
-			as_f_x_rexaw (0xf2,0x2a,instruction->instruction_parameters[0].parameter_offset,
-									instruction->instruction_parameters[0].parameter_data.ir,d_freg);
-			break;
-		case P_IMMEDIATE:
-		{
-			LABEL *new_label;
-			
-			new_label=allocate_memory_from_heap (sizeof (struct label));
-	
-			new_label->label_flags=DATA_LABEL;
-		
-			define_data_label (new_label);
-			store_long_word_in_data_section (instruction->instruction_parameters[0].parameter_data.i);
-
-			as_f_a_rexaw (0xf2,0x2a,new_label,d_freg);
-			break;
-		}
-		default:
+			store_c (0x2d);
+			store_c (0xc0 | ((s_freg & 7)<<3) | (reg1_n & 7));
+		} else
 			internal_error_in_function ("as_fmovel_instruction");
+	} else {
+		int d_freg;
+
+		d_freg=instruction->instruction_parameters[1].parameter_data.reg.r;
+		
+		switch (instruction->instruction_parameters[0].parameter_type){
+			case P_REGISTER:
+			{
+				int reg1_n;
+				
+				reg1_n=reg_num (instruction->instruction_parameters[0].parameter_data.reg.r);
+
+				/* cvtsi2sd */
+
+				store_c (0xf2);
+				store_c (0x48 | ((d_freg & 8)>>1) | ((reg1_n & 8)>>3));
+				store_c (0x0f);
+				store_c (0x2a);
+				store_c (0xc0 | ((d_freg & 7)<<3) | (reg1_n & 7));
+
+				break;
+			}
+			case P_INDIRECT:
+				as_f_id_rexaw (0xf2,0x2a,instruction->instruction_parameters[0].parameter_offset,
+										 instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
+				break;
+			case P_INDEXED:
+				as_f_x_rexaw (0xf2,0x2a,instruction->instruction_parameters[0].parameter_offset,
+										instruction->instruction_parameters[0].parameter_data.ir,d_freg);
+				break;
+			case P_IMMEDIATE:
+			{
+				LABEL *new_label;
+				
+				new_label=allocate_memory_from_heap (sizeof (struct label));
+		
+				new_label->label_flags=DATA_LABEL;
+			
+				define_data_label (new_label);
+				store_long_word_in_data_section (instruction->instruction_parameters[0].parameter_data.i);
+
+				as_f_a_rexaw (0xf2,0x2a,new_label,d_freg);
+				break;
+			}
+			default:
+				internal_error_in_function ("as_fmovel_instruction");
+		}
 	}
 }
 

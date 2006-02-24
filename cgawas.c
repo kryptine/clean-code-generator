@@ -2682,9 +2682,15 @@ static int int_to_real_scratch_imported=0;
 
 static void w_as_fmovel_instruction (struct instruction *instruction)
 {
-	if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER)
-		internal_error_in_function ("w_as_fmovel_instruction");
-	else {
+	if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+		if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
+			w_as_opcode ("cvtsd2si");
+			w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+			w_as_newline();
+		} else
+			internal_error_in_function ("w_as_fmovel_instruction");
+	} else {
 		switch (instruction->instruction_parameters[0].parameter_type){
 			case P_REGISTER:
 				w_as_opcode ("cvtsi2sd");
