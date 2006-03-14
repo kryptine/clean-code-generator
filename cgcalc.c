@@ -598,7 +598,6 @@ static void calculate_dyadic_non_commutative_operator (INSTRUCTION_GRAPH graph)
 	graph->i_dregs=i_dregs;
 	
 	graph->order_alterable=graph->node_count<=1;
-	return;
 }
 
 static void calculate_dyadic_non_commutative_data_operator (INSTRUCTION_GRAPH graph)
@@ -1541,8 +1540,11 @@ static void calculate_store_x_operator (INSTRUCTION_GRAPH graph)
 
 	if (graph_1_before_reorder->order_mode==R_DREGISTER)
 		i_dregs-=graph_1_before_reorder->order_alterable;
-	else
+	else {
 		i_aregs-=graph_1_before_reorder->order_alterable;
+		if (graph_1_before_reorder->order_mode==R_MEMORY && u_dregs<i_dregs+1)
+			u_dregs=i_dregs+1;
+	}
 
 	if (graph_3_before_reorder!=NULL){
 		if (graph_3_before_reorder->order_mode==R_DREGISTER)
