@@ -1179,14 +1179,117 @@ static void w_as_shift_instruction (struct instruction *instruction,char *opcode
 	}
 }
 
-static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
+static void w_as_shift_s_instruction (struct instruction *instruction,char *opcode)
+{
+	if (instruction->instruction_parameters[0].parameter_type!=P_REGISTER){
+		if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+			w_as_opcode (opcode);
+			if (intel_asm)
+				w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_immediate (instruction->instruction_parameters[0].parameter_data.i & 31);
+			if (!intel_asm)
+				w_as_comma_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_newline();
+		} else
+			internal_error_in_function ("w_as_shift_s_instruction");
+	} else {
+		int r0;
+		
+		r0=instruction->instruction_parameters[0].parameter_data.reg.r;
+		if (r0==REGISTER_A0){
+			w_as_opcode (opcode);
+			if (intel_asm)
+				w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+			fprintf (assembly_file,intel_asm ? "cl" : "%%cl");
+			if (!intel_asm)
+				w_as_comma_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_newline();		
+		} else {
+			int scratch_register;
+
+			scratch_register=instruction->instruction_parameters[2].parameter_data.reg.r;
+			if (scratch_register==REGISTER_A0){
+				w_as_movl_register_register_newline (r0,REGISTER_A0);
+
+				w_as_opcode (opcode);
+				if (!intel_asm)
+					fprintf (assembly_file,"%%cl,");
+				w_as_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+				if (intel_asm)
+					fprintf (assembly_file,",cl");
+				w_as_newline();
+			} else {
+				int r;
+				
+				w_as_movl_register_register_newline (REGISTER_A0,scratch_register);
+				w_as_movl_register_register_newline (r0,REGISTER_A0);
+
+				w_as_opcode (opcode);
+				if (!intel_asm)
+					fprintf (assembly_file,"%%cl,");
+				r=instruction->instruction_parameters[1].parameter_data.reg.r;
+				if (r==REGISTER_A0)
+					w_as_register (scratch_register);
+				else
+					w_as_register (r);
+				if (intel_asm)
+					fprintf (assembly_file,",cl");
+				w_as_newline();
+
+				w_as_movl_register_register_newline (scratch_register,REGISTER_A0);
+			}
+		}
+	}
+}
+
+static void w_as_cmp_instruction (struct instruction *instruction)
 {
 	struct parameter parameter_0,parameter_1;
 
 	parameter_0=instruction->instruction_parameters[0];
 	parameter_1=instruction->instruction_parameters[1];
 
-	if (parameter_1.parameter_type==P_INDIRECT && size_flag!=SIZE_LONG){
+	switch (parameter_0.parameter_type){
+		case P_DESCRIPTOR_NUMBER:
+			w_as_opcode (intel_asm ? "cmp" : "cmpl");
+			if (intel_asm)
+				w_as_parameter_comma (&parameter_1);
+			w_as_descriptor (parameter_0.parameter_data.l,parameter_0.parameter_offset);
+			if (!intel_asm)
+				w_as_comma_parameter (&parameter_1);
+			w_as_newline();
+			return;
+		case P_IMMEDIATE:
+			if (parameter_0.parameter_data.i==0 && parameter_1.parameter_type==P_REGISTER){
+				w_as_opcode (intel_asm ? "test" : "testl");
+				w_as_register (parameter_1.parameter_data.reg.r);
+				w_as_comma_register (parameter_1.parameter_data.reg.r);
+				w_as_newline();
+				return;
+			}
+	}
+
+	w_as_opcode (intel_asm ? "cmp" : "cmpl");
+	if (intel_asm){
+		if (parameter_0.parameter_type==P_IMMEDIATE)
+			fprintf (assembly_file,"dword ptr ");
+		w_as_parameter_comma (&parameter_1);
+	}
+	w_as_parameter (&parameter_0);
+	if (!intel_asm)
+		w_as_comma_parameter (&parameter_1);
+	w_as_newline();
+}
+
+#if 0
+static void w_as_cmpw_instruction (struct instruction *instruction)
+{
+	struct parameter parameter_0,parameter_1;
+
+	parameter_0=instruction->instruction_parameters[0];
+	parameter_1=instruction->instruction_parameters[1];
+
+	if (parameter_1.parameter_type==P_INDIRECT){
 		w_as_opcode (intel_asm ? "movsx" : "movswl");
 
 		if (intel_asm)
@@ -1211,26 +1314,16 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 			w_as_newline();
 			return;
 		case P_INDIRECT:
-			if (size_flag==SIZE_WORD){
-				w_as_opcode (intel_asm ? "movsx" : "movswl");
-				if (intel_asm)
-					w_as_scratch_register_comma();
-				w_as_parameter (&parameter_0);
-				if (!intel_asm)
-					w_as_comma_scratch_register();
-				w_as_newline();
+			w_as_opcode (intel_asm ? "movsx" : "movswl");
+			if (intel_asm)
+				w_as_scratch_register_comma();
+			w_as_parameter (&parameter_0);
+			if (!intel_asm)
+				w_as_comma_scratch_register();
+			w_as_newline();
 
-				parameter_0.parameter_type=P_REGISTER;
-				parameter_0.parameter_data.reg.r=REGISTER_O0;
-			}
-		case P_IMMEDIATE:
-			if (parameter_0.parameter_data.i==0 && parameter_1.parameter_type==P_REGISTER && size_flag==SIZE_LONG){
-				w_as_opcode (intel_asm ? "test" : "testl");
-				w_as_register (parameter_1.parameter_data.reg.r);
-				w_as_comma_register (parameter_1.parameter_data.reg.r);
-				w_as_newline();
-				return;
-			}
+			parameter_0.parameter_type=P_REGISTER;
+			parameter_0.parameter_data.reg.r=REGISTER_O0;
 	}
 
 	w_as_opcode (intel_asm ? "cmp" : "cmpl");
@@ -1244,6 +1337,7 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 		w_as_comma_parameter (&parameter_1);
 	w_as_newline();
 }
+#endif
 
 static void w_as_tst_instruction (struct instruction *instruction,int size_flag)
 {
@@ -1446,53 +1540,55 @@ static void w_as_jsr_instruction (struct instruction *instruction)
 static void w_as_set_condition_instruction (struct instruction *instruction,char *opcode)
 {
 	int r;
+	char *reg_s;
 	
 	r=instruction->instruction_parameters[0].parameter_data.reg.r;
+		
+	switch (r){
+		case REGISTER_D0:
+			reg_s=intel_asm ? "al" : "%%al";
+			break;
+		case REGISTER_D1:
+			reg_s=intel_asm ? "bl" : "%%bl";
+			break;
+		case REGISTER_A0:
+			reg_s=intel_asm ? "cl" : "%%cl";
+			break;				
+		case REGISTER_A1:
+			reg_s=intel_asm ? "dl" : "%%dl";
+			break;
+		default:
+			reg_s=NULL;
+	}
 	
-	if (r==REGISTER_A3 || r==REGISTER_A4){
-		w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
-		
+	if (reg_s!=NULL){
 		w_as_opcode (opcode);
-		fprintf (assembly_file,intel_asm ? "al" : "%%al");
+		fprintf (assembly_file,reg_s);
 		w_as_newline();
 
 		w_as_opcode (intel_asm ? "movzx" : "movzbl");
 		if (intel_asm)
 			w_as_register_comma (r);
-		fprintf (assembly_file,intel_asm ? "al" : "%%al");
+		fprintf (assembly_file,reg_s);
 		if (!intel_asm)
 			w_as_comma_register (r);
 		w_as_newline();
-
-		w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);
 	} else {
-		char *reg_s;
+		w_as_movl_register_register_newline (REGISTER_D0,r);
 		
 		w_as_opcode (opcode);
-		switch (r){
-			case REGISTER_D0:
-				reg_s=intel_asm ? "al" : "%%al";
-				break;
-			case REGISTER_D1:
-				reg_s=intel_asm ? "bl" : "%%bl";
-				break;
-			case REGISTER_A0:
-				reg_s=intel_asm ? "cl" : "%%cl";
-				break;				
-			case REGISTER_A1:
-				reg_s=intel_asm ? "dl" : "%%dl";
-				break;				
-		}
-		fprintf (assembly_file,reg_s);
+		fprintf (assembly_file,intel_asm ? "al" : "%%al");
 		w_as_newline();
 
 		w_as_opcode (intel_asm ? "movzx" : "movzbl");
 		if (intel_asm)
-			w_as_register_comma (r);
-		fprintf (assembly_file,reg_s);
+			w_as_register_comma (REGISTER_D0);
+		fprintf (assembly_file,intel_asm ? "al" : "%%al");
 		if (!intel_asm)
-			w_as_comma_register (r);
+			w_as_comma_register (REGISTER_D0);
 		w_as_newline();
+
+		w_as_opcode_register_register_newline ("xchg",r,REGISTER_D0);
 	}
 }
 
@@ -1524,6 +1620,7 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 	fprintf (assembly_file,intel_asm ? "al" : "%%al");
 	w_as_newline();
 
+#if 0
 	w_as_opcode ("and");
 	if (intel_asm)
 		w_as_register_comma (REGISTER_D0);
@@ -1531,9 +1628,33 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 	if (!intel_asm)
 		w_as_comma_register (REGISTER_D0);
 	w_as_newline();
+#else
+	w_as_opcode (intel_asm ? "movzx" : "movzbl");
+	if (intel_asm)
+		w_as_register_comma (REGISTER_D0);
+	fprintf (assembly_file,intel_asm ? "al" : "%%al");
+	if (!intel_asm)
+		w_as_comma_register (REGISTER_D0);
+	w_as_newline();
+#endif
 
 	if (r!=REGISTER_D0)
 		w_as_opcode_register_register_newline ("xchg",r,REGISTER_D0);
+}
+
+static void w_as_convert_float_condition_instruction (struct instruction *instruction,int n)
+{
+	int r;
+
+	r=instruction->instruction_parameters[0].parameter_data.reg.r;
+
+	if (r!=REGISTER_D0)
+		w_as_movl_register_register_newline (REGISTER_D0,r);
+
+	as_test_floating_point_condition_code (n);
+
+	if (r!=REGISTER_D0)
+		w_as_movl_register_register_newline (r,REGISTER_D0);
 }
 
 static void w_as_div_rem_i_instruction (struct instruction *instruction,int compute_remainder)
@@ -3107,7 +3228,7 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_dyadic_instruction (instruction,intel_asm ? "sub" : "subl");
 				break;
 			case ICMP:
-				w_as_cmp_instruction (instruction,SIZE_LONG);
+				w_as_cmp_instruction (instruction);
 				break;
 			case IJMP:
 				w_as_jmp_instruction (instruction);
@@ -3168,6 +3289,15 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case IASR:
 				w_as_shift_instruction (instruction,"sar");
+				break;
+			case ILSL_S:
+				w_as_shift_s_instruction (instruction,"shl");
+				break;
+			case ILSR_S:
+				w_as_shift_s_instruction (instruction,"shr");
+				break;
+			case IASR_S:
+				w_as_shift_s_instruction (instruction,"sar");
 				break;
 			case IMUL:
 				w_as_dyadic_instruction (instruction,intel_asm ? "imul" : "imull");
@@ -3235,9 +3365,11 @@ static void w_as_instructions (register struct instruction *instruction)
 			case ISNO:
 				w_as_set_condition_instruction (instruction,"setno");
 				break;
+#if 0
 			case ICMPW:
-				w_as_cmp_instruction (instruction,SIZE_WORD);
+				w_as_cmp_instruction (instruction);
 				break;
+#endif
 			case ITST:
 				w_as_tst_instruction (instruction,SIZE_LONG);
 				break;
@@ -3299,6 +3431,7 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IFMUL:
 				w_as_dyadic_float_instruction (instruction,"fmul","fmul");
 				break;
+#if 0
 			case IFBEQ:
 				w_as_float_branch_instruction (instruction,0);
 				break;
@@ -3317,6 +3450,7 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IFBNE:
 				w_as_float_branch_instruction (instruction,3);
 				break;
+#endif
 			case IFMOVEL:
 				w_as_fmovel_instruction (instruction);
 				break;
@@ -3352,6 +3486,24 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case IFSNE:
 				w_as_set_float_condition_instruction (instruction,3);
+				break;
+			case IFCEQ:
+				w_as_convert_float_condition_instruction (instruction,0);
+				break;
+			case IFCGE:
+				w_as_convert_float_condition_instruction (instruction,5);
+				break;
+			case IFCGT:
+				w_as_convert_float_condition_instruction (instruction,2);
+				break;
+			case IFCLE:
+				w_as_convert_float_condition_instruction (instruction,4);
+				break;
+			case IFCLT:
+				w_as_convert_float_condition_instruction (instruction,1);
+				break;
+			case IFCNE:
+				w_as_convert_float_condition_instruction (instruction,3);
 				break;
 #ifdef FP_STACK_OPTIMIZATIONS
 			case IFEXG:

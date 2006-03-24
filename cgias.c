@@ -1676,14 +1676,60 @@ static void as_cmp_i_parameter (int i,struct parameter *parameter)
 	}
 }
 
-static void as_cmp_instruction (struct instruction *instruction,int size_flag)
+static void as_cmp_instruction (struct instruction *instruction)
 {
 	struct parameter parameter_0,parameter_1;
 
 	parameter_0=instruction->instruction_parameters[0];
 	parameter_1=instruction->instruction_parameters[1];
 
-	if (parameter_1.parameter_type==P_INDIRECT && size_flag!=SIZE_LONG){
+	switch (parameter_0.parameter_type){
+		case P_DESCRIPTOR_NUMBER:
+			switch (parameter_1.parameter_type){
+				case P_REGISTER:
+					as_d_r2 (0201,0070,0075,parameter_0.parameter_data.l,parameter_0.parameter_offset,
+						parameter_1.parameter_data.reg.r);
+					return;
+				case P_INDIRECT:
+					as_d_id (0201,0070,parameter_0.parameter_data.l,parameter_0.parameter_offset,
+						parameter_1.parameter_offset,parameter_1.parameter_data.reg.r);
+					return;
+				case P_INDEXED:
+					as_d_x (0201,0070,parameter_0.parameter_data.l,parameter_0.parameter_offset,
+						parameter_1.parameter_offset,parameter_1.parameter_data.ir);
+					return;
+			}
+			break;
+		case P_IMMEDIATE:
+			as_cmp_i_parameter (parameter_0.parameter_data.i,&parameter_1);
+			return;
+	}
+
+	if (parameter_1.parameter_type==P_REGISTER)
+		switch (parameter_0.parameter_type){
+			case P_REGISTER:
+				as_r_r (0073,parameter_0.parameter_data.reg.r,parameter_1.parameter_data.reg.r);
+				return;
+			case P_INDIRECT:
+				as_id_r (0073,parameter_0.parameter_offset,parameter_0.parameter_data.reg.r,parameter_1.parameter_data.reg.r);
+				return;
+			case P_INDEXED:
+				as_x_r (0073,parameter_0.parameter_offset,parameter_0.parameter_data.ir,parameter_1.parameter_data.reg.r);
+				return;					
+		}
+
+	internal_error_in_function ("as_cmp_instruction");
+}
+
+#if 0
+static void as_cmpw_instruction (struct instruction *instruction)
+{
+	struct parameter parameter_0,parameter_1;
+
+	parameter_0=instruction->instruction_parameters[0];
+	parameter_1=instruction->instruction_parameters[1];
+
+	if (parameter_1.parameter_type==P_INDIRECT){
 		/* movswl */
 		store_c (0017);
 		as_id_r (0277,instruction->instruction_parameters[1].parameter_offset,
@@ -1714,15 +1760,13 @@ static void as_cmp_instruction (struct instruction *instruction,int size_flag)
 			as_cmp_i_parameter (parameter_0.parameter_data.i,&parameter_1);
 			return;
 		case P_INDIRECT:
-			if (size_flag==SIZE_WORD){
-				/* movswl */
-				store_c (0017);
-				as_id_r (0277,instruction->instruction_parameters[0].parameter_offset,
-					instruction->instruction_parameters[0].parameter_data.reg.r,REGISTER_O0);
-		
-				parameter_0.parameter_type=P_REGISTER;
-				parameter_0.parameter_data.reg.r=REGISTER_O0;
-			}
+			/* movswl */
+			store_c (0017);
+			as_id_r (0277,instruction->instruction_parameters[0].parameter_offset,
+				instruction->instruction_parameters[0].parameter_data.reg.r,REGISTER_O0);
+	
+			parameter_0.parameter_type=P_REGISTER;
+			parameter_0.parameter_data.reg.r=REGISTER_O0;
 	}
 
 	if (parameter_1.parameter_type==P_REGISTER)
@@ -1738,8 +1782,9 @@ static void as_cmp_instruction (struct instruction *instruction,int size_flag)
 				return;					
 		}
 
-	internal_error_in_function ("as_cmp_instruction");
+	internal_error_in_function ("as_cmpw_instruction");
 }
+#endif
 
 void store_label_in_data_section (LABEL *label)
 {
@@ -1891,6 +1936,47 @@ static void as_shift_instruction (struct instruction *instruction,int shift_code
 		store_c (0300 | (shift_code<<3) | reg_num (r));
 
 		as_move_r_r (REGISTER_O0,REGISTER_A0);
+	}
+}
+
+static void as_shift_s_instruction (struct instruction *instruction,int shift_code)
+{
+	if (instruction->instruction_parameters[0].parameter_type!=P_REGISTER){
+		if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+			store_c (0301);
+			store_c (0300 | (shift_code<<3) | reg_num (instruction->instruction_parameters[1].parameter_data.reg.r));
+			store_c (instruction->instruction_parameters[0].parameter_data.i & 31);
+		} else
+			internal_error_in_function ("as_shift_s_instruction");
+	} else {
+		int r0,r1;
+
+		r0=instruction->instruction_parameters[0].parameter_data.reg.r;
+		r1=instruction->instruction_parameters[1].parameter_data.reg.r;
+		if (r0==REGISTER_A0){
+			store_c (0323);
+			store_c (0300 | (shift_code<<3) | reg_num (r1));
+		} else {
+			int scratch_register;
+
+			scratch_register=instruction->instruction_parameters[2].parameter_data.reg.r;
+			if (scratch_register==REGISTER_A0){
+				as_move_r_r (r0,REGISTER_A0);
+
+				store_c (0323);
+				store_c (0300 | (shift_code<<3) | reg_num (r1));
+			} else {
+				as_move_r_r (REGISTER_A0,scratch_register);
+				as_move_r_r (r0,REGISTER_A0);
+				
+				if (r1==REGISTER_A0)
+					r1=scratch_register;
+				store_c (0323);
+				store_c (0300 | (shift_code<<3) | reg_num (r1));
+
+				as_move_r_r (scratch_register,REGISTER_A0);
+			}
+		}
 	}
 }
 
@@ -2705,68 +2791,33 @@ static void as_divdu_instruction (struct instruction *instruction)
 static void as_set_condition_instruction (struct instruction *instruction,int condition_code)
 {
 	int r;
+	unsigned int rn;
 	
 	r=instruction->instruction_parameters[0].parameter_data.reg.r;
-	
-	if (r==REGISTER_A3 || r==REGISTER_A4){
-#if 1
-		as_move_r_r (REGISTER_D0,REGISTER_O0);
-#else
+	rn=reg_num (r);
+
+	if (rn<4u){
+		store_c (0017);
+		store_c (0220 | condition_code);
+		store_c (0300 | rn);
+
+		/* movzbl */
+		store_c (017);
+		store_c (0266);
+		store_c (0300 | (rn<<3) | rn);
+	} else {
 		as_move_r_r (REGISTER_D0,r);
-#endif	
+
 		store_c (0017);
 		store_c (0220 | condition_code);
 		store_c (0300 | 0); /* %al */
 
-#if 1
 		/* movzbl */
 		store_c (017);
 		store_c (0266);
-		store_c (0300 | (reg_num (r)<<3) | 0 /* %al */);
+		store_c (0300 | (reg_num (REGISTER_D0)<<3) | 0 /* %al */);
 
-		as_move_r_r (REGISTER_O0,REGISTER_D0);
-#else		
-		/* and $1,D0 */
-		store_c (0203);
-		store_c (0340);
-		store_c (1);
-
-		store_c (0x90+reg_num (r)); /* xchg r,D0 */
-#endif
-	} else {
-		int rn;
-
-		switch (r){
-			case REGISTER_D0:
-				rn=0;
-				break;
-			case REGISTER_D1:
-				rn=3;
-				break;
-			case REGISTER_A0:
-				rn=1;
-				break;				
-			case REGISTER_A1:
-				rn=2;
-				break;				
-		}
-
-		store_c (0017);
-		store_c (0220 | condition_code);
-
-		store_c (0300 | rn);
-
-#if 1
-		/* movzbl */
-		store_c (017);
-		store_c (0266);
-		store_c (0300 | (reg_num (r)<<3) | rn);
-#else
-		/* and $1,reg */
-		store_c (0203);
-		store_c (0340+rn);
-		store_c (1);
-#endif
+		store_c (0x90+rn); /* xchg r,D0 */
 	}
 }
 
@@ -2972,8 +3023,11 @@ struct instruction *find_next_fp_instruction (struct instruction *instruction)
 		switch (instruction->instruction_icode){
 			case IFADD: case IFSUB: case IFMUL: case IFDIV:
 			case IFMOVEL: case IFCMP: case IFNEG: case IFABS: case IFTST: case IFREM:
+#if 0
 			case IFBEQ: case IFBGE: case IFBGT: case IFBLE: case IFBLT: case IFBNE:
+#endif
 			case IFSEQ: case IFSGE: case IFSGT: case IFSLE: case IFSLT: case IFSNE:
+			case IFCEQ: case IFCGE: case IFCGT: case IFCLE: case IFCLT: case IFCNE:
 			case IFCOS: case IFSIN: case IFSQRT: case IFTAN:
 			case IFEXG:
 			case IWORD:
@@ -3673,14 +3727,8 @@ static void as_monadic_float_instruction (struct instruction *instruction,int co
 #endif
 }
 
-static void as_float_branch_instruction (struct instruction *instruction,int n)
+static void as_test_floating_point_condition_code (int n)
 {
-	int r;
-	
-	r=instruction->instruction_parameters[0].parameter_data.reg.r;
-
-	as_r_r (0213,REGISTER_D0,REGISTER_O0);
-
 	store_c (0xdf);
 	store_c (0xe0); /* fnstsw %ax */
 
@@ -3721,6 +3769,18 @@ static void as_float_branch_instruction (struct instruction *instruction,int n)
 			store_c (5);		/* andb $5,%ah */
 			break;
 	}
+}
+
+#if 0
+static void as_float_branch_instruction (struct instruction *instruction,int n)
+{
+	int r;
+	
+	r=instruction->instruction_parameters[0].parameter_data.reg.r;
+
+	as_r_r (0213,REGISTER_D0,REGISTER_O0);
+
+	as_test_floating_point_condition_code (n);
 
 	as_r_r (0213,REGISTER_O0,REGISTER_D0);
 
@@ -3739,6 +3799,7 @@ static void as_float_branch_instruction (struct instruction *instruction,int n)
 			break;
 	}
 }
+#endif
 
 static void as_set_float_condition_instruction (struct instruction *instruction,int n)
 {
@@ -3749,46 +3810,7 @@ static void as_set_float_condition_instruction (struct instruction *instruction,
 	if (r!=REGISTER_D0)
 		as_r_r (0213,REGISTER_D0,r);
 
-	store_c (0xdf);
-	store_c (0xe0); /* fnstsw %ax */
-
-	store_c (0x80);
-	store_c (0xe4); /* andb $i,%ah */
-
-	switch (n){
-		case 0:
-			store_c (68);		/* andb $68,%ah */
-			store_c (0x80);
-			store_c (0xf4);
-			store_c (64);		/* xorb $64,%ah */
-			break;
-		case 1:
-			store_c (69);		/* andb $69,%ah */
-			store_c (0x80);
-			store_c (0xfc);
-			store_c (1);		/* cmpb $1,%ah */
-			break;
-		case 2:
-			store_c (69);		/* andb $69,%ah */
-			break;
-		case 3:
-			store_c (69);		/* andb $69,%ah */
-			store_c (0x80);
-			store_c (0xfc);
-			store_c (64);		/* cmpb $64,%ah */
-			break;
-		case 4:
-			store_c (69);		/* andb $69,%ah */
-			store_c (0xfe);
-			store_c (0xcc);		/* decb %ah */
-			store_c (0x80);
-			store_c (0xfc);
-			store_c (64);		/* cmpb $64,%ah */
-			break;
-		case 5:
-			store_c (5);		/* andb $5,%ah */
-			break;
-	}
+	as_test_floating_point_condition_code (n);
 
 	store_c (0x0f);
 	switch (n){
@@ -3807,13 +3829,35 @@ static void as_set_float_condition_instruction (struct instruction *instruction,
 	}
 	store_c (0xc0);
 
+#if 1
+	/* movzbl */
+	store_c (017);
+	store_c (0266);
+	store_c (0300 | (reg_num (REGISTER_D0)<<3) | 0 /* %al */);
+#else
 	/* and $1,D0 */
 	store_c (0203);
 	store_c (0340);
 	store_c (1);
+#endif
 
 	if (r!=REGISTER_D0)
 		store_c (0x90+reg_num (r)); /* xchg r,D0 */
+}
+
+static void as_convert_float_condition_instruction (struct instruction *instruction,int n)
+{
+	int r;
+
+	r=instruction->instruction_parameters[0].parameter_data.reg.r;
+
+	if (r!=REGISTER_D0)
+		as_r_r (0213,REGISTER_D0,r);
+
+	as_test_floating_point_condition_code (n);
+
+	if (r!=REGISTER_D0)
+		as_r_r (0213,r,REGISTER_D0);
 }
 
 #ifdef FP_STACK_OPTIMIZATIONS
@@ -4051,7 +4095,7 @@ static void as_instructions (struct instruction *instruction)
 				as_sub_instruction (instruction);
 				break;
 			case ICMP:
-				as_cmp_instruction (instruction,SIZE_LONG);
+				as_cmp_instruction (instruction);
 				break;
 			case IJMP:
 				as_jmp_instruction (instruction);
@@ -4114,6 +4158,15 @@ static void as_instructions (struct instruction *instruction)
 				break;
 			case IASR:
 				as_shift_instruction (instruction,7);
+				break;
+			case ILSL_S:
+				as_shift_s_instruction (instruction,4);
+				break;
+			case ILSR_S:
+				as_shift_s_instruction (instruction,5);
+				break;
+			case IASR_S:
+				as_shift_s_instruction (instruction,7);
 				break;
 			case IMUL:
 				as_mul_instruction (instruction);
@@ -4181,9 +4234,11 @@ static void as_instructions (struct instruction *instruction)
 			case ISNO:
 				as_set_condition_instruction (instruction,1);
 				break;
+#if 0
 			case ICMPW:
-				as_cmp_instruction (instruction,SIZE_WORD);
+				as_cmpw_instruction (instruction);
 				break;
+#endif
 			case ITST:
 				as_tst_instruction (instruction);
 				break;
@@ -4248,6 +4303,7 @@ static void as_instructions (struct instruction *instruction)
 			case IFMUL:
 				as_dyadic_float_instruction (instruction,1,0xc8,0xc8); /*fmull fmul fmulp*/
 				break;
+#if 0
 			case IFBEQ:
 				as_float_branch_instruction (instruction,0);
 				break;
@@ -4266,6 +4322,7 @@ static void as_instructions (struct instruction *instruction)
 			case IFBNE:
 				as_float_branch_instruction (instruction,3);
 				break;
+#endif
 			case IFMOVEL:
 				as_fmovel_instruction (instruction);
 				break;
@@ -4301,6 +4358,24 @@ static void as_instructions (struct instruction *instruction)
 				break;
 			case IFSNE:
 				as_set_float_condition_instruction (instruction,3);
+				break;
+			case IFCEQ:
+				as_convert_float_condition_instruction (instruction,0);
+				break;
+			case IFCGE:
+				as_convert_float_condition_instruction (instruction,5);
+				break;
+			case IFCGT:
+				as_convert_float_condition_instruction (instruction,2);
+				break;
+			case IFCLE:
+				as_convert_float_condition_instruction (instruction,4);
+				break;
+			case IFCLT:
+				as_convert_float_condition_instruction (instruction,1);
+				break;
+			case IFCNE:
+				as_convert_float_condition_instruction (instruction,3);
 				break;
 			case IRTSI:
 				as_rtsi_instruction (instruction);

@@ -1215,7 +1215,7 @@ static void w_as_subo_instruction (struct instruction *instruction)
 	w_as_newline();
 }
 
-static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
+static void w_as_cmp_instruction (struct instruction *instruction)
 {
 	struct parameter parameter_0,parameter_1;
 
@@ -1224,9 +1224,9 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 
 	if (parameter_1.parameter_type==P_INDIRECT || parameter_1.parameter_type==P_INDEXED){
 		if (parameter_1.parameter_type==P_INDIRECT)
-			w_as_opcode (size_flag==SIZE_LONG ? "lwz" : "lha");
+			w_as_opcode ("lwz");
 		else
-			w_as_opcode (size_flag==SIZE_LONG ? "lwzx" : "lhax");
+			w_as_opcode ("lwzx");
 
 		w_as_register_comma (REGISTER_O1);
 		w_as_parameter (&parameter_1);
@@ -1271,16 +1271,7 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 			break;
 		}
 		case P_INDIRECT:
-			switch (size_flag){
-				case SIZE_WORD:
-					w_as_opcode ("lha");
-					break;
-				case SIZE_LONG:
-					w_as_opcode ("lwz");
-					break;
-				default:
-					internal_error_in_function ("w_as_cmp_instruction");
-			}
+			w_as_opcode ("lwz");
 			w_as_register_comma (REGISTER_O0);
 			w_as_parameter (&parameter_0);
 			w_as_newline();
@@ -1289,16 +1280,7 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 			parameter_0.parameter_data.reg.r=REGISTER_O0;
 			break;
 		case P_INDEXED:
-			switch (size_flag){
-				case SIZE_WORD:
-					w_as_opcode ("lhax");
-					break;
-				case SIZE_LONG:
-					w_as_opcode ("lwzx");
-					break;
-				default:
-					internal_error_in_function ("w_as_cmp_instruction");
-			}
+			w_as_opcode ("lwzx");
 			w_as_register_comma (REGISTER_O0);
 			w_as_parameter (&parameter_0);
 			w_as_newline();
@@ -1316,6 +1298,92 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 	w_as_parameter (&parameter_0);
 	w_as_newline();
 }
+
+#if 0
+static void w_as_cmpw_instruction (struct instruction *instruction)
+{
+	struct parameter parameter_0,parameter_1;
+
+	parameter_0=instruction->instruction_parameters[0];
+	parameter_1=instruction->instruction_parameters[1];
+
+	if (parameter_1.parameter_type==P_INDIRECT || parameter_1.parameter_type==P_INDEXED){
+		if (parameter_1.parameter_type==P_INDIRECT)
+			w_as_opcode ("lha");
+		else
+			w_as_opcode ("lhax");
+
+		w_as_register_comma (REGISTER_O1);
+		w_as_parameter (&parameter_1);
+		w_as_newline();
+
+		parameter_1.parameter_type=P_REGISTER;
+		parameter_1.parameter_data.reg.r=REGISTER_O1;
+	}
+
+	switch (parameter_0.parameter_type){
+		case P_DESCRIPTOR_NUMBER:
+			w_as_load_descriptor (&parameter_0,REGISTER_O0);
+
+			parameter_0.parameter_type=P_REGISTER;
+			parameter_0.parameter_data.reg.r=REGISTER_O0;
+			break;
+		case P_REGISTER:
+			break;
+		case P_IMMEDIATE:
+		{
+			int i;
+				
+			i=parameter_0.parameter_data.i;
+			
+			if (i!=(WORD)i){
+				w_as_opcode ("lis");
+				w_as_register_comma (REGISTER_O0);
+				w_as_immediate ((i-(WORD)i)>>16);
+				w_as_newline();
+			
+				i=(WORD)i;
+
+				w_as_opcode ("addi");
+				w_as_register_comma (REGISTER_O0);
+				w_as_register_comma (REGISTER_O0);
+				w_as_immediate (i);
+				w_as_newline();
+
+				parameter_0.parameter_type=P_REGISTER;
+				parameter_0.parameter_data.reg.r=REGISTER_O0;
+			}
+			break;
+		}
+		case P_INDIRECT:
+			w_as_opcode ("lha");
+			w_as_register_comma (REGISTER_O0);
+			w_as_parameter (&parameter_0);
+			w_as_newline();
+
+			parameter_0.parameter_type=P_REGISTER;
+			parameter_0.parameter_data.reg.r=REGISTER_O0;
+			break;
+		case P_INDEXED:
+			w_as_opcode ("lhax");
+			w_as_register_comma (REGISTER_O0);
+			w_as_parameter (&parameter_0);
+			w_as_newline();
+
+			parameter_0.parameter_type=P_REGISTER;
+			parameter_0.parameter_data.reg.r=REGISTER_O0;
+			break;
+	}
+
+	w_as_opcode (parameter_0.parameter_type==P_IMMEDIATE ? "cmpwi" : "cmpw");
+	w_as_immediate (0);
+	w_as_comma();
+	w_as_parameter (&parameter_1);
+	w_as_comma();
+	w_as_parameter (&parameter_0);
+	w_as_newline();
+}
+#endif
 
 static void w_as_cmplw_instruction (struct instruction *instruction)
 {
@@ -3092,7 +3160,7 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_sub_instruction (instruction);
 				break;
 			case ICMP:
-				w_as_cmp_instruction (instruction,SIZE_LONG);
+				w_as_cmp_instruction (instruction);
 				break;
 			case IJMP:
 				w_as_jmp_instruction (instruction);
@@ -3193,9 +3261,11 @@ static void w_as_instructions (register struct instruction *instruction)
 			case ISO:
 				w_as_seto_condition_instruction (instruction);
 				break;
+#if 0
 			case ICMPW:
-				w_as_cmp_instruction (instruction,SIZE_WORD);
+				w_as_cmpw_instruction (instruction);
 				break;
+#endif
 			case ITST:
 				w_as_tst_instruction (instruction);
 				break;

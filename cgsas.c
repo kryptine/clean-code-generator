@@ -1022,7 +1022,7 @@ static void as_sub_o_instruction (struct instruction *instruction)
 	}
 }
 
-static void as_cmp_instruction (struct instruction *instruction,int size_flag)
+static void as_cmp_instruction (struct instruction *instruction)
 {
 	struct parameter parameter_0,parameter_1;
 
@@ -1030,10 +1030,7 @@ static void as_cmp_instruction (struct instruction *instruction,int size_flag)
 	parameter_1=instruction->instruction_parameters[1];
 
 	if (parameter_1.parameter_type==P_INDIRECT){
-		if (size_flag==SIZE_LONG)
-			as_ld (parameter_1.parameter_offset,parameter_1.parameter_data.reg.r,REGISTER_O1);
-		else
-			as_ldsh (parameter_1.parameter_offset,parameter_1.parameter_data.reg.r,REGISTER_O1);
+		as_ld (parameter_1.parameter_offset,parameter_1.parameter_data.reg.r,REGISTER_O1);
 
 		parameter_1.parameter_type=P_REGISTER;
 		parameter_1.parameter_data.reg.r=REGISTER_O1;
@@ -1041,10 +1038,7 @@ static void as_cmp_instruction (struct instruction *instruction,int size_flag)
 		if (parameter_1.parameter_offset!=0)
 			internal_error_in_function ("as_cmp_instruction");
 		
-		if (size_flag==SIZE_LONG)
-			as_ld_x (parameter_1.parameter_data.ir->a_reg.r,parameter_1.parameter_data.ir->d_reg.r,REGISTER_O1);
-		else
-			as_ldsh_x (parameter_1.parameter_data.ir->a_reg.r,parameter_1.parameter_data.ir->d_reg.r,REGISTER_O1);
+		as_ld_x (parameter_1.parameter_data.ir->a_reg.r,parameter_1.parameter_data.ir->d_reg.r,REGISTER_O1);
 
 		parameter_1.parameter_type=P_REGISTER;
 		parameter_1.parameter_data.reg.r=REGISTER_O1;
@@ -1075,16 +1069,7 @@ static void as_cmp_instruction (struct instruction *instruction,int size_flag)
 		case P_REGISTER:
 			break;
 		default:
-			switch (size_flag){
-				case SIZE_WORD:
-					as_ldsh_parameter (&parameter_0,REGISTER_O0);
-					break;
-				case SIZE_LONG:
-					as_ld_parameter (&parameter_0,REGISTER_O0);
-					break;
-				default:
-					internal_error_in_function ("as_cmp_instruction");
-			}
+			as_ld_parameter (&parameter_0,REGISTER_O0);
 
 			parameter_0.parameter_type=P_REGISTER;
 			parameter_0.parameter_data.reg.r=REGISTER_O0;
@@ -1092,6 +1077,64 @@ static void as_cmp_instruction (struct instruction *instruction,int size_flag)
 
 	as_cmp (parameter_1.parameter_data.reg.r,parameter_0.parameter_data.reg.r);
 }
+
+#if 0
+static void as_cmpw_instruction (struct instruction *instruction)
+{
+	struct parameter parameter_0,parameter_1;
+
+	parameter_0=instruction->instruction_parameters[0];
+	parameter_1=instruction->instruction_parameters[1];
+
+	if (parameter_1.parameter_type==P_INDIRECT){
+		as_ldsh (parameter_1.parameter_offset,parameter_1.parameter_data.reg.r,REGISTER_O1);
+
+		parameter_1.parameter_type=P_REGISTER;
+		parameter_1.parameter_data.reg.r=REGISTER_O1;
+	} else if (parameter_1.parameter_type==P_INDEXED){
+		if (parameter_1.parameter_offset!=0)
+			internal_error_in_function ("as_cmpw_instruction");
+
+		as_ldsh_x (parameter_1.parameter_data.ir->a_reg.r,parameter_1.parameter_data.ir->d_reg.r,REGISTER_O1);
+
+		parameter_1.parameter_type=P_REGISTER;
+		parameter_1.parameter_data.reg.r=REGISTER_O1;
+	}
+
+	switch (parameter_0.parameter_type){
+		case P_DESCRIPTOR_NUMBER:
+			as_sethi (0,REGISTER_O0);
+			as_hi_or_lo_label (parameter_0.parameter_data.l,2+(parameter_0.parameter_offset<<3),HI22_RELOCATION);
+
+			as_ori (REGISTER_O0,0,REGISTER_O0);
+			as_hi_or_lo_label (parameter_0.parameter_data.l,2+(parameter_0.parameter_offset<<3),LO12_RELOCATION);
+
+			parameter_0.parameter_type=P_REGISTER;
+			parameter_0.parameter_data.reg.r=REGISTER_O0;
+			break;
+		case P_IMMEDIATE:
+			if ((unsigned)(parameter_0.parameter_data.i+4096)>=(unsigned)8192){
+				as_set (parameter_0.parameter_data.i,REGISTER_O0);
+
+				parameter_0.parameter_type=P_REGISTER;
+				parameter_0.parameter_data.reg.r=REGISTER_O0;
+			} else {
+				as_cmpi (parameter_1.parameter_data.reg.r,parameter_0.parameter_data.i);
+				return;
+			}
+			break;
+		case P_REGISTER:
+			break;
+		default:
+			as_ldsh_parameter (&parameter_0,REGISTER_O0);
+
+			parameter_0.parameter_type=P_REGISTER;
+			parameter_0.parameter_data.reg.r=REGISTER_O0;
+	}
+
+	as_cmp (parameter_1.parameter_data.reg.r,parameter_0.parameter_data.reg.r);
+}
+#endif
 
 static void as_tst_instruction (struct instruction *instruction,int size_flag)
 {
@@ -1722,7 +1765,7 @@ static void as_instructions (register struct instruction *instruction)
 				as_sub_instruction (instruction);
 				break;
 			case ICMP:
-				as_cmp_instruction (instruction,SIZE_LONG);
+				as_cmp_instruction (instruction);
 				break;
 			case IJMP:
 				as_jmp_instruction (instruction);
@@ -1814,9 +1857,11 @@ static void as_instructions (register struct instruction *instruction)
 			case ISO:
 				as_set_condition_instruction (instruction,VS_COND);
 				break;			
+#if 0
 			case ICMPW:
-				as_cmp_instruction (instruction,SIZE_WORD);
+				as_cmpw_instruction (instruction);
 				break;
+#endif
 			case ITST:
 				as_tst_instruction (instruction,SIZE_LONG);
 				break;

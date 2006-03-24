@@ -340,9 +340,10 @@ static void i_cmp_id_r (int offset,int register_1,int register_2)
 												parameter_data.i=register_2);
 }
 
+#ifdef M68000
 static void i_cmpw_d_id (LABEL *descriptor,int arity,int offset_1,int register_1)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction2 (ICMPW);
 	
@@ -354,6 +355,7 @@ static void i_cmpw_d_id (LABEL *descriptor,int arity,int offset_1,int register_1
 												parameter_offset=offset_1,
 												parameter_data.i=register_1);
 }
+#endif
 
 #if defined (M68000) || defined (I486)
 static void i_exg_r_r (int register_1,int register_2)
@@ -778,7 +780,7 @@ void i_jsr_l_id (LABEL *label,int offset)
 #ifdef I486
 void i_jsr_r (int register_1)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction1 (IJSR);
 	
@@ -847,7 +849,7 @@ void i_divdu_r_r_r (int register_1,int register_2,int register_3)
 
 void i_lea_id_r (int offset,int register_1,int register_2)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction2 (ILEA);
 	
@@ -2203,7 +2205,11 @@ static void ad_to_parameter (ADDRESS *ad_p,struct parameter *parameter_p)
 	}
 }
 
-static int fad_to_parameter (ADDRESS *ad_p,struct parameter *parameter_p)
+#if defined (FP_STACK_OPTIMIZATIONS) || defined (FMADD)
+#define FP_REG_LAST_USE 4
+#endif
+
+static int fad_to_parameter_without_freeing_fregister (ADDRESS *ad_p,struct parameter *parameter_p)
 {
 	switch (ad_p->ad_mode){
 		case P_F_REGISTER:
@@ -2245,7 +2251,7 @@ static int fad_to_parameter (ADDRESS *ad_p,struct parameter *parameter_p)
 
 			load_x_graph=ad_p->ad_load_x_graph;
 			i_ad_p=(ADDRESS *)load_x_graph->instruction_parameters[1].p;
-			
+
 			if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
 				load_x_graph->inode_arity ^= (LOAD_X_TO_ADDRESS | LOAD_X_TO_REGISTER);
 				if (i_ad_p->ad_mode==P_INDEXED){
@@ -2274,15 +2280,16 @@ static int fad_to_parameter (ADDRESS *ad_p,struct parameter *parameter_p)
 				parameter_p->parameter_flags = load_x_graph->inode_arity & LOAD_STORE_ALIGNED_REAL;
 #endif
 			} else {
-				U2(parameter_p,parameter_type=P_REGISTER,parameter_data.i=i_ad_p->ad_register);
-
-				if (--*i_ad_p->ad_count_p==0)
-					free_register (i_ad_p->ad_register);
+				set_float_register_parameter (*parameter_p,i_ad_p->ad_register);
+				if (--*i_ad_p->ad_count_p==0){
+					/* free_fregister (i_ad_p->ad_register);*/
+					return 1;
+				}
 			}
 			break;
 		}
 		default:
-			internal_error_in_function ("ad_to_parameter");
+			internal_error_in_function ("fad_to_parameter_without_freeing_fregister");
 	}
 	return 0;
 }
@@ -2400,7 +2407,7 @@ static void instruction_fr_fr (int instruction_code,int register_1,int register_
 
 static void instruction_l (int instruction_code,LABEL *label)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 
 	instruction=i_new_instruction1 (instruction_code);
 	
@@ -3244,7 +3251,8 @@ static int compare_node (INSTRUCTION_GRAPH graph,int i_test_1,int i_test_2)
 	
 	graph_1=graph->instruction_parameters[0].p;
 	graph_2=graph->instruction_parameters[1].p;
-	
+
+#ifdef M68000
 	if (graph_1->instruction_code==GLOAD_DES_ID && graph_1->node_count==1 
 		&& graph_2->instruction_code==GLOAD_DES_I && graph_2->node_count==1)
 	{
@@ -3255,100 +3263,99 @@ static int compare_node (INSTRUCTION_GRAPH graph,int i_test_1,int i_test_2)
 		i_cmpw_d_id (graph_2->instruction_parameters[0].l,graph_2->instruction_parameters[1].i,
 					 graph_1->instruction_parameters[0].i,ad_1.ad_register);
 		return i_test_2;
-	} else
-		if (graph_2->instruction_code==GLOAD_DES_ID && graph_2->node_count==1
-			&& graph_1->instruction_code==GLOAD_DES_I && graph_1->node_count==1)
-		{
-			linearize_graph (graph_2->instruction_parameters[1].p,&ad_1);
-			in_address_register (&ad_1);
-			if (--*ad_1.ad_count_p==0)
-				free_aregister (ad_1.ad_register);
-			i_cmpw_d_id (graph_1->instruction_parameters[0].l,
-						 graph_1->instruction_parameters[1].i,
-						 graph_2->instruction_parameters[0].i,ad_1.ad_register);
+	}
+
+	if (graph_2->instruction_code==GLOAD_DES_ID && graph_2->node_count==1
+		&& graph_1->instruction_code==GLOAD_DES_I && graph_1->node_count==1)
+	{
+		linearize_graph (graph_2->instruction_parameters[1].p,&ad_1);
+		in_address_register (&ad_1);
+		if (--*ad_1.ad_count_p==0)
+			free_aregister (ad_1.ad_register);
+		i_cmpw_d_id (graph_1->instruction_parameters[0].l,
+					 graph_1->instruction_parameters[1].i,
+					 graph_2->instruction_parameters[0].i,ad_1.ad_register);
+		return i_test_1;
+	}
+#endif
+
+	if (graph->order_left){
+		linearize_graph (graph_1,&ad_1);
+		linearize_graph (graph_2,&ad_2);
+	} else {
+		linearize_graph (graph_2,&ad_2);
+		linearize_graph (graph_1,&ad_1);
+	}
+
+	mode_1=ad_1.ad_mode;
+	mode_2=ad_2.ad_mode;
+
+	if (mode_1==P_IMMEDIATE && ! (mode_2==P_IMMEDIATE || mode_2==P_DESCRIPTOR_NUMBER)){
+		LONG i;
+#ifdef M68000
+		int real_dreg_number;
+#endif
+		i=ad_1.ad_offset;
+#ifdef M68000
+		if (i<128 && i>=-128 && i!=0 && (real_dreg_number=try_get_real_dregister_number())>=0){
+			int dreg;
+
+			dreg=num_to_d_reg (real_dreg_number);
+			i_move_i_r (i,dreg);
+			instruction_ad_r (ICMP,&ad_2,dreg);
+			free_dregister (dreg);
+			return i_test_2;
+		} else {
+#endif
+			instruction_i_ad (ICMP,i,&ad_2);
+			return i_test_1;
+#ifdef M68000
+		}
+#endif
+	} else if (mode_1==P_DESCRIPTOR_NUMBER && ! (mode_2==P_IMMEDIATE || mode_2==P_DESCRIPTOR_NUMBER)){
+		instruction_d_ad (ICMP,ad_1.ad_label,ad_1.ad_offset,&ad_2);
+		return i_test_1;
+	} else if (mode_2==P_IMMEDIATE && ! (mode_1==P_IMMEDIATE || mode_1==P_DESCRIPTOR_NUMBER)){
+		LONG i;
+#ifdef M68000
+		int real_dreg_number;
+#endif
+		
+		i=ad_2.ad_offset;
+#ifdef M68000
+		if (i<128 && i>=-128 && i!=0 && (real_dreg_number=try_get_real_dregister_number())>=0){
+			int dreg;
+			
+			dreg=num_to_d_reg (real_dreg_number);
+			i_move_i_r (i,dreg);
+			instruction_ad_r (ICMP,&ad_1,dreg);
+			free_dregister (dreg);
 			return i_test_1;
 		} else {
-			if (graph->order_left){
-				linearize_graph (graph_1,&ad_1);
-				linearize_graph (graph_2,&ad_2);
-			} else {
-				linearize_graph (graph_2,&ad_2);
-				linearize_graph (graph_1,&ad_1);
-			}
-
-			mode_1=ad_1.ad_mode;
-			mode_2=ad_2.ad_mode;
-
-			if (mode_1==P_IMMEDIATE && ! (mode_2==P_IMMEDIATE || mode_2==P_DESCRIPTOR_NUMBER)){
-				LONG i;
-#ifdef M68000
-				int real_dreg_number;
 #endif
-				i=ad_1.ad_offset;
+			instruction_i_ad (ICMP,i,&ad_1);
+			return i_test_2;
 #ifdef M68000
-				if (i<128 && i>=-128 && i!=0 && (real_dreg_number=try_get_real_dregister_number())>=0){
-					int dreg;
-
-					dreg=num_to_d_reg (real_dreg_number);
-					i_move_i_r (i,dreg);
-					instruction_ad_r (ICMP,&ad_2,dreg);
-					free_dregister (dreg);
-					return i_test_2;
-				} else {
-#endif
-					instruction_i_ad (ICMP,i,&ad_2);
-					return i_test_1;
-#ifdef M68000
-				}
-#endif
-			} else if (mode_1==P_DESCRIPTOR_NUMBER 
-					   && ! (mode_2==P_IMMEDIATE || mode_2==P_DESCRIPTOR_NUMBER)){
-				instruction_d_ad (ICMP,ad_1.ad_label,ad_1.ad_offset,&ad_2);
-				return i_test_1;
-			} else if (mode_2==P_IMMEDIATE 
-					   && ! (mode_1==P_IMMEDIATE || mode_1==P_DESCRIPTOR_NUMBER))
-			{
-				LONG i;
-#ifdef M68000
-				int real_dreg_number;
-#endif
-				
-				i=ad_2.ad_offset;
-#ifdef M68000
-				if (i<128 && i>=-128 && i!=0 && (real_dreg_number=try_get_real_dregister_number())>=0){
-					int dreg;
-					
-					dreg=num_to_d_reg (real_dreg_number);
-					i_move_i_r (i,dreg);
-					instruction_ad_r (ICMP,&ad_1,dreg);
-					free_dregister (dreg);
-					return i_test_1;
-				} else {
-#endif
-					instruction_i_ad (ICMP,i,&ad_1);
-					return i_test_2;
-#ifdef M68000
-				}
-#endif
-			} else if (mode_2==P_DESCRIPTOR_NUMBER 
-					   && ! (mode_1==P_IMMEDIATE || mode_1==P_DESCRIPTOR_NUMBER)){
-				instruction_d_ad (ICMP,ad_2.ad_label,ad_2.ad_offset,&ad_1);
-				return i_test_2;
-			} else if (mode_2==P_REGISTER 
-					   || (mode_1!=P_REGISTER && mode_2==P_INDIRECT && *ad_2.ad_count_p==1)){
-				in_register (&ad_2);
-				instruction_ad_r (ICMP,&ad_1,ad_2.ad_register);
-				if (--*ad_2.ad_count_p==0)
-					free_register (ad_2.ad_register);
-				return i_test_1;
-			} else {	
-				in_register (&ad_1);
-				instruction_ad_r (ICMP,&ad_2,ad_1.ad_register);
-				if (--*ad_1.ad_count_p==0)
-					free_register (ad_1.ad_register);
-				return i_test_2;
-			}
 		}
+#endif
+	} else if (mode_2==P_DESCRIPTOR_NUMBER 
+			   && ! (mode_1==P_IMMEDIATE || mode_1==P_DESCRIPTOR_NUMBER)){
+		instruction_d_ad (ICMP,ad_2.ad_label,ad_2.ad_offset,&ad_1);
+		return i_test_2;
+	} else if (mode_2==P_REGISTER 
+			   || (mode_1!=P_REGISTER && mode_2==P_INDIRECT && *ad_2.ad_count_p==1)){
+		in_register (&ad_2);
+		instruction_ad_r (ICMP,&ad_1,ad_2.ad_register);
+		if (--*ad_2.ad_count_p==0)
+			free_register (ad_2.ad_register);
+		return i_test_1;
+	} else {	
+		in_register (&ad_1);
+		instruction_ad_r (ICMP,&ad_2,ad_1.ad_register);
+		if (--*ad_1.ad_count_p==0)
+			free_register (ad_1.ad_register);
+		return i_test_2;
+	}
 }
 
 enum {
@@ -3370,14 +3377,22 @@ static int condition_to_branch_false_instruction[]=
 {
 	IBNE,	IBEQ,	IBLE,	IBGE,	IBLT,	IBGT,
 	IBNO,	IBO,	IBLEU,	IBGEU,	IBLTU,	IBGTU,
+#if defined (I486) && !defined (G_A64)
+	IFCNE,	IFCEQ,	IFCLE,	IFCGE,	IFCLT,	IFCGT
+#else
 	IFBNE,	IFBEQ,	IFBLE,	IFBGE,	IFBLT,	IFBGT
+#endif
 };
 
 static int condition_to_branch_true_instruction[]=
 {
 	IBEQ,	IBNE,	IBGT,	IBLT,	IBGE,	IBLE,
 	IBO,	IBNO,	IBGTU,	IBLTU,	IBGEU,	IBLEU,
+#if defined (I486) && !defined (G_A64)
+	IFCEQ,	IFCNE,	IFCGT,	IFCLT,	IFCGE,	IFCLE
+#else
 	IFBEQ,	IFBNE,	IFBGT,	IFBLT,	IFBGE,	IFBLE
+#endif
 };
 
 static void save_condition (INSTRUCTION_GRAPH graph,int condition)
@@ -3988,7 +4003,11 @@ static void linearize_two_results_operator (INSTRUCTION_GRAPH result_graph,ADDRE
 }
 #endif
 
+#ifndef I486
 static void linearize_shift_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
+#else
+static void linearize_shift_operator (int i_instruction_code,int i_instruction_code_s,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
+#endif
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
 	ADDRESS ad_1,ad_2;
@@ -4025,10 +4044,26 @@ static void linearize_shift_operator (int i_instruction_code,INSTRUCTION_GRAPH g
 #ifdef M68000
 	if (ad_1.ad_mode!=P_IMMEDIATE || ad_1.ad_offset<=0 || ad_1.ad_offset>8)
 #else
+# ifndef G_A64
 	if (ad_1.ad_mode!=P_IMMEDIATE || ad_1.ad_offset<0 || ad_1.ad_offset>=32)
+# else
+	if (ad_1.ad_mode!=P_IMMEDIATE || ad_1.ad_offset<0 || ad_1.ad_offset>=64)
+# endif
 #endif
 		in_data_register (&ad_1);
 
+#ifdef I486
+	if (ad_1.ad_mode!=P_IMMEDIATE){
+		int tmp_reg;
+
+		if (try_allocate_register_number (REGISTER_A0))
+			tmp_reg=REGISTER_A0;
+		else
+			tmp_reg=get_dregister();
+		instruction_ad_r_r (i_instruction_code_s,&ad_1,ad_2.ad_register,tmp_reg);
+		free_register (tmp_reg);
+	} else
+#endif
 	instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
 	--*ad_2.ad_count_p;
 
@@ -4374,10 +4409,6 @@ void evaluate_arguments_and_free_addresses (union instruction_parameter argument
 	ad_a=evaluate_arguments (arguments,n_arguments);
 	memory_free (ad_a);
 }
-
-#if defined (FP_STACK_OPTIMIZATIONS) || defined (FMADD)
-#define FP_REG_LAST_USE 4
-#endif
 
 static void move_float_ad_id (ADDRESS *ad_p,int offset,int areg)
 {
@@ -5671,7 +5702,7 @@ static void instruction_ad_fr (int instruction_code,ADDRESS *ad_p,int register_1
 	instruction=i_new_instruction2 (instruction_code);
 	
 	parameter_p=&instruction->instruction_parameters[0];
-	
+
 	switch (ad_p->ad_mode){
 		case P_F_REGISTER:
 			set_float_register_parameter (*parameter_p,ad_p->ad_register);
@@ -6451,7 +6482,7 @@ static void linearize_dyadic_commutative_float_operator (int instruction_code,re
 #if defined (FMADD)
 		parameter1.parameter_flags=0;
 #endif
-		free_f_register=fad_to_parameter (&ad_1,&parameter1);
+		free_f_register=fad_to_parameter_without_freeing_fregister (&ad_1,&parameter1);
 		in_alterable_float_register (&ad_2);
 		if (free_f_register){
 #if defined (FP_STACK_OPTIMIZATIONS) || defined (FMADD)
@@ -6492,7 +6523,6 @@ static void linearize_dyadic_non_commutative_float_operator (int instruction_cod
 
 #if 1
 # if (defined (I486) && !defined (G_AI64)) || defined (G_POWER)
-	/* added 15-12-1998 */
 	if (ad_1.ad_mode==P_F_REGISTER && *ad_1.ad_count_p==1
 		&& !(ad_2.ad_mode==P_F_REGISTER && ad_2.ad_register<ad_1.ad_register && *ad_2.ad_count_p==1)
 	){
@@ -6511,7 +6541,7 @@ static void linearize_dyadic_non_commutative_float_operator (int instruction_cod
 		parameter1.parameter_flags=0;
 # endif
 
-		free_f_register=fad_to_parameter (&ad_1,&parameter1);
+		free_f_register=fad_to_parameter_without_freeing_fregister (&ad_1,&parameter1);
 		in_alterable_float_register (&ad_2);
 		if (free_f_register){	
 #if defined (FP_STACK_OPTIMIZATIONS) || defined (FMADD)
@@ -7920,9 +7950,28 @@ static void linearize_exit_if_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 	graph_2=graph->instruction_parameters[2].p;
 
 	condition=linearize_condition (graph_1);
+
+#if defined (I486) && !defined (G_A64)
+	if (is_float_condition (condition)){
+		int convert_instruction_code,branch_instruction_code,tmp_reg;
 	
-	instruction_l (condition_to_branch_false_instruction[condition],graph->instruction_parameters[0].l);
+		if (try_allocate_register_number (REGISTER_D0))
+			tmp_reg=REGISTER_D0;
+		else
+			tmp_reg=get_dregister();
+
+		convert_instruction_code=condition_to_branch_false_instruction[condition];
+		instruction_r (convert_instruction_code,tmp_reg);
+
+		free_register (tmp_reg);
 		
+		branch_instruction_code=convert_instruction_code==IFCNE ? IBNE :
+								convert_instruction_code==IFCLE ? IBLT : IBEQ;
+		instruction_l (branch_instruction_code,graph->instruction_parameters[0].l);
+	} else
+#endif
+	instruction_l (condition_to_branch_false_instruction[condition],graph->instruction_parameters[0].l);
+
 	linearize_graph (graph_2,ad_p);
 
 	if (graph->node_count>1){
@@ -8394,13 +8443,25 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			linearize_conditional_not_operator (graph,ad_p);
 			return;
 		case GLSR:
+#ifndef I486
 			linearize_shift_operator (ILSR,graph,ad_p);
+#else
+			linearize_shift_operator (ILSR,ILSR_S,graph,ad_p);
+#endif
 			return;
 		case GLSL:
+#ifndef I486
 			linearize_shift_operator (ILSL,graph,ad_p);
+#else
+			linearize_shift_operator (ILSL,ILSL_S,graph,ad_p);
+#endif
 			return;
 		case GASR:
+#ifndef I486
 			linearize_shift_operator (IASR,graph,ad_p);
+#else
+			linearize_shift_operator (IASR,IASR_S,graph,ad_p);
+#endif
 			return;
 		case GCREATE:
 			linearize_create_operator (graph,ad_p,0);
@@ -8619,6 +8680,30 @@ void calculate_and_linearize_branch_false (LABEL *label,INSTRUCTION_GRAPH graph)
 	calculate_graph_register_uses (graph);
 	condition=linearize_condition (graph);
 	
+#if defined (I486) && !defined (G_A64)
+	if (is_float_condition (condition)){
+		int convert_instruction_code,branch_instruction_code,tmp_reg;
+	
+		if (try_allocate_register_number (REGISTER_D0))
+			tmp_reg=REGISTER_D0;
+		else
+			tmp_reg=get_dregister();
+
+		convert_instruction_code=condition_to_branch_false_instruction[condition];
+		instruction_r (convert_instruction_code,tmp_reg);
+
+		free_register (tmp_reg);
+
+		adjust_stack_pointers_without_altering_condition_codes (1,condition);
+		
+		branch_instruction_code=convert_instruction_code==IFCNE ? IBNE :
+								convert_instruction_code==IFCLE ? IBLT : IBEQ;
+		instruction_l (branch_instruction_code,label);
+		
+		return;
+	}
+#endif
+
 	condition_on_stack=adjust_stack_pointers_without_altering_condition_codes (is_float_condition (condition),condition);
 
 #ifdef M68000
@@ -8627,7 +8712,7 @@ void calculate_and_linearize_branch_false (LABEL *label,INSTRUCTION_GRAPH graph)
 		instruction_l (IBEQ,label);
 	} else
 #endif
-		instruction_l (condition_to_branch_false_instruction[condition],label);	
+		instruction_l (condition_to_branch_false_instruction[condition],label);
 }
 
 void calculate_and_linearize_branch_true (LABEL *label,INSTRUCTION_GRAPH graph)
@@ -8636,6 +8721,30 @@ void calculate_and_linearize_branch_true (LABEL *label,INSTRUCTION_GRAPH graph)
 	
 	calculate_graph_register_uses (graph);
 	condition=linearize_condition (graph);
+
+#if defined (I486) && !defined (G_A64)
+	if (is_float_condition (condition)){
+		int convert_instruction_code,branch_instruction_code,tmp_reg;
+	
+		if (try_allocate_register_number (REGISTER_D0))
+			tmp_reg=REGISTER_D0;
+		else
+			tmp_reg=get_dregister();
+
+		convert_instruction_code=condition_to_branch_true_instruction[condition];
+		instruction_r (convert_instruction_code,tmp_reg);
+
+		free_register (tmp_reg);
+
+		adjust_stack_pointers_without_altering_condition_codes (1,condition);
+		
+		branch_instruction_code=convert_instruction_code==IFCNE ? IBNE :
+								convert_instruction_code==IFCLE ? IBLT : IBEQ;
+		instruction_l (branch_instruction_code,label);
+
+		return;
+	}
+#endif
 
 	condition_on_stack=adjust_stack_pointers_without_altering_condition_codes (is_float_condition (condition),condition);
 

@@ -72,12 +72,14 @@ static void optimize_branch_jump (struct instruction *branch,LABEL *new_branch_l
 		case IBGTU:	branch->instruction_icode=IBLEU;	break;
 		case IBLEU:	branch->instruction_icode=IBGTU;	break;
 		case IBLTU:	branch->instruction_icode=IBGEU;	break;
+#if !defined (I486_USE_SCRATCH_REGISTER) || defined (G_A64)
 		case IFBEQ:	branch->instruction_icode=IFBNE;	break;
 		case IFBGE:	branch->instruction_icode=IFBLT;	break;
 		case IFBGT:	branch->instruction_icode=IFBLE;	break;
 		case IFBLE:	branch->instruction_icode=IFBGT;	break;
 		case IFBLT:	branch->instruction_icode=IFBGE;	break;
 		case IFBNE:	branch->instruction_icode=IFBEQ;
+#endif
 	}
 }
 
@@ -114,7 +116,9 @@ void optimize_jumps (void)
 			switch (branch->instruction_icode){
 				case IBEQ:	case IBGE:	case IBGT:	case IBLE:	case IBLT:
 				case IBNE:	case IBGEU:	case IBGTU:	case IBLEU:	case IBLTU:
+#if !defined (I486_USE_SCRATCH_REGISTER) || defined (G_A64)
 				case IFBEQ:	case IFBGE:	case IFBGT:	case IFBLE:	case IFBLT:	case IFBNE:
+#endif
 				{
 					struct basic_block *next_block;
 					
@@ -671,6 +675,9 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 					instruction->instruction_icode!=IREMI &&
 					instruction->instruction_icode!=IREMU &&
 					instruction->instruction_icode!=IDIVDU &&
+					instruction->instruction_icode!=IASR_S &&
+					instruction->instruction_icode!=ILSL_S &&
+					instruction->instruction_icode!=ILSR_S &&
 #endif
 					instruction->instruction_icode!=IMOD)
 #ifdef M68000
@@ -906,6 +913,9 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					instruction->instruction_icode!=IREMI &&
 					instruction->instruction_icode!=IREMU &&
 					instruction->instruction_icode!=IDIVDU &&
+					instruction->instruction_icode!=IASR_S &&
+					instruction->instruction_icode!=ILSL_S &&
+					instruction->instruction_icode!=ILSR_S &&
 					instruction->instruction_icode!=IMOD)
 					internal_error_in_function ("optimize_stack_access");
 				/* only first argument of mod might be register indirect */
@@ -1520,7 +1530,6 @@ static void store_next_uses (struct instruction *instruction)
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IASR:	case ILSL:	case ILSR:
 			case IDIV:
-			case ICMPW:
 #endif
 #if defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)
 			case IMULUD:
@@ -1541,19 +1550,15 @@ IF_G_POWER ( case IUMULH: )
 #ifdef I486
 			case IADC:	case ISBB:
 #endif
+#ifdef M68000
+			case ICMPW:
+#endif
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
 #ifdef I486_USE_SCRATCH_REGISTER
 			case IASR:	case ILSL:	case ILSR:
 				if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
-					define_scratch_register();
-				use_parameter (&instruction->instruction_parameters[1]);
-				use_parameter (&instruction->instruction_parameters[0]);
-				break;
-			case ICMPW:
-				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT ||
-					instruction->instruction_parameters[1].parameter_type==P_INDIRECT)
 					define_scratch_register();
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
@@ -1615,11 +1620,11 @@ IF_G_RISC (case IADDI: case ILSLI:)
 			/* case IJMP:	case IJSR: */
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
-			case IFSEQ:	case IFSGE:	case IFSGT:	case IFSLE:	case IFSLT:	case IFSNE:
 			case ISEQ:	case ISGE:	case ISGT:	case ISLE:	case ISLT:	case ISNE:
 			case ISO:	case ISGEU:	case ISGTU:	case ISLEU:	case ISLTU:	case ISNO:
-#ifdef I486_USE_SCRATCH_REGISTER
-				define_scratch_register();
+			case IFSEQ:	case IFSGE:	case IFSGT:	case IFSLE:	case IFSLT:	case IFSNE:
+#if defined (I486) && !defined (G_A64)
+			case IFCEQ:	case IFCGE:	case IFCGT:	case IFCLE:	case IFCLT:	case IFCNE:
 #endif
 				define_parameter (&instruction->instruction_parameters[0]);
 				break;
@@ -1638,6 +1643,13 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
 # endif
+#endif
+#ifdef I486
+			case IASR_S: case ILSL_S: case ILSR_S:
+				define_parameter (&instruction->instruction_parameters[2]);
+				use_parameter (&instruction->instruction_parameters[1]);
+				use_parameter (&instruction->instruction_parameters[0]);
+				break;
 #endif
 #ifdef M68000
 			case IMOVEM:
@@ -1666,13 +1678,12 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
 #endif
-#ifdef I486_USE_SCRATCH_REGISTER
+#if 0
 			case IFBEQ:	case IFBGE: case IFBGT:	case IFBLE:	case IFBLT:	case IFBNE:
 				define_scratch_register();
 				break;
 #endif
 			/*
-			case IFBEQ:	case IFBGE: case IFBGT:	case IFBLE:	case IFBLT:	case IFBNE:
 			case IRTS:
 				break;
 			*/
@@ -3065,7 +3076,7 @@ static void use_3_same_type_registers
 	int reg_n_1,reg_n_2,reg_n_3,real_reg_n_1,real_reg_n_2,real_reg_n_3,instruction_n;
 	struct register_use *reg_uses;
 	struct register_allocation *reg_alloc;
-	
+
 	reg_n_1=reg_p_1->r;
 	reg_n_2=reg_p_2->r;
 	reg_n_3=reg_p_3->r;
@@ -3855,20 +3866,13 @@ IF_G_POWER ( case IUMULH: )
 				break;
 #endif
 			case ICMP:
-#ifndef I486_USE_SCRATCH_REGISTER
+#ifdef M68000
 			case ICMPW:
 #endif
 IF_G_POWER (case ICMPLW:)
 				instruction_use_2 (instruction,USE);
 				break;
 #ifdef I486_USE_SCRATCH_REGISTER
-			case ICMPW:
-				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT ||
-					instruction->instruction_parameters[1].parameter_type==P_INDIRECT)
-					use_scratch_register();
-				instruction_use_2 (instruction,USE);
-				allocate_scratch_register=1;
-				break;
 			case IMOVE:
 				if ((instruction->instruction_parameters[0].parameter_type==P_INDIRECT ||
 					 instruction->instruction_parameters[0].parameter_type==P_INDEXED) &&
@@ -3925,28 +3929,17 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #endif
 				instruction_usedef (instruction);
 				break;
-			case IFSEQ:	case IFSGE:	case IFSGT:	case IFSLE:	case IFSLT:	case IFSNE:
-			{
-#ifdef I486_USE_SCRATCH_REGISTER
-				use_scratch_register();
-#endif
-				instruction_def (instruction);
-#ifdef I486_USE_SCRATCH_REGISTER
-				allocate_scratch_register=1;
-#endif
-				break;
-			}
 			case ISEQ:	case ISGE:	case ISGT:	case ISLE:	case ISLT:	case ISNE:
 			case ISO:	case ISGEU:	case ISGTU:	case ISLEU:	case ISLTU:	case ISNO:
-#ifdef I486_USE_SCRATCH_REGISTER
-				use_scratch_register();
-#endif
 				do_not_alter_condition_codes=1;
 				instruction_def (instruction);
 				do_not_alter_condition_codes=0;
-#ifdef I486_USE_SCRATCH_REGISTER
-				allocate_scratch_register=1;
+				break;
+			case IFSEQ:	case IFSGE:	case IFSGT:	case IFSLE:	case IFSLT:	case IFSNE:
+#if defined (I486) && !defined (G_A64)
+			case IFCEQ:	case IFCGE:	case IFCGT:	case IFCLE:	case IFCLT:	case IFCNE:
 #endif
+				instruction_def (instruction);
 				break;
 			case IEXG:
 				instruction_usedef_usedef (instruction);
@@ -3966,6 +3959,15 @@ IF_G_RISC (case IADDI: case ILSLI:)
 			case IFEXG:
 				instruction_fexg_usedef_usedef (instruction);
 				break;			
+#endif
+
+#ifdef I486
+			case IASR_S: case ILSL_S: case ILSR_S:
+				use_3_same_type_registers
+					(&instruction->instruction_parameters[0].parameter_data.reg,USE,
+					 &instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,
+					 &instruction->instruction_parameters[2].parameter_data.reg,DEF,D_REGISTER);
+				break;
 #endif
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IMOD:
@@ -4014,14 +4016,13 @@ IF_G_RISC (case IADDI: case ILSLI:)
 # endif
 				break;
 #endif
-#ifdef I486_USE_SCRATCH_REGISTER
+#if 0
 			case IFBEQ:	case IFBGE: case IFBGT:	case IFBLE:	case IFBLT:	case IFBNE:
 				use_scratch_register();
 				allocate_scratch_register=1;
 				break;
 #endif
 			/*
-			case IFBEQ:	case IFBGE: case IFBGT:	case IFBLE:	case IFBLT:	case IFBNE:
 			case IRTS:	case IJMP:	case IJSR:
 				break;
 			*/

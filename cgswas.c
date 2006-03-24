@@ -970,7 +970,7 @@ static void w_as_sub_o_instruction (struct instruction *instruction)
 	}
 }
 
-static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
+static void w_as_cmp_instruction (struct instruction *instruction)
 {
 	struct parameter parameter_0,parameter_1;
 
@@ -978,7 +978,7 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 	parameter_1=instruction->instruction_parameters[1];
 
 	if (parameter_1.parameter_type==P_INDIRECT){
-		w_as_opcode_parameter (size_flag==SIZE_LONG ? "ld" : "ldsh",&parameter_1);
+		w_as_opcode_parameter ("ld",&parameter_1);
 		w_as_comma();
 		w_as_register (REGISTER_O1);
 		w_as_newline();
@@ -986,7 +986,7 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 		parameter_1.parameter_type=P_REGISTER;
 		parameter_1.parameter_data.reg.r=REGISTER_O1;
 	} else if (parameter_1.parameter_type==P_INDEXED){
-		w_as_opcode (size_flag==SIZE_LONG ? "ld" : "ldsh");
+		w_as_opcode ("ld");
 
 		w_as_parameter (&parameter_1);
 		w_as_comma();
@@ -1025,16 +1025,7 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 		case P_REGISTER:
 			break;
 		default:
-			switch (size_flag){
-				case SIZE_WORD:
-					w_as_opcode_parameter ("ldsh",&parameter_0);
-					break;
-				case SIZE_LONG:
-					w_as_opcode_parameter ("ld",&parameter_0);
-					break;
-				default:
-					internal_error_in_function ("w_as_cmp_instruction");
-			}
+			w_as_opcode_parameter ("ld",&parameter_0);
 			w_as_comma();
 			w_as_register (REGISTER_O0);
 			w_as_newline();
@@ -1049,6 +1040,79 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 	w_as_parameter (&parameter_0);
 	w_as_newline();
 }
+
+#if 0
+static void w_as_cmpw_instruction (struct instruction *instruction)
+{
+	struct parameter parameter_0,parameter_1;
+
+	parameter_0=instruction->instruction_parameters[0];
+	parameter_1=instruction->instruction_parameters[1];
+
+	if (parameter_1.parameter_type==P_INDIRECT){
+		w_as_opcode_parameter ("ldsh",&parameter_1);
+		w_as_comma();
+		w_as_register (REGISTER_O1);
+		w_as_newline();
+
+		parameter_1.parameter_type=P_REGISTER;
+		parameter_1.parameter_data.reg.r=REGISTER_O1;
+	} else if (parameter_1.parameter_type==P_INDEXED){
+		w_as_opcode ("ldsh");
+
+		w_as_parameter (&parameter_1);
+		w_as_comma();
+		w_as_register (REGISTER_O1);
+		w_as_newline();
+
+		parameter_1.parameter_type=P_REGISTER;
+		parameter_1.parameter_data.reg.r=REGISTER_O1;
+	}
+
+	switch (parameter_0.parameter_type){
+		case P_DESCRIPTOR_NUMBER:
+			w_as_opcode_descriptor ("set",
+				parameter_0.parameter_data.l->label_name,
+				parameter_0.parameter_offset
+			);
+			w_as_comma();
+			w_as_register (REGISTER_O0);
+			w_as_newline();
+
+			parameter_0.parameter_type=P_REGISTER;
+			parameter_0.parameter_data.reg.r=REGISTER_O0;
+			break;
+		case P_IMMEDIATE:
+			if ((unsigned)(parameter_0.parameter_data.i+4096)>=(unsigned)8192){
+				w_as_opcode ("set");
+				w_as_parameter (&parameter_0);
+				w_as_comma();
+				w_as_register (REGISTER_O0);
+				w_as_newline();
+
+				parameter_0.parameter_type=P_REGISTER;
+				parameter_0.parameter_data.reg.r=REGISTER_O0;
+			}
+			break;
+		case P_REGISTER:
+			break;
+		default:
+			w_as_opcode_parameter ("ldsh",&parameter_0);
+			w_as_comma();
+			w_as_register (REGISTER_O0);
+			w_as_newline();
+
+			parameter_0.parameter_type=P_REGISTER;
+			parameter_0.parameter_data.reg.r=REGISTER_O0;
+	}
+
+	w_as_opcode ("cmp");
+	w_as_parameter (&parameter_1);
+	w_as_comma();
+	w_as_parameter (&parameter_0);
+	w_as_newline();
+}
+#endif
 
 static void w_as_tst_instruction (struct instruction *instruction,int size_flag)
 {
@@ -1993,7 +2057,7 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_sub_instruction (instruction);
 				break;
 			case ICMP:
-				w_as_cmp_instruction (instruction,SIZE_LONG);
+				w_as_cmp_instruction (instruction);
 				break;
 			case IJMP:
 				w_as_jmp_instruction (instruction);
@@ -2084,10 +2148,12 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case ISO:
 				w_as_set_condition_instruction (instruction,"bvs,a");
-				break;			
-			case ICMPW:
-				w_as_cmp_instruction (instruction,SIZE_WORD);
 				break;
+#if 0
+			case ICMPW:
+				w_as_cmpw_instruction (instruction);
+				break;
+#endif
 			case ITST:
 				w_as_tst_instruction (instruction,SIZE_LONG);
 				break;

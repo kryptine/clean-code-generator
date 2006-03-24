@@ -1405,14 +1405,56 @@ static void w_as_shift_instruction (struct instruction *instruction,char *opcode
 	}
 }
 
-static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
+static void w_as_cmp_instruction (struct instruction *instruction)
 {
 	struct parameter parameter_0,parameter_1;
 
 	parameter_0=instruction->instruction_parameters[0];
 	parameter_1=instruction->instruction_parameters[1];
 
-	if (parameter_1.parameter_type==P_INDIRECT && size_flag!=SIZE_LONG){
+	switch (parameter_0.parameter_type){
+		case P_DESCRIPTOR_NUMBER:
+			w_as_lea_descriptor (parameter_0.parameter_data.l,parameter_0.parameter_offset,REGISTER_O0);
+
+			w_as_opcode (intel_asm ? "cmp" : "cmpl");
+			if (intel_asm)
+				w_as_parameter_comma (&parameter_1);
+			w_as_scratch_register();
+			if (!intel_asm)
+				w_as_comma_parameter (&parameter_1);
+			w_as_newline();
+			return;
+		case P_IMMEDIATE:
+			if (parameter_0.parameter_data.i==0 && parameter_1.parameter_type==P_REGISTER){
+				w_as_opcode (intel_asm ? "test" : "testl");
+				w_as_register (parameter_1.parameter_data.reg.r);
+				w_as_comma_register (parameter_1.parameter_data.reg.r);
+				w_as_newline();
+				return;
+			}
+	}
+
+	w_as_opcode (intel_asm ? "cmp" : "cmpl");
+	if (intel_asm){
+		if (parameter_0.parameter_type==P_IMMEDIATE && parameter_1.parameter_type!=P_REGISTER)
+			fprintf (assembly_file,"qword ptr ");
+		w_as_parameter_comma (&parameter_1);
+	}
+	w_as_parameter (&parameter_0);
+	if (!intel_asm)
+		w_as_comma_parameter (&parameter_1);
+	w_as_newline();
+}
+
+#if 0
+static void w_as_cmpw_instruction (struct instruction *instruction)
+{
+	struct parameter parameter_0,parameter_1;
+
+	parameter_0=instruction->instruction_parameters[0];
+	parameter_1=instruction->instruction_parameters[1];
+
+	if (parameter_1.parameter_type==P_INDIRECT){
 		w_as_opcode (intel_asm ? "movsx" : "movswl");
 
 		if (intel_asm)
@@ -1439,26 +1481,17 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 			w_as_newline();
 			return;
 		case P_INDIRECT:
-			if (size_flag==SIZE_WORD){
-				w_as_opcode (intel_asm ? "movsx" : "movswl");
-				if (intel_asm)
-					w_as_scratch_register_comma();
-				w_as_parameter (&parameter_0);
-				if (!intel_asm)
-					w_as_comma_scratch_register();
-				w_as_newline();
+			w_as_opcode (intel_asm ? "movsx" : "movswl");
+			if (intel_asm)
+				w_as_scratch_register_comma();
+			w_as_parameter (&parameter_0);
+			if (!intel_asm)
+				w_as_comma_scratch_register();
+			w_as_newline();
 
-				parameter_0.parameter_type=P_REGISTER;
-				parameter_0.parameter_data.reg.r=REGISTER_O0;
-			}
-		case P_IMMEDIATE:
-			if (parameter_0.parameter_data.i==0 && parameter_1.parameter_type==P_REGISTER && size_flag==SIZE_LONG){
-				w_as_opcode (intel_asm ? "test" : "testl");
-				w_as_register (parameter_1.parameter_data.reg.r);
-				w_as_comma_register (parameter_1.parameter_data.reg.r);
-				w_as_newline();
-				return;
-			}
+			parameter_0.parameter_type=P_REGISTER;
+			parameter_0.parameter_data.reg.r=REGISTER_O0;
+			break;
 	}
 
 	w_as_opcode (intel_asm ? "cmp" : "cmpl");
@@ -1472,6 +1505,7 @@ static void w_as_cmp_instruction (struct instruction *instruction,int size_flag)
 		w_as_comma_parameter (&parameter_1);
 	w_as_newline();
 }
+#endif
 
 static void w_as_tst_instruction (struct instruction *instruction,int size_flag)
 {
@@ -2774,7 +2808,7 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_dyadic_instruction (instruction,intel_asm ? "sub" : "subl");
 				break;
 			case ICMP:
-				w_as_cmp_instruction (instruction,SIZE_LONG);
+				w_as_cmp_instruction (instruction);
 				break;
 			case IJMP:
 				w_as_jmp_instruction (instruction);
@@ -2896,9 +2930,11 @@ static void w_as_instructions (register struct instruction *instruction)
 			case ISNO:
 				w_as_set_condition_instruction (instruction,"setno");
 				break;
+#if 0
 			case ICMPW:
-				w_as_cmp_instruction (instruction,SIZE_WORD);
+				w_as_cmpw_instruction (instruction);
 				break;
+#endif
 			case ITST:
 				w_as_tst_instruction (instruction,SIZE_LONG);
 				break;
