@@ -7166,12 +7166,41 @@ void code_set_finalizers (VOID)
 }
 #endif
 
+#ifdef I486
+static INSTRUCTION_GRAPH remove_and_31_or_63 (INSTRUCTION_GRAPH graph)
+{
+	if (graph->instruction_parameters[0].p->instruction_code==GLOAD_I &&
+# ifndef G_A64
+		graph->instruction_parameters[0].p->instruction_parameters[0].i==31)
+# else
+		graph->instruction_parameters[0].p->instruction_parameters[0].i==63)
+# endif
+	{
+		return graph->instruction_parameters[1].p;
+	}
+	if (graph->instruction_parameters[1].p->instruction_code==GLOAD_I &&
+# ifndef G_A64
+		graph->instruction_parameters[1].p->instruction_parameters[0].i==31)
+# else
+		graph->instruction_parameters[1].p->instruction_parameters[0].i==63)
+# endif
+	{
+		return graph->instruction_parameters[0].p;
+	}
+	return graph;
+}
+#endif
+
 void code_shiftl (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 
 	graph_1=s_pop_b();
 	graph_2=s_get_b (0);
+#ifdef I486
+	if (graph_2->instruction_code==GAND)
+		graph_2=remove_and_31_or_63 (graph_2);
+#endif
 	graph_3=g_lsl (graph_2,graph_1);
 	
 	s_put_b (0,graph_3);
@@ -7183,6 +7212,10 @@ void code_shiftr (VOID)
 
 	graph_1=s_pop_b();
 	graph_2=s_get_b (0);
+#ifdef I486
+	if (graph_2->instruction_code==GAND)
+		graph_2=remove_and_31_or_63 (graph_2);
+#endif
 	graph_3=g_asr (graph_2,graph_1);
 	
 	s_put_b (0,graph_3);
@@ -7194,6 +7227,10 @@ void code_shiftrU (VOID)
 
 	graph_1=s_pop_b();
 	graph_2=s_get_b (0);
+#ifdef I486
+	if (graph_2->instruction_code==GAND)
+		graph_2=remove_and_31_or_63 (graph_2);
+#endif
 	graph_3=g_lsr (graph_2,graph_1);
 	
 	s_put_b (0,graph_3);
