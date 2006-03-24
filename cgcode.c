@@ -476,20 +476,18 @@ static void code_monadic_sane_operator (LABEL *label)
 	graph=g_lea (label2);
 #endif
 
+	s_push_b (s_get_b (0));
 #ifdef G_A64
-	s_push_b (s_get_b (0));
 	s_put_b (1,NULL);
-	insert_basic_block (JSR_BLOCK,0,1+1,r_vector,label);
 #else
-	s_push_b (s_get_b (0));
 	s_put_b (1,s_get_b (2));
 # ifdef M68000
 	s_put_b (2,graph);
 # else
 	s_put_b (2,NULL);
 # endif
-	insert_basic_block (JSR_BLOCK,0,2+1,r_vector,label);
 #endif
+	insert_basic_block (JSR_BLOCK,0,SIZE_OF_REAL_IN_STACK_ELEMENTS+1,r_vector,label);
 
 #ifdef M68000
 	new_label=fast_memory_allocate_type (struct block_label);
@@ -2014,11 +2012,17 @@ void code_entierR (VOID)
 		code_monadic_sane_operator (entier_real_label);
 	else {
 #endif
+#ifdef G_A64
+		s_push_b (s_get_b (0));
+		s_put_b (1,NULL);
+		insert_basic_block (JSR_BLOCK,0,1+1,r_vector,entier_real_label);
+#else
 		s_push_b (s_get_b (0));
 		s_put_b (1,s_get_b (2));
 		s_put_b (2,NULL);
 	
 		insert_basic_block (JSR_BLOCK,0,2+1,r_vector,entier_real_label);
+#endif
 #ifdef M68000
 	}
 #endif
