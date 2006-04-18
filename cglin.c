@@ -151,7 +151,7 @@ void i_add_i_r (LONG value,int register_1)
 
 void i_add_r_r (int register_1,int register_2)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction2 (IADD);
 	
@@ -405,7 +405,7 @@ void i_ext_r (int register_1)
 #ifdef FP_STACK_OPTIMIZATIONS
 static void i_fexg_fr_fr (int register_1,int register_2)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction2 (IFEXG);
 
@@ -7966,7 +7966,7 @@ static void linearize_exit_if_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		free_register (tmp_reg);
 		
 		branch_instruction_code=convert_instruction_code==IFCNE ? IBNE :
-								convert_instruction_code==IFCLE ? IBLT : IBEQ;
+								convert_instruction_code==IFCLE ? IBLTU : IBEQ;
 		instruction_l (branch_instruction_code,graph->instruction_parameters[0].l);
 	} else
 #endif
@@ -8697,7 +8697,7 @@ void calculate_and_linearize_branch_false (LABEL *label,INSTRUCTION_GRAPH graph)
 		adjust_stack_pointers_without_altering_condition_codes (1,condition);
 		
 		branch_instruction_code=convert_instruction_code==IFCNE ? IBNE :
-								convert_instruction_code==IFCLE ? IBLT : IBEQ;
+								convert_instruction_code==IFCLE ? IBLTU : IBEQ;
 		instruction_l (branch_instruction_code,label);
 		
 		return;
@@ -8739,7 +8739,7 @@ void calculate_and_linearize_branch_true (LABEL *label,INSTRUCTION_GRAPH graph)
 		adjust_stack_pointers_without_altering_condition_codes (1,condition);
 		
 		branch_instruction_code=convert_instruction_code==IFCNE ? IBNE :
-								convert_instruction_code==IFCLE ? IBLT : IBEQ;
+								convert_instruction_code==IFCLE ? IBLTU : IBEQ;
 		instruction_l (branch_instruction_code,label);
 
 		return;
