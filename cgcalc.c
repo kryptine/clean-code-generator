@@ -292,7 +292,7 @@ static void calculate_mulud_operator (INSTRUCTION_GRAPH graph)
 		graph->u_dregs=r_dregs;
 		graph->order_left=0;
 	}
-		
+	
 	graph->i_aregs=i_aregs;
 	graph->i_dregs=i_dregs;
 	
@@ -2495,6 +2495,22 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 #ifdef G_A64
 		case GFROMF:
 		case GTOF:
+		{
+			INSTRUCTION_GRAPH graph_1;
+
+			graph_1=graph->instruction_parameters[0].p;
+			
+			calculate_graph_register_uses (graph_1);
+						
+			graph->u_dregs=graph_1->u_dregs;
+			graph->u_aregs=graph_1->u_aregs;
+			graph->i_aregs=graph_1->i_aregs;
+			graph->i_dregs=graph_1->i_dregs;
+
+			graph->order_mode=graph_1->order_mode;
+			graph->order_alterable=graph_1->order_alterable;
+			return;
+		}	
 #else
 		case GFJOIN:
 		case GFHIGH:
@@ -2577,7 +2593,7 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			graph->u_dregs=graph_0->u_dregs;
 			graph->i_aregs=graph_0->i_aregs;
 			graph->i_dregs=graph_0->i_dregs;
-	
+
 			graph->order_alterable=graph->node_count<=1;		
 			return;
 		}
