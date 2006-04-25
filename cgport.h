@@ -18,7 +18,7 @@
 # endif
 #endif
 
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (G_POWER) || defined (sparc)
 # define NEW_DESCRIPTORS
 #endif
 
