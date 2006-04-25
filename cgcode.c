@@ -7,7 +7,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#define NO_STRING_ADDRES_IN_DESCRIPTOR
+#if defined (G_POWER) || defined (I486) || defined (sparc)
+# define NO_STRING_ADDRESS_IN_DESCRIPTOR
+#endif
 #undef NO_FUNCTION_NAMES
 #undef NO_CONSTRUCTOR_NAMES
 
@@ -82,7 +84,7 @@
 #  define ARITY_0_DESCRIPTOR_OFFSET (-4)
 # endif
 #else
-# if defined (M68000) || (defined (NO_STRING_ADDRES_IN_DESCRIPTOR) && (defined (G_POWER) || defined (I486)))
+# if defined (M68000) || defined (NO_STRING_ADDRESS_IN_DESCRIPTOR)
 #  ifdef G_A64
 #  	define ARITY_0_DESCRIPTOR_OFFSET (-12)
 #  else
@@ -95,7 +97,7 @@
 #ifdef GEN_MAC_OBJ
 # define DESCRIPTOR_ARITY_OFFSET (-4)
 #else
-# if defined (NO_STRING_ADDRES_IN_DESCRIPTOR) && (defined (G_POWER) || defined (I486))
+# if defined (NO_STRING_ADDRESS_IN_DESCRIPTOR)
 #  define DESCRIPTOR_ARITY_OFFSET (-2)
 # else
 #  define DESCRIPTOR_ARITY_OFFSET (-6)
@@ -8294,7 +8296,7 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 	}
 #endif
 
-#if ! (defined (NO_STRING_ADDRES_IN_DESCRIPTOR) && (defined (G_POWER) || defined (I486)))
+#if ! defined (NO_STRING_ADDRESS_IN_DESCRIPTOR)
 # ifdef GEN_MAC_OBJ
 	store_label_offset_in_data_section (string_code_label_id);
 # else
@@ -8514,7 +8516,7 @@ void code_descs (char label_name[],char node_entry_label_name[],char *result_des
 			w_as_descriptor_in_data_section (result_descriptor_label->label_name);
 	}
 
-#if ! (defined (NO_STRING_ADDRES_IN_DESCRIPTOR) && (defined (G_POWER) || defined (I486)))
+#if ! defined (NO_STRING_ADDRESS_IN_DESCRIPTOR)
 # ifdef GEN_OBJ
 	store_label_in_data_section (string_label);
 # endif
