@@ -2546,9 +2546,9 @@ static void w_as_indirect_node_entry_jump (LABEL *label)
 	w_as_instruction_without_parameters ("nop");
 }
 
-static void w_as_indirect_node_entry_jumps (register struct label_node *label_node)
+static void w_as_indirect_node_entry_jumps (struct label_node *label_node)
 {
-	register LABEL *label;
+	LABEL *label;
 	
 	if (label_node==NULL)
 		return;
@@ -2566,6 +2566,42 @@ static void w_as_indirect_node_entry_jumps (register struct label_node *label_no
 #ifdef SOLARIS_
 static int next_section_number;
 extern char *this_module_name;
+#endif
+
+#ifdef NEW_APPLY
+extern LABEL *add_empty_node_labels[];
+
+static void w_as_apply_update_entry (struct basic_block *block)
+{
+	if (block->block_n_node_arguments==-200){
+		w_as_opcode ("ba,a");
+		w_as_label (block->block_ea_label->label_name);
+		w_as_newline();
+
+		w_as_instruction_without_parameters ("nop");
+		w_as_instruction_without_parameters ("nop");
+		w_as_instruction_without_parameters ("nop");
+	} else {
+		w_as_opcode ("dec");
+		w_as_immediate (4);
+		w_as_comma();
+		w_as_register_newline (B_STACK_POINTER);
+
+		w_as_opcode ("call");
+		w_as_label (add_empty_node_labels[block->block_n_node_arguments+200]->label_name);
+		w_as_newline();
+
+		w_as_opcode ("st");
+		w_as_register (REGISTER_O7);
+		w_as_comma();
+		w_as_indirect (0,B_STACK_POINTER);
+		w_as_newline();
+
+		w_as_opcode ("ba,a");
+		w_as_label (block->block_ea_label->label_name);
+		w_as_newline();
+	}
+}
 #endif
 
 void write_assembly (VOID)
@@ -2654,6 +2690,10 @@ void write_assembly (VOID)
 
 			w_as_number_of_arguments (block->block_n_node_arguments);
 		}
+#ifdef NEW_APPLY
+		else if (block->block_n_node_arguments<-100)
+			w_as_apply_update_entry (block);
+#endif
 
 		w_as_labels (block->block_labels);
 

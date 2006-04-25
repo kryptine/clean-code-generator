@@ -2734,6 +2734,28 @@ static void as_indirect_node_entry_jumps (struct label_node *label_node)
 	as_indirect_node_entry_jumps (label_node->label_node_right);
 }
 
+#ifdef NEW_APPLY
+extern LABEL *add_empty_node_labels[];
+
+static void as_apply_update_entry (struct basic_block *block)
+{
+	if (block->block_n_node_arguments==-200){
+		as_i_bica (0,A_COND);
+		as_branch_label (block->block_ea_label,BRANCH_RELOCATION);
+		as_nop();
+		as_nop();
+		as_nop();
+	} else {
+		as_dec (4,B_STACK_POINTER);
+		as_i_call (0);
+		as_branch_label (add_empty_node_labels[block->block_n_node_arguments+200],CALL_RELOCATION);
+		as_st (REGISTER_O7,0,B_STACK_POINTER);
+		as_i_bica (0,A_COND);
+		as_branch_label (block->block_ea_label,BRANCH_RELOCATION);
+	}
+}
+#endif
+
 void write_code (void)
 {
 	struct basic_block *block;
@@ -2815,6 +2837,10 @@ void write_code (void)
 
 			as_number_of_arguments (block->block_n_node_arguments);
 		}
+#ifdef NEW_APPLY
+		else if (block->block_n_node_arguments<-100)
+			as_apply_update_entry (block);
+#endif
 
 		as_labels (block->block_labels);
 
