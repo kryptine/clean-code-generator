@@ -6,6 +6,9 @@
 
 #include <stdio.h>
 #include <string.h>
+#if defined (LINUX) && defined (G_AI64)
+# include <stdint.h>
+#endif
 
 #if defined (G_POWER) || defined (I486) || defined (sparc)
 # define NO_STRING_ADDRESS_IN_DESCRIPTOR
@@ -7913,7 +7916,7 @@ void code_caf (char *label_name,int a_stack_size,int b_stack_size)
 #endif
 		if (assembly_flag)
 #ifdef G_A64
-			w_as_word64_in_data_section ((__int64)0);
+			w_as_word64_in_data_section ((int_64)0);
 #else
 			w_as_long_in_data_section (0);
 #endif
@@ -7947,7 +7950,7 @@ void code_caf (char *label_name,int a_stack_size,int b_stack_size)
 #endif
 		if (assembly_flag)
 #ifdef G_A64
-			w_as_word64_in_data_section ((__int64)0);
+			w_as_word64_in_data_section ((int_64)0);
 #else
 			w_as_long_in_data_section (0);
 #endif
@@ -8860,7 +8863,7 @@ void code_pb (char string[],int string_length)
 		w_as_define_data_label (profile_function_label->label_number);
 # endif
 # ifdef G_A64
-		w_as_word64_in_data_section ((__int64)0);
+		w_as_word64_in_data_section ((int_64)0);
 # else
 		w_as_long_in_data_section (0);
 # endif

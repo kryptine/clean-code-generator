@@ -7,6 +7,9 @@
 #pragma segment Code1
 
 #include <stdio.h>
+#if defined (LINUX) && defined (G_AI64)
+# include <stdint.h>
+#endif
 #include "cgport.h"
 #include "cg.h"
 #include "cgrconst.h"

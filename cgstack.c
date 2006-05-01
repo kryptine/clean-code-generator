@@ -5,6 +5,10 @@
 */
 
 #include <stdio.h>
+#if defined (LINUX) && defined (G_AI64)
+# include <stdint.h>
+#endif
+
 #include "cgport.h"
 #include "cgconst.h"
 #include "cgrconst.h"

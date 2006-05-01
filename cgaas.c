@@ -9,6 +9,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#ifdef LINUX
+# include <stdint.h>
+#endif
 
 #ifdef __MWERKS__
 #	define I486
@@ -361,11 +364,11 @@ void store_long_word_in_data_section (ULONG c)
 	}
 }
 
-void store_word64_in_data_section (__int64 c)
+void store_word64_in_data_section (int_64 c)
 {
 	if (data_buffer_free>=8){
 		data_buffer_free-=8;
-		*(__int64*)data_buffer_p=c;
+		*(int_64*)data_buffer_p=c;
 		data_buffer_p+=8;
 	} else {
 		store_long_word_in_data_section ((ULONG)c);
@@ -398,19 +401,19 @@ void store_abc_string_in_data_section (char *string,int length)
 	store_word64_in_data_section (length);
 	
 	while (length>=8){
-		store_word64_in_data_section (*(__int64*)string_p);
+		store_word64_in_data_section (*(int_64*)string_p);
 		string_p+=8;
 		length-=8;
 	}
 	
 	if (length>0){
-		unsigned __int64 d;
+		uint_64 d;
 		int shift;
 		
 		d=0;
 		shift=0;
 		while (length>0){
-			d |= (unsigned __int64)string_p[0]<<shift;
+			d |= (uint_64)string_p[0]<<shift;
 			shift+=8;
 			--length;
 			++string_p;
@@ -637,7 +640,7 @@ static void as_r (int code1,int code2,int reg1)
 	store_c (0300 | code2 | (reg1_n & 7));
 }
 
-static void as_move_i64_r (__int64 i,int reg1)
+static void as_move_i64_r (int_64 i,int reg1)
 {
 	int reg1_n;
 	
@@ -2264,16 +2267,16 @@ static void as_parameter (int code1,int code2,struct parameter *parameter)
 	Granlund, Torbjorn and Montgomery, Peter L. [1994]. SIGPLAN Notices, 29 (June), 61.
 */
 
-struct ms magic (__int64 d)
+struct ms magic (int_64 d)
 	/* must have 2 <= d <= 231-1 or -231 <= d <= -2 */
 {
 	int p;
-	unsigned __int64 ad, anc, delta, q1, r1, q2, r2, t;
-	const unsigned __int64 two63 = (unsigned __int64)1<<63;/* 263 */
+	uint_64 ad, anc, delta, q1, r1, q2, r2, t;
+	const uint_64 two63 = (uint_64)1<<63;/* 263 */
 	struct ms mag;
 
 	ad = d>=0 ? d : -d;
-	t = two63 + ((unsigned __int64)d >> 63);
+	t = two63 + ((uint_64)d >> 63);
 	anc = t - 1 - t%ad; /* absolute value of nc */
 	p = 63;				/* initialize p */
 	q1 = two63/anc;		/* initialize q1 = 2p/abs(nc) */

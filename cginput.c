@@ -8,6 +8,9 @@
 #define COMPATIBLE_DESC 0
 
 #include <string.h>
+#if defined (LINUX) && defined (G_AI64)
+# include <stdint.h>
+#endif
 
 #include "cgport.h"
 

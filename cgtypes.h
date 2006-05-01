@@ -109,7 +109,7 @@ struct parameter {
 	union parameter_data {
 		LONG i;
 #ifdef G_A64
-		__int64 imm;
+		int_64 imm;
 #endif
 		LABEL *l;
 		DOUBLE *r;
@@ -159,7 +159,7 @@ struct instruction_node {
 		LABEL *						l;
 		LONG						i;
 # ifdef G_A64
-		__int64						imm;
+		int_64						imm;
 # endif
 	}
 #endif

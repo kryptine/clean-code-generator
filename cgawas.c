@@ -8,6 +8,9 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#if defined (LINUX) && defined (G_AI64)
+# include <stdint.h>
+#endif
 
 #undef GENERATIONAL_GC
 #define LEA_ADDRESS
@@ -145,7 +148,7 @@ void w_as_long_in_data_section (int n)
 	w_as_newline();
 }
 
-static void print_int64 (unsigned __int64 n)
+static void print_int64 (uint_64 n)
 {
 	static char digits[32];
 	char *p;
@@ -158,7 +161,7 @@ static void print_int64 (unsigned __int64 n)
 	p=&digits[31];
 	*p='\0';
 	while (n>9){
-		unsigned __int64 m;
+		uint_64 m;
 		
 		m=n/10;
 		*--p='0'+(n-10*m);
@@ -169,7 +172,7 @@ static void print_int64 (unsigned __int64 n)
 	fprintf (assembly_file,p);
 }
 
-void w_as_word64_in_data_section (__int64 n)
+void w_as_word64_in_data_section (int_64 n)
 {
 #ifdef DATA_IN_CODE_SECTION
 	if (!in_data_section){
@@ -440,7 +443,7 @@ static void w_as_internal_label (int label_number)
 	fprintf (assembly_file,"i_%d",label_number);
 }
 
-static void w_as_immediate (__int64 i)
+static void w_as_immediate (int_64 i)
 {
 	if ((int)i==i)
 		fprintf (assembly_file,intel_asm ? "%I64i" : "$%I64u",i);
@@ -870,7 +873,7 @@ static void w_as_movl_register_register_newline (int reg1,int reg2)
 	w_as_register_register_newline (reg1,reg2);
 }
 
-static void w_as_immediate_register_newline (__int64 i,int reg)
+static void w_as_immediate_register_newline (int_64 i,int reg)
 {
 	if (!intel_asm){
 		w_as_immediate (i);

@@ -29,7 +29,7 @@ void write_version_and_options (int version,int options);
 void write_depend (char *module_name);
 #endif
 
-struct ms {	__int64 m; int s; };
+struct ms {	int_64 m; int s; };
 
-extern struct ms magic (__int64 d);
+extern struct ms magic (int_64 d);
 

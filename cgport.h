@@ -55,9 +55,14 @@
 # endif
 #endif
 
-#define LONG long
+#if defined (LINUX) && defined (G_A64)
+# define LONG int
+# define ULONG unsigned int
+#else
+# define LONG long
+# define ULONG unsigned long
+#endif
 #define BYTE char
-#define ULONG unsigned long
 #define UBYTE unsigned char
 
 #define VOID void
@@ -83,7 +88,15 @@
 #else
 # define STACK_ELEMENT_SIZE 8
 # define STACK_ELEMENT_LOG_SIZE 3
-# define CleanInt __int64
+# if defined (LINUX)
+#  define CleanInt int64_t
+#  define int_64 int64_t
+#  define uint_64 uint64_t
+# else
+#  define CleanInt __int64
+#  define int_64 __int64
+#  define uint_64 unsigned __int64
+# endif
 #endif
 
 #if defined (I486) || (defined (G_POWER) || defined (ALIGN_C_CALLS)) || defined (MACH_O)

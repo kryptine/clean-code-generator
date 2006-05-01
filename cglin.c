@@ -5,6 +5,10 @@
 */
 
 #include <stdio.h>
+#if defined (LINUX) && defined (G_AI64)
+# include <stdint.h>
+#endif
+
 #include "cgport.h"
 #include "cg.h"
 #include "cgconst.h"
@@ -1089,7 +1093,7 @@ void i_movew_id_r (int offset,int register_1,int register_2)
 }
 
 #ifdef G_A64
-static void i_move_i_id (__int64 i,int offset_1,int register_1)
+static void i_move_i_id (int_64 i,int offset_1,int register_1)
 #else
 static void i_move_i_id (LONG i,int offset_1,int register_1)
 #endif
@@ -1136,7 +1140,7 @@ void i_move_i_r (CleanInt i,int register_1)
 
 #if defined (M68000) || defined (I486)
 # ifdef G_A64
-static void i_move_i_x (__int64 i,int offset,int register_1,int register_2)
+static void i_move_i_x (int_64 i,int offset,int register_1,int register_2)
 # else
 static void i_move_i_x (LONG i,int offset,int register_1,int register_2)
 # endif
@@ -4443,7 +4447,7 @@ static void move_float_ad_id (ADDRESS *ad_p,int offset,int areg)
 			return;
 		case P_F_IMMEDIATE:
 #ifdef G_A64
-			i_move_i_id (((__int64*)&ad_p->ad_register)[0],offset,areg);
+			i_move_i_id (((int_64*)&ad_p->ad_register)[0],offset,areg);
 #else
 			i_move_i_id (((LONG*)&ad_p->ad_register)[0],offset,areg);
 			i_move_i_id (((LONG*)&ad_p->ad_register)[1],offset+4,areg);
@@ -5112,7 +5116,7 @@ static void move_float_ad_x (ADDRESS *ad_p,int offset,int areg,int dreg)
 			return;
 		case P_F_IMMEDIATE:
 #ifdef G_A64
-			i_move_i_x (((__int64*)&ad_p->ad_register)[0],offset,areg,dreg);
+			i_move_i_x (((int_64*)&ad_p->ad_register)[0],offset,areg,dreg);
 #else
 			i_move_i_x (((LONG*)&ad_p->ad_register)[0],offset,areg,dreg);
 			i_move_i_x (((LONG*)&ad_p->ad_register)[1],offset+(4<<2),areg,dreg);
@@ -5883,7 +5887,7 @@ static void linearize_fromf_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 				else
 					reg=get_aregister();
 				
-				i_move_i_r (((__int64*)&r)[0],reg);
+				i_move_i_r (((int_64*)&r)[0],reg);
 				ad_p->ad_mode=P_REGISTER;
 				ad_p->ad_register=reg;
 				ad_p->ad_count_p=&graph->node_count;
