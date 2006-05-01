@@ -3224,9 +3224,6 @@ void code_ccall (char *c_function_name,char *s,int length)
 				error_s (ccall_error_string,c_function_name);
 		}
 # else /* G_AI64 */
-		{
-		int c_offset_before_pushing_arguments,function_address_reg,c_parameter_n;
-		
 		a_o=-b_result_offset-a_result_offset;
 		b_o=0;
 				
@@ -3235,6 +3232,366 @@ void code_ccall (char *c_function_name,char *s,int length)
 			c_offset=a_result_offset+b_result_offset;
 		}
 
+#  ifdef LINUX_ELF
+		{
+		int c_offset_before_pushing_arguments,function_address_reg,c_parameter_n,n_c_parameters,a_stack_pointer,heap_pointer;
+		unsigned int used_clean_b_parameter_registers;
+		static int c_parameter_registers[6] = { HEAP_POINTER, A_STACK_POINTER, REGISTER_A1, REGISTER_A0, REGISTER_A2, REGISTER_A3 };
+
+		c_offset_before_pushing_arguments=c_offset;
+
+		n_c_parameters=((a_offset+b_offset+a_result_offset+b_result_offset)>>3)+n_clean_b_register_parameters;
+		used_clean_b_parameter_registers = ((1<<n_clean_b_register_parameters)-1)<<n_extra_clean_b_register_parameters;
+		c_parameter_n=n_c_parameters;
+
+		i_move_r_r (B_STACK_POINTER,REGISTER_RBP);
+		if (c_parameter_n>6 && (c_parameter_n & 1)!=0){
+			i_sub_i_r (8,B_STACK_POINTER);
+			i_or_i_r (8,B_STACK_POINTER);		
+		} else {
+			i_and_i_r (-16,B_STACK_POINTER);		
+		}
+
+		a_stack_pointer=A_STACK_POINTER;
+		heap_pointer=HEAP_POINTER;
+
+		for (l=length-1; l>=first_pointer_result_index; --l){
+			char sl;
+			
+			sl=s[l];
+			if (sl!='V'){
+				if (--c_parameter_n<6){
+					int c_parameter_reg;					
+					
+					c_parameter_reg=c_parameter_registers[c_parameter_n];
+					if (c_parameter_n<2){
+						if (c_parameter_n==0){
+							if ((used_clean_b_parameter_registers & (1<<6))==0){
+								heap_pointer=REGISTER_D6;
+								used_clean_b_parameter_registers |= 1<<6;
+							} else if ((used_clean_b_parameter_registers & (1<<5))==0){
+								heap_pointer=REGISTER_D5;
+								used_clean_b_parameter_registers |= 1<<5;
+							} else
+								error_s (ccall_error_string,c_function_name);								
+							i_move_r_r (HEAP_POINTER,heap_pointer);
+						} else {
+							if ((used_clean_b_parameter_registers & (1<<5))==0){
+								a_stack_pointer=REGISTER_D5;
+								used_clean_b_parameter_registers |= 1<<5;
+							} else if ((used_clean_b_parameter_registers & (1<<6))==0){
+								a_stack_pointer=REGISTER_D6;
+								used_clean_b_parameter_registers |= 1<<6;
+							} else
+								error_s (ccall_error_string,c_function_name);								
+							i_move_r_r (A_STACK_POINTER,a_stack_pointer);
+						}
+					}
+					switch (sl){
+						case 'I':
+						case 'p':
+							b_o-=STACK_ELEMENT_SIZE;
+							i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_parameter_reg);
+							break;
+						case 'R':
+							b_o-=8;
+							i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_parameter_reg);
+							break;
+						case 'S':
+							i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_parameter_reg);
+							a_o+=STACK_ELEMENT_SIZE;
+							break;
+						default:
+							error_s (ccall_error_string,c_function_name);
+					}					
+				} else {
+					switch (sl){
+						case 'I':
+						case 'p':
+							b_o-=STACK_ELEMENT_SIZE;
+							i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
+							i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+							c_offset+=STACK_ELEMENT_SIZE;
+							break;
+						case 'R':
+							b_o-=8;
+							i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
+							i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+							c_offset+=STACK_ELEMENT_SIZE;
+							break;
+						case 'S':
+							i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
+							i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+							c_offset+=STACK_ELEMENT_SIZE;
+							a_o+=STACK_ELEMENT_SIZE;
+							break;
+						default:
+							error_s (ccall_error_string,c_function_name);
+					}
+				}
+			}
+		}
+		
+		{
+			int last_register_parameter_index,reg_n;
+			
+			last_register_parameter_index=-1;
+			
+			reg_n=0;
+			l=0;
+			while (reg_n<n_clean_b_register_parameters && l<min_index){
+				if (s[l]=='I' || s[l]=='p' || s[l]=='F' || s[l]=='O'){
+					++reg_n;
+					last_register_parameter_index=l;
+				}
+				++l;
+			}
+			
+			reg_n=0;
+			a_o=-a_offset;
+			b_o=0;
+			for (l=min_index-1; l>=0; --l){
+				char sl;
+				
+				sl=s[l];
+				switch (sl){
+					case 'I':
+					case 'p':
+						if (--c_parameter_n<6){
+							int c_parameter_reg;					
+					
+							c_parameter_reg=c_parameter_registers[c_parameter_n];
+							if (l<=last_register_parameter_index){
+								if (c_parameter_n<2){
+									if (c_parameter_n==0){
+										if (n_extra_clean_b_register_parameters+reg_n==6){
+											i_exg_r_r (HEAP_POINTER,REGISTER_D6);
+											heap_pointer=REGISTER_D6;
+											++reg_n;
+											break;
+										} else if (n_extra_clean_b_register_parameters+reg_n==5){
+											i_exg_r_r (HEAP_POINTER,REGISTER_D5);
+											heap_pointer=REGISTER_D5;
+											++reg_n;
+											break;											
+										} else if ((used_clean_b_parameter_registers & (1<<6))==0){
+											heap_pointer=REGISTER_D6;
+											used_clean_b_parameter_registers |= 1<<6;
+										} else if ((used_clean_b_parameter_registers & (1<<5))==0){
+											heap_pointer=REGISTER_D5;
+											used_clean_b_parameter_registers |= 1<<5;
+										} else
+											error_s (ccall_error_string,c_function_name);								
+										i_move_r_r (HEAP_POINTER,heap_pointer);
+									} else {
+										if (n_extra_clean_b_register_parameters+reg_n==6){
+											i_exg_r_r (A_STACK_POINTER,REGISTER_D6);
+											a_stack_pointer=REGISTER_D6;
+											++reg_n;
+											break;
+										} else if (n_extra_clean_b_register_parameters+reg_n==5){
+											i_exg_r_r (A_STACK_POINTER,REGISTER_D5);
+											a_stack_pointer=REGISTER_D5;
+											++reg_n;
+											break;											
+										} else if ((used_clean_b_parameter_registers & (1<<5))==0){
+											a_stack_pointer=REGISTER_D5;
+											used_clean_b_parameter_registers |= 1<<5;
+										} else if ((used_clean_b_parameter_registers & (1<<6))==0){
+											a_stack_pointer=REGISTER_D6;
+											used_clean_b_parameter_registers |= 1<<6;
+										} else
+											error_s (ccall_error_string,c_function_name);								
+										i_move_r_r (A_STACK_POINTER,a_stack_pointer);
+									}
+								}
+								i_move_r_r (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,c_parameter_reg);
+								used_clean_b_parameter_registers &= ~ (1<<(n_extra_clean_b_register_parameters+reg_n));
+								++reg_n;
+							} else {
+								if (c_parameter_n<2){
+									if (c_parameter_n==0){
+										if ((used_clean_b_parameter_registers & (1<<6))==0){
+											heap_pointer=REGISTER_D6;
+											used_clean_b_parameter_registers |= 1<<6;
+										} else if ((used_clean_b_parameter_registers & (1<<5))==0){
+											heap_pointer=REGISTER_D5;
+											used_clean_b_parameter_registers |= 1<<5;
+										} else
+											error_s (ccall_error_string,c_function_name);								
+										i_move_r_r (HEAP_POINTER,heap_pointer);
+									} else {
+										if ((used_clean_b_parameter_registers & (1<<5))==0){
+											a_stack_pointer=REGISTER_D5;
+											used_clean_b_parameter_registers |= 1<<5;
+										} else if ((used_clean_b_parameter_registers & (1<<6))==0){
+											a_stack_pointer=REGISTER_D6;
+											used_clean_b_parameter_registers |= 1<<6;
+										} else
+											error_s (ccall_error_string,c_function_name);								
+										i_move_r_r (A_STACK_POINTER,a_stack_pointer);
+									}
+								}
+								b_o-=STACK_ELEMENT_SIZE;
+								i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_parameter_reg);
+							}
+						} else {
+							if (l<=last_register_parameter_index){
+								i_move_r_pd (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,B_STACK_POINTER);
+								used_clean_b_parameter_registers &= ~ (1<<(n_extra_clean_b_register_parameters+reg_n));
+								++reg_n;
+							} else {
+								b_o-=STACK_ELEMENT_SIZE;
+								i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
+								i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+							}
+							c_offset+=STACK_ELEMENT_SIZE;
+						}
+						break;
+					case 'R':
+					{
+						int temp_register;
+						
+						b_o-=8;
+						if (c_parameter_n>2 || n_c_parameters<=2)
+							temp_register=REGISTER_A1;
+						else if ((used_clean_b_parameter_registers & 1)==0)
+							temp_register=REGISTER_D0;
+						else if ((used_clean_b_parameter_registers & 2)==0)
+							temp_register=REGISTER_D1;
+						else if ((used_clean_b_parameter_registers & 4)==0)
+							temp_register=REGISTER_D2;
+						else
+							error_s (ccall_error_string,c_function_name);
+
+						i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,temp_register);
+						i_move_r_pd (temp_register,B_STACK_POINTER);
+						c_offset+=8;
+						break;
+					}
+					case 'S':
+					case 's':
+					case 'A':
+					{
+						int offset;
+						
+ 						offset = sl=='S' ? STACK_ELEMENT_SIZE : sl=='s' ? 2*STACK_ELEMENT_SIZE : 3*STACK_ELEMENT_SIZE;
+						if (--c_parameter_n<6){
+							int c_parameter_reg;
+					
+							c_parameter_reg=c_parameter_registers[c_parameter_n];
+							
+							if (c_parameter_n<2){
+								if (c_parameter_n==0){
+									if ((used_clean_b_parameter_registers & (1<<6))==0){
+										heap_pointer=REGISTER_D6;
+										used_clean_b_parameter_registers |= 1<<6;
+									} else if ((used_clean_b_parameter_registers & (1<<5))==0){
+										heap_pointer=REGISTER_D5;
+										used_clean_b_parameter_registers |= 1<<5;
+									} else
+										error_s (ccall_error_string,c_function_name);								
+									i_move_r_r (HEAP_POINTER,heap_pointer);
+								} else {
+									if ((used_clean_b_parameter_registers & (1<<5))==0){
+										a_stack_pointer=REGISTER_D5;
+										used_clean_b_parameter_registers |= 1<<5;
+									} else if ((used_clean_b_parameter_registers & (1<<6))==0){
+										a_stack_pointer=REGISTER_D6;
+										used_clean_b_parameter_registers |= 1<<6;
+									} else
+										error_s (ccall_error_string,c_function_name);								
+									i_move_r_r (A_STACK_POINTER,a_stack_pointer);
+								}
+							}
+
+							i_move_id_r (a_o,a_stack_pointer,c_parameter_reg);
+							i_add_i_r (offset,c_parameter_reg);
+						} else {
+							i_move_id_r (a_o,a_stack_pointer,REGISTER_A0);
+							i_add_i_r (offset,REGISTER_A0);
+							i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+							c_offset+=STACK_ELEMENT_SIZE;
+						}
+						a_o+=STACK_ELEMENT_SIZE;
+						break;
+					}
+					case 'F':
+					case 'O':
+					case '*':
+					case ']':
+						/* while (l>=0 && !(s[l]=='F' || s[l]=='O')) bug in watcom c */
+						while (l>=0 && (s[l]!='F' && s[l]!='O'))
+							--l;
+						
+						if (l<=last_register_parameter_index){
+							int clean_b_reg_n,i;
+							
+							clean_b_reg_n=REGISTER_D0+n_extra_clean_b_register_parameters+reg_n;
+
+							if (function_address_parameter=='O'){
+								i_move_r_pd (clean_b_reg_n,B_STACK_POINTER);
+								c_offset+=STACK_ELEMENT_SIZE;
+							}
+							
+							++reg_n;
+
+							function_address_reg=clean_b_reg_n;
+							i=l;
+							while (i+1<length && (s[i+1]=='*' || s[i+1]=='[')){
+								int n;
+								
+								++i;
+								n=0;
+								
+								if (s[i]=='['){
+									++i;
+									while (i<length && (unsigned)(s[i]-'0')<(unsigned)10){
+										n=n*10+(s[i]-'0');
+										++i;
+									}
+								}
+								
+								i_move_id_r (n,clean_b_reg_n,clean_b_reg_n);
+							}
+							break;
+						}
+					default:
+						error_s (ccall_error_string,c_function_name);
+				}
+			}
+		}
+
+		if (a_stack_pointer==A_STACK_POINTER){
+			a_stack_pointer = heap_pointer!=REGISTER_D5 ? REGISTER_D5 : REGISTER_D6;
+			i_move_r_r (A_STACK_POINTER,a_stack_pointer);
+		}
+		if (heap_pointer==HEAP_POINTER){
+			heap_pointer = a_stack_pointer!=REGISTER_D6 ? REGISTER_D6 : REGISTER_D5;
+			i_move_r_r (HEAP_POINTER,heap_pointer);
+		}
+	
+		if (save_state_in_global_variables){
+			i_move_r_l (-4/*ESI*/,saved_a_stack_p_label);
+			i_move_r_l (-5/*EDI*/,saved_heap_p_label);
+		}
+
+		if (!function_address_parameter)
+			i_jsr_l (label,0);
+		else
+			i_jsr_r (function_address_reg);
+		
+		if (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset)==0)
+			i_move_r_r (REGISTER_RBP,B_STACK_POINTER);
+		else
+			i_lea_id_r (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset),REGISTER_RBP,B_STACK_POINTER);	
+
+		i_move_r_r (a_stack_pointer,A_STACK_POINTER);
+		i_move_r_r (heap_pointer,HEAP_POINTER);		
+#  else
+		{
+		int c_offset_before_pushing_arguments,function_address_reg,c_parameter_n;
+		
 		c_offset_before_pushing_arguments=c_offset;
 
 		c_parameter_n=((a_offset+b_offset+a_result_offset+b_result_offset)>>3)+n_clean_b_register_parameters;
@@ -3435,6 +3792,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			i_move_r_r (REGISTER_RBP,B_STACK_POINTER);
 		else
 			i_lea_id_r (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset),REGISTER_RBP,B_STACK_POINTER);	
+#  endif
 
 		if (save_state_in_global_variables){
 			i_move_l_r (saved_a_stack_p_label,-4/*ESI*/);

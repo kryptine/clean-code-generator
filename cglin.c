@@ -184,7 +184,7 @@ static void i_addi_r_r (LONG value,int register_1,int register_2)
 }
 #endif
 
-#if defined (M68000) || defined (G_POWER)
+#if defined (M68000) || defined (G_POWER) || defined (G_AI64)
 # if defined (M68000)
 	static
 # endif
@@ -362,7 +362,10 @@ static void i_cmpw_d_id (LABEL *descriptor,int arity,int offset_1,int register_1
 #endif
 
 #if defined (M68000) || defined (I486)
-static void i_exg_r_r (int register_1,int register_2)
+# ifndef G_AI64
+static
+# endif
+void i_exg_r_r (int register_1,int register_2)
 {
 	register struct instruction *instruction;
 	
