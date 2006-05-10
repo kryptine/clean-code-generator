@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #if defined (LINUX) && defined (G_AI64)
 # include <stdint.h>
+# include <inttypes.h>
 #endif
 
 #undef GENERATIONAL_GC
@@ -183,12 +184,18 @@ void w_as_word64_in_data_section (int_64 n)
 	w_as_to_data_section();
 #endif
 	w_as_opcode (intel_asm ? "dq" : ".long");
-	
+
+#ifdef LINUX
+	if ((int)n==n)
+		fprintf (assembly_file,"%" PRId64,n);
+	else
+		fprintf (assembly_file,"%" PRIu64,n);
+#else
 	if ((int)n==n)
 		fprintf (assembly_file,"%I64i",n);
 	else
 		fprintf (assembly_file,"%I64u",n);
-	
+#endif	
 	w_as_newline();
 }
 
@@ -445,10 +452,17 @@ static void w_as_internal_label (int label_number)
 
 static void w_as_immediate (int_64 i)
 {
+#ifdef LINUX
+	if ((int)i==i)
+		fprintf (assembly_file,intel_asm ? "%" PRIi64 : "$%" PRIi64,i);
+	else
+		fprintf (assembly_file,intel_asm ? "%" PRIu64 : "$%" PRIu64,i);
+#else
 	if ((int)i==i)
 		fprintf (assembly_file,intel_asm ? "%I64i" : "$%I64u",i);
 	else
 		fprintf (assembly_file,intel_asm ? "%I64u" : "$%I64u",i);
+#endif
 }
 
 void w_as_abc_string_and_label_in_data_section (char *string,int length,char *label_name)
@@ -1405,6 +1419,69 @@ static void w_as_shift_instruction (struct instruction *instruction,char *opcode
 		w_as_newline();
 
 		w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A0);
+	}
+}
+
+static void w_as_shift_s_instruction (struct instruction *instruction,char *opcode)
+{
+	if (instruction->instruction_parameters[0].parameter_type!=P_REGISTER){
+		if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+			w_as_opcode (opcode);
+			if (intel_asm)
+				w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_immediate (instruction->instruction_parameters[0].parameter_data.i & 31);
+			if (!intel_asm)
+				w_as_comma_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_newline();
+		} else
+			internal_error_in_function ("w_as_shift_s_instruction");
+	} else {
+		int r0;
+		
+		r0=instruction->instruction_parameters[0].parameter_data.reg.r;
+		if (r0==REGISTER_A0){
+			w_as_opcode (opcode);
+			if (intel_asm)
+				w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+			fprintf (assembly_file,intel_asm ? "cl" : "%%cl");
+			if (!intel_asm)
+				w_as_comma_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_newline();		
+		} else {
+			int scratch_register;
+
+			scratch_register=instruction->instruction_parameters[2].parameter_data.reg.r;
+			if (scratch_register==REGISTER_A0){
+				w_as_movl_register_register_newline (r0,REGISTER_A0);
+
+				w_as_opcode (opcode);
+				if (!intel_asm)
+					fprintf (assembly_file,"%%cl,");
+				w_as_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+				if (intel_asm)
+					fprintf (assembly_file,",cl");
+				w_as_newline();
+			} else {
+				int r;
+				
+				w_as_movl_register_register_newline (REGISTER_A0,scratch_register);
+				w_as_movl_register_register_newline (r0,REGISTER_A0);
+
+				w_as_opcode (opcode);
+				if (!intel_asm)
+					fprintf (assembly_file,"%%cl,");
+				r=instruction->instruction_parameters[1].parameter_data.reg.r;
+				if (r==REGISTER_A0)
+					w_as_register (scratch_register);
+				else
+					w_as_register (r);
+				if (intel_asm)
+					fprintf (assembly_file,",cl");
+				w_as_newline();
+
+				w_as_movl_register_register_newline (scratch_register,REGISTER_A0);
+			}
+		}
 	}
 }
 
@@ -2872,6 +2949,15 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case IASR:
 				w_as_shift_instruction (instruction,"sar");
+				break;
+			case ILSL_S:
+				w_as_shift_s_instruction (instruction,"shl");
+				break;
+			case ILSR_S:
+				w_as_shift_s_instruction (instruction,"shr");
+				break;
+			case IASR_S:
+				w_as_shift_s_instruction (instruction,"sar");
 				break;
 			case IMUL:
 				w_as_dyadic_instruction (instruction,intel_asm ? "imul" : "imull");
