@@ -21,6 +21,7 @@
 
 #ifdef LINUX_ELF 
 #	define ELF
+#	define ELF_RELA
 #endif
 
 #if defined (_WINDOWS_) || defined (ELF)
@@ -81,12 +82,12 @@
 struct object_label {
 	struct object_label *	next;
 	union {
-		unsigned long		offset;			/* CODE_CONTROL_SECTION,DATA_CONTROL_SECTION */
+		ULONG				offset;			/* CODE_CONTROL_SECTION,DATA_CONTROL_SECTION */
 		struct label *		label;			/* IMPORTED_LABEL,EXPORTED_CODE_LABEL */
 	} object_label_u1;
 	union {
-		unsigned long		length;			/* CODE_CONTROL_SECTION,DATA_CONTROL_SECTION */
-		unsigned long		string_offset;	/* IMPORTED_LABEL,EXPORTED_CODE_LABEL */
+		ULONG				length;			/* CODE_CONTROL_SECTION,DATA_CONTROL_SECTION */
+		ULONG				string_offset;	/* IMPORTED_LABEL,EXPORTED_CODE_LABEL */
 	} object_label_u2;
 	int						object_label_number;
 #ifdef FUNCTION_LEVEL_LINKING
@@ -169,6 +170,25 @@ static void write_l (int c)
 	fputc (c>>24,output_file);
 }
 
+static void write_q (int c)
+{
+	fputc (c,output_file);
+	fputc (c>>8,output_file);
+	fputc (c>>16,output_file);
+	fputc (c>>24,output_file);
+	if (c>=0){
+		fputc (0,output_file);
+		fputc (0,output_file);
+		fputc (0,output_file);
+		fputc (0,output_file);
+	} else {
+		fputc (-1,output_file);
+		fputc (-1,output_file);
+		fputc (-1,output_file);
+		fputc (-1,output_file);
+	}
+}
+
 #define LONG_WORD_RELOCATION 0
 #define CALL_RELOCATION 1
 #define BRANCH_RELOCATION 2
@@ -184,7 +204,10 @@ static void write_l (int c)
 
 struct relocation {
 	struct relocation *		next;
-	unsigned long			relocation_offset;
+	ULONG					relocation_offset;
+#ifdef ELF_RELA
+	LONG					relocation_addend;
+#endif
 	union {
 		struct {
 			WORD			s_align1;
@@ -568,7 +591,29 @@ static void store_label_in_code_section (struct label *label)
 	new_relocation->relocation_label=label;
 	new_relocation->relocation_offset=CURRENT_CODE_OFFSET-4;
 	new_relocation->relocation_kind=LONG_WORD_RELOCATION;
+#ifdef ELF_RELA
+	new_relocation->relocation_addend=0;
+#endif
 }
+
+#ifdef ELF_RELA
+static void store_label_plus_offset_in_code_section (struct label *label,int offset)
+{
+	struct relocation *new_relocation;
+
+	new_relocation=fast_memory_allocate_type (struct relocation);
+	++n_code_relocations;
+	
+	*last_code_relocation_l=new_relocation;
+	last_code_relocation_l=&new_relocation->next;
+	new_relocation->next=NULL;
+	
+	new_relocation->relocation_label=label;
+	new_relocation->relocation_offset=CURRENT_CODE_OFFSET-4;
+	new_relocation->relocation_kind=LONG_WORD_RELOCATION;
+	new_relocation->relocation_addend=offset;
+}
+#endif
 
 static void store_relative_label_offset_in_code_section (struct label *label)
 {
@@ -584,13 +629,39 @@ static void store_relative_label_offset_in_code_section (struct label *label)
 	new_relocation->relocation_label=label;
 	new_relocation->relocation_offset=CURRENT_CODE_OFFSET-4;
 	new_relocation->relocation_kind=PC_RELATIVE_LONG_WORD_RELOCATION;
+#ifdef ELF_RELA
+	new_relocation->relocation_addend=0;
+#endif
 }
+
+#ifdef ELF_RELA
+static void store_relative_label_plus_offset_offset_in_code_section (struct label *label,int offset)
+{
+	struct relocation *new_relocation;
+
+	new_relocation=fast_memory_allocate_type (struct relocation);
+	++n_code_relocations;
+	
+	*last_code_relocation_l=new_relocation;
+	last_code_relocation_l=&new_relocation->next;
+	new_relocation->next=NULL;
+	
+	new_relocation->relocation_label=label;
+	new_relocation->relocation_offset=CURRENT_CODE_OFFSET-4;
+	new_relocation->relocation_kind=PC_RELATIVE_LONG_WORD_RELOCATION;
+	new_relocation->relocation_addend=offset;
+}
+#endif
 
 static void store_label_plus_offset_in_data_section (LABEL *label,int offset)
 {
 	struct relocation *new_relocation;
 
+#ifdef ELF_RELA
+	store_long_word_in_data_section (0);
+#else
 	store_long_word_in_data_section (offset);
+#endif
 
 	new_relocation=fast_memory_allocate_type (struct relocation);
 	++n_data_relocations;
@@ -602,6 +673,9 @@ static void store_label_plus_offset_in_data_section (LABEL *label,int offset)
 	new_relocation->relocation_label=label;
 	new_relocation->relocation_offset=CURRENT_DATA_OFFSET-4;
 	new_relocation->relocation_kind=LONG_WORD_RELOCATION;
+#ifdef ELF_RELA
+	new_relocation->relocation_addend=offset;
+#endif
 }
 
 #define reg_num(r) (real_reg_num[(r)+8])
@@ -673,8 +747,13 @@ static void as_move_d_r (LABEL *label,int arity,int reg1)
 	store_c (0x48 | ((reg1_n & 8)>>1));	
 	store_c (0x8d);
 	store_c (5 | ((reg1_n & 7)<<3));
+#ifdef ELF_RELA
+	store_l (0);
+	store_relative_label_plus_offset_offset_in_code_section (label,arity);
+#else
 	store_l (arity);
 	store_relative_label_offset_in_code_section (label);
+#endif
 }
 
 static void as_move_l_r (LABEL *label,int reg1)
@@ -719,8 +798,13 @@ static void as_d_r2 (int code1,int code2,int code3,LABEL *label,int arity,int re
 		store_c (code1);
 		store_c (0300 | code2 | (reg1_n & 7));
 	}
+#ifdef ELF_RELA
+	store_l (0);
+	store_label_plus_offset_in_code_section (label,arity);
+#else
 	store_l (arity);
 	store_label_in_code_section (label);
+#endif
 }
 
 static void as_r_r (int code,int reg1,int reg2)
@@ -1190,8 +1274,13 @@ static void as_i_id2 (int code1,int code2,int i,int offset,int reg1)
 
 static void as_d_id (int code1,int code2,LABEL *label,int arity,int offset,int reg1)
 {
+#ifdef ELF_RELA
+	as_i_id (code1,code2,0,offset,reg1);
+	store_label_plus_offset_in_code_section (label,arity);
+#else
 	as_i_id (code1,code2,arity,offset,reg1);
 	store_label_in_code_section (label);
+#endif
 } 
 
 static void as_i_x (int code1,int code2,int i,int offset,struct index_registers *index_registers)
@@ -1270,8 +1359,13 @@ static void as_i_x2 (int code1,int code2,int i,int offset,struct index_registers
 
 static void as_d_x (int code1,int code2,LABEL *label,int arity,int offset,struct index_registers *index_registers)
 {
+#ifdef ELF_RELA
+	as_i_x (code1,code2,0,offset,index_registers);
+	store_label_plus_offset_in_code_section (label,arity);
+#else
 	as_i_x (code1,code2,arity,offset,index_registers);
 	store_label_in_code_section (label);
+#endif
 }
 
 static void as_r_a (int code,int reg1,LABEL *label)
@@ -1403,8 +1497,14 @@ static void as_move_instruction (struct instruction *instruction)
 				switch (instruction->instruction_parameters[0].parameter_type){
 					case P_DESCRIPTOR_NUMBER:
 						store_c (0150);
+#ifdef ELF_RELA
+						store_l (0);
+						store_label_plus_offset_in_code_section (instruction->instruction_parameters[0].parameter_data.l,
+																 instruction->instruction_parameters[0].parameter_offset);
+#else
 						store_l (instruction->instruction_parameters[0].parameter_offset);
 						store_label_in_code_section (instruction->instruction_parameters[0].parameter_data.l);
+#endif
 						return;
 					case P_IMMEDIATE:
 						if ((int)instruction->instruction_parameters[0].parameter_data.imm!=instruction->instruction_parameters[0].parameter_data.imm){
@@ -1995,7 +2095,31 @@ static void as_branch_label (struct label *label,int relocation_kind)
 	new_relocation->relocation_object_label=code_object_label;
 #endif
 	new_relocation->relocation_kind=relocation_kind;
+#ifdef ELF_RELA
+	new_relocation->relocation_addend=0;
+#endif
 }
+
+#ifdef ELF_RELA
+static void as_branch_label_plus_offset (struct label *label,int offset,int relocation_kind)
+{
+	struct relocation *new_relocation;
+	
+	new_relocation=fast_memory_allocate_type (struct relocation);
+	
+	*last_code_relocation_l=new_relocation;
+	last_code_relocation_l=&new_relocation->next;
+	new_relocation->next=NULL;
+	
+	new_relocation->relocation_label=label;
+	new_relocation->relocation_offset=CURRENT_CODE_OFFSET-4;
+#ifdef FUNCTION_LEVEL_LINKING
+	new_relocation->relocation_object_label=code_object_label;
+#endif
+	new_relocation->relocation_kind=relocation_kind;
+	new_relocation->relocation_addend=offset;
+}
+#endif
 
 static void as_jmp_instruction (struct instruction *instruction)
 {
@@ -2048,8 +2172,13 @@ static void as_jmpp_instruction (struct instruction *instruction)
 			}
 			
 			store_c (0351);
+#ifdef ELF_RELA
+			store_l (0);
+			as_branch_label_plus_offset (instruction->instruction_parameters[0].parameter_data.l,offset,JUMP_RELOCATION);
+#else
 			store_l (offset);
 			as_branch_label (instruction->instruction_parameters[0].parameter_data.l,JUMP_RELOCATION);
+#endif
 			break;
 		}
 		case P_INDIRECT:
@@ -2169,6 +2298,58 @@ static void as_shift_instruction (struct instruction *instruction,int shift_code
 		store_c (0300 | (shift_code<<3) | (reg_n & 7));
 
 		as_move_r_r (REGISTER_O0,REGISTER_A0);
+	}
+}
+
+static void as_shift_s_instruction (struct instruction *instruction,int shift_code)
+{
+	int r,reg_n;
+	
+	if (instruction->instruction_parameters[0].parameter_type!=P_REGISTER){
+		if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+			int r,reg_n;
+
+			r=instruction->instruction_parameters[1].parameter_data.reg.r;
+			reg_n=reg_num (r);
+			store_c (0x48 | ((reg_n & 8)>>3));
+			store_c (0301);
+			store_c (0300 | (shift_code<<3) | (reg_n & 7));
+			store_c (instruction->instruction_parameters[0].parameter_data.i & 31);
+		} else
+			internal_error_in_function ("as_shift_s_instruction");
+	} else {
+		int r0,r1,reg_n1;
+
+		r0=instruction->instruction_parameters[0].parameter_data.reg.r;
+		r1=instruction->instruction_parameters[1].parameter_data.reg.r;
+		reg_n1=reg_num (r1);
+		if (r0==REGISTER_A0){
+			store_c (0x48 | ((reg_n1 & 8)>>3));
+			store_c (0323);
+			store_c (0300 | (shift_code<<3) | (reg_n1 & 7));
+		} else {
+			int scratch_register;
+
+			scratch_register=instruction->instruction_parameters[2].parameter_data.reg.r;
+			if (scratch_register==REGISTER_A0){
+				as_move_r_r (r0,REGISTER_A0);
+
+				store_c (0x48 | ((reg_n1 & 8)>>3));
+				store_c (0323);
+				store_c (0300 | (shift_code<<3) | (reg_n1 & 7));
+			} else {
+				as_move_r_r (REGISTER_A0,scratch_register);
+				as_move_r_r (r0,REGISTER_A0);
+				
+				if (r1==REGISTER_A0)
+					r1=scratch_register;
+				store_c (0x48 | ((reg_n1 & 8)>>3));
+				store_c (0323);
+				store_c (0300 | (shift_code<<3) | (reg_n1 & 7));
+
+				as_move_r_r (scratch_register,REGISTER_A0);
+			}
+		}
 	}
 }
 
@@ -3807,6 +3988,15 @@ static void as_instructions (struct instruction *instruction)
 			case IASR:
 				as_shift_instruction (instruction,7);
 				break;
+			case ILSL_S:
+				as_shift_s_instruction (instruction,4);
+				break;
+			case ILSR_S:
+				as_shift_s_instruction (instruction,5);
+				break;
+			case IASR_S:
+				as_shift_s_instruction (instruction,7);
+				break;
 			case IMUL:
 				as_mul_instruction (instruction);
 				break;
@@ -4272,9 +4462,13 @@ static void write_code (void)
 						as_move_l_r (block->block_profile_function_label,REGISTER_A4);
 
 						store_c (0351);
+# ifdef ELF_RELA
+						store_l (0);
+						as_branch_label_plus_offset (eval_upd_labels[n_node_arguments],-8,JUMP_RELOCATION);
+# else
 						store_l (-8);
 						as_branch_label (eval_upd_labels[n_node_arguments],JUMP_RELOCATION);
-
+#endif
 						as_move_l_r (block->block_ea_label,REGISTER_D0);
 
 						store_c (0xeb);
@@ -4408,6 +4602,14 @@ static int n_digits (int n)
 }
 
 static int n_sections;
+#endif
+
+#ifdef ELF_RELA
+# define ELF_RELOCATION_SIZE 24
+# define ELF_RELOCATION_SECTION_NAME_LENGTH_PREFIX 13
+#else
+# define ELF_RELOCATION_SIZE 16
+# define ELF_RELOCATION_SECTION_NAME_LENGTH_PREFIX 12
 #endif
 
 static void write_file_header_and_section_headers (void)
@@ -4673,7 +4875,7 @@ static void write_file_header_and_section_headers (void)
 					
 					code_offset+=code_section_length;
 					if (n_code_relocations_in_section>0){
-						section_strings_size+=12+n_digits (previous_code_object_label->object_label_section_n);
+						section_strings_size+=ELF_RELOCATION_SECTION_NAME_LENGTH_PREFIX+n_digits (previous_code_object_label->object_label_section_n);
 						++n_code_relocation_sections;
 					}
 				}
@@ -4698,7 +4900,7 @@ static void write_file_header_and_section_headers (void)
 					
 					data_offset+=data_section_length;
 					if (n_data_relocations_in_section>0){
-						section_strings_size+=12+n_digits (previous_data_object_label->object_label_section_n);
+						section_strings_size+=ELF_RELOCATION_SECTION_NAME_LENGTH_PREFIX+n_digits (previous_data_object_label->object_label_section_n);
 						++n_data_relocation_sections;
 					}
 				}
@@ -4724,7 +4926,7 @@ static void write_file_header_and_section_headers (void)
 			previous_code_object_label->object_label_length=code_section_length;
 
 			if (n_code_relocations_in_section>0){
-				section_strings_size+=12+n_digits (previous_code_object_label->object_label_section_n);
+				section_strings_size+=ELF_RELOCATION_SECTION_NAME_LENGTH_PREFIX+n_digits (previous_code_object_label->object_label_section_n);
 				++n_code_relocation_sections;
 			}
 		}
@@ -4746,7 +4948,7 @@ static void write_file_header_and_section_headers (void)
 			previous_data_object_label->object_label_length=data_section_length;
 
 			if (n_data_relocations_in_section>0){
-				section_strings_size+=12+n_digits (previous_data_object_label->object_label_section_n);
+				section_strings_size+=ELF_RELOCATION_SECTION_NAME_LENGTH_PREFIX+n_digits (previous_data_object_label->object_label_section_n);
 				++n_data_relocation_sections;
 			}
 		}
@@ -4757,17 +4959,17 @@ static void write_file_header_and_section_headers (void)
 # endif
 
 	write_l (0x464c457f);
-	write_l (0x00010101);
+	write_l (0x00010102);
 	write_l (0);
 	write_l (0);
-	write_l (0x00030001);
+	write_l (0x003e0001);
 	write_l (1);
+	write_q (0);
+	write_q (0);
+	write_q (0x40);
 	write_l (0);
-	write_l (0);
-	write_l (0x34);
-	write_l (0);
-	write_l (0x00000034);
-	write_l (0x00280000);
+	write_l (0x00000040);
+	write_l (0x00400000);
 # ifdef FUNCTION_LEVEL_LINKING
 	write_l (0x00010000 | (n_sections+n_code_relocation_sections+n_data_relocation_sections+4));
 # else
@@ -4776,34 +4978,34 @@ static void write_file_header_and_section_headers (void)
 
 	write_l (0);
 	write_l (0);
+	write_q (0);
+	write_q (0);
+	write_q (0);
+	write_q (0);
 	write_l (0);
 	write_l (0);
-	write_l (0);
-	write_l (0);
-	write_l (0);
-	write_l (0);
-	write_l (0);
-	write_l (0);
+	write_q (0);
+	write_q (0);
 # ifdef FUNCTION_LEVEL_LINKING
-	offset=0xd4+40*(n_sections+n_code_relocation_sections+n_data_relocation_sections);
+	offset=0x40+64*(4+n_sections+n_code_relocation_sections+n_data_relocation_sections);
 # else
 	offset=0x174;
 # endif
 
 	write_l (1);
 	write_l (SHT_STRTAB);
-	write_l (0);
-	write_l (0);
-	write_l (offset);
+	write_q (0);
+	write_q (0);
+	write_q (offset);
 # ifdef FUNCTION_LEVEL_LINKING
-	write_l ((27+section_strings_size+3) & -4);
+	write_q ((27+section_strings_size+3) & -4);
 # else
-	write_l (60);
+	write_q (60);
 # endif
 	write_l (0);
 	write_l (0);
-	write_l (1);
-	write_l (0);
+	write_q (1);
+	write_q (0);
 # ifdef FUNCTION_LEVEL_LINKING
 	offset+=(27+section_strings_size+3) & -4;
 # else
@@ -4825,14 +5027,14 @@ static void write_file_header_and_section_headers (void)
 					
 				write_l (section_string_offset);
 				write_l (SHT_PROGBITS);
-				write_l (SHF_ALLOC | SHF_EXECINSTR);
+				write_q (SHF_ALLOC | SHF_EXECINSTR);
+				write_q (0);
+				write_q (offset+code_offset);
+				write_q (code_section_length);
 				write_l (0);
-				write_l (offset+code_offset);
-				write_l (code_section_length);
 				write_l (0);
-				write_l (0);
-				write_l (4);
-				write_l (0);
+				write_q (4);
+				write_q (0);
 
 				section_string_offset+=8+n_digits (object_label->object_label_section_n);
 				code_offset+=code_section_length;
@@ -4850,14 +5052,14 @@ static void write_file_header_and_section_headers (void)
 					
 				write_l (section_string_offset);
 				write_l (SHT_PROGBITS);
-				write_l (SHF_ALLOC | SHF_WRITE);
+				write_q (SHF_ALLOC | SHF_WRITE);
+				write_q (0);
+				write_q (offset+data_offset);
+				write_q (data_section_length);
 				write_l (0);
-				write_l (offset+data_offset);
-				write_l (data_section_length);
 				write_l (0);
-				write_l (0);
-                write_l (1<<object_label->object_section_align);
-				write_l (0);
+ 		  	 	write_q (1<<object_label->object_section_align);
+				write_q (0);
 
 				section_string_offset+=8+n_digits (object_label->object_label_section_n);
 				data_offset+=data_section_length;
@@ -4876,21 +5078,25 @@ static void write_file_header_and_section_headers (void)
 				
 				if (n_code_relocations_in_section>0){
 					write_l (section_string_offset);
+#  ifdef ELF_RELA
+					write_l (SHT_RELA);
+#  else
 					write_l (SHT_REL);
-					write_l (0);
-					write_l (0);
-					write_l (offset+code_relocations_offset);
-					write_l (8*n_code_relocations_in_section);
+#  endif
+					write_q (0);
+					write_q (0);
+					write_q (offset+code_relocations_offset);
+					write_q (ELF_RELOCATION_SIZE*n_code_relocations_in_section);
 					write_l (n_sections+n_code_relocation_sections+n_data_relocation_sections+2);
 					write_l (2+object_label->object_label_section_n);
-					write_l (4);
-					write_l (8);
-					section_string_offset+=12+n_digits (object_label->object_label_section_n);
-					code_relocations_offset+=8*n_code_relocations_in_section;
+					write_q (4);
+					write_q (ELF_RELOCATION_SIZE);
+					section_string_offset+=ELF_RELOCATION_SECTION_NAME_LENGTH_PREFIX+n_digits (object_label->object_label_section_n);
+					code_relocations_offset+=ELF_RELOCATION_SIZE*n_code_relocations_in_section;
 				}
 			}
 		}
-		offset+=8*n_code_relocations;
+		offset+=ELF_RELOCATION_SIZE*n_code_relocations;
 
 		data_relocations_offset=0;
 	
@@ -4902,70 +5108,82 @@ static void write_file_header_and_section_headers (void)
 				
 				if (n_data_relocations_in_section>0){
 					write_l (section_string_offset);
+#  ifdef ELF_RELA
+					write_l (SHT_RELA);
+#  else
 					write_l (SHT_REL);
-					write_l (0);
-					write_l (0);
-					write_l (offset+data_relocations_offset);
-					write_l (8*n_data_relocations_in_section);
+#  endif
+					write_q (0);
+					write_q (0);
+					write_q (offset+data_relocations_offset);
+					write_q (ELF_RELOCATION_SIZE*n_data_relocations_in_section);
 					write_l (n_sections+n_code_relocation_sections+n_data_relocation_sections+2);
 					write_l (2+n_code_sections+object_label->object_label_section_n);
-					write_l (4);
-					write_l (8);
-					section_string_offset+=12+n_digits (object_label->object_label_section_n);
-					data_relocations_offset+=8*n_data_relocations_in_section;
+					write_q (4);
+					write_q (ELF_RELOCATION_SIZE);
+					section_string_offset+=ELF_RELOCATION_SECTION_NAME_LENGTH_PREFIX+n_digits (object_label->object_label_section_n);
+					data_relocations_offset+=ELF_RELOCATION_SIZE*n_data_relocations_in_section;
 				}
 			}
 		}
-		offset+=8*n_data_relocations;
+		offset+=ELF_RELOCATION_SIZE*n_data_relocations;
 	}
 # else
 	write_l (11);
 	write_l (SHT_PROGBITS);
-	write_l (SHF_ALLOC | SHF_EXECINSTR);
+	write_q (SHF_ALLOC | SHF_EXECINSTR);
+	write_q (0);
+	write_q (offset);
+	write_q (code_buffer_offset);
 	write_l (0);
-	write_l (offset);
-	write_l (code_buffer_offset);
 	write_l (0);
-	write_l (0);
-	write_l (4);
-	write_l (0);
+	write_q (4);
+	write_q (0);
 	offset+=(code_buffer_offset+3 ) & ~3;
 
 	write_l (17);
 	write_l (SHT_PROGBITS);
-	write_l (SHF_ALLOC | SHF_WRITE);
+	write_q (SHF_ALLOC | SHF_WRITE);
+	write_q (0);
+	write_q (offset);
+	write_q (data_buffer_offset);
 	write_l (0);
-	write_l (offset);
-	write_l (data_buffer_offset);
 	write_l (0);
-	write_l (0);
-	write_l (4);
-	write_l (0);
+	write_q (4);
+	write_q (0);
 	offset+=(data_buffer_offset+3) & ~3;
 
 	write_l (23);
+#  ifdef ELF_RELA
+	write_l (SHT_RELA);
+#  else
 	write_l (SHT_REL);
-	write_l (0);
-	write_l (0);
-	write_l (offset);
-	write_l (8*n_code_relocations);
+#  endif
+	write_q (0);
+	write_q (0);
+	write_q (offset);
+	write_q (ELF_RELOCATION_SIZE*n_code_relocations);
 	write_l (6);
 	write_l (2);
-	write_l (4);
-	write_l (8);
-	offset+=8*n_code_relocations;
+	write_q (4);
+	write_q (ELF_RELOCATION_SIZE);
+	offset+=ELF_RELOCATION_SIZE*n_code_relocations;
 
 	write_l (33);
+#  ifdef ELF_RELA
+	write_l (SHT_RELA);
+#  else
 	write_l (SHT_REL);
-	write_l (0);
-	write_l (0);
-	write_l (offset);
-	write_l (8*n_data_relocations);
+#  endif
+	write_q (0);
+	write_q (0);
+	write_q (offset);
+	write_q (ELF_RELOCATION_SIZE*n_data_relocations);
 	write_l (6);
 	write_l (3);
-	write_l (4);
-	write_l (8);
-	offset+=8*n_data_relocations;
+	write_q (4);
+	write_q (ELF_RELOCATION_SIZE);
+	offset+=ELF_RELOCATION_SIZE*n_data_relocations;
 # endif
 
 # ifdef FUNCTION_LEVEL_LINKING
@@ -4974,24 +5192,24 @@ static void write_file_header_and_section_headers (void)
 	write_l (43);
 # endif
 	write_l (SHT_SYMTAB);
-	write_l (0);
-	write_l (0);
-	write_l (offset);
+	write_q (0);
+	write_q (0);
+	write_q (offset);
 # ifdef FUNCTION_LEVEL_LINKING
-	write_l (16*(n_object_labels+n_sections));
+	write_q (24*(n_object_labels+n_sections));
 	write_l (n_sections+n_code_relocation_sections+n_data_relocation_sections+3);
 	write_l (1+n_sections);
 # else
-	write_l (16*n_object_labels);
+	write_q (24*n_object_labels);
 	write_l (7);
 	write_l (3);
 # endif
-	write_l (4);
-	write_l (16);
+	write_q (4);
+	write_q (24);
 # ifdef FUNCTION_LEVEL_LINKING
-	offset+=16*(n_object_labels+n_sections);
+	offset+=24*(n_object_labels+n_sections);
 # else
-	offset+=16*n_object_labels;
+	offset+=24*n_object_labels;
 # endif
 
 # ifdef FUNCTION_LEVEL_LINKING
@@ -5000,14 +5218,14 @@ static void write_file_header_and_section_headers (void)
 	write_l (51);
 # endif
 	write_l (SHT_STRTAB);
+	write_q (0);
+	write_q (0);
+	write_q (offset);
+	write_q (string_table_offset);
 	write_l (0);
 	write_l (0);
-	write_l (offset);
-	write_l (string_table_offset);
-	write_l (0);
-	write_l (0);
-	write_l (0);
-	write_l (0);
+	write_q (0);
+	write_q (0);
 
 	write_c (0);
 	write_zstring (".shstrtab");
@@ -5028,22 +5246,35 @@ static void write_file_header_and_section_headers (void)
 		}
 
 		for_l (object_label,first_object_label,next)
-			if (object_label->object_label_kind==CODE_CONTROL_SECTION && object_label->object_label_n_relocations>0){ 
+			if (object_label->object_label_kind==CODE_CONTROL_SECTION && object_label->object_label_n_relocations>0){
+#  ifdef ELF_RELA
+				sprintf (section_name,".rela.text.m%d",object_label->object_label_section_n);
+#  else
 				sprintf (section_name,".rel.text.m%d",object_label->object_label_section_n);
+#  endif
 				write_zstring (section_name);
 			}
 	
 		for_l (object_label,first_object_label,next)
 			if (object_label->object_label_kind==DATA_CONTROL_SECTION && object_label->object_label_n_relocations>0){ 
+#  ifdef ELF_RELA
+				sprintf (section_name,".rela.data.m%d",object_label->object_label_section_n);
+#  else
 				sprintf (section_name,".rel.data.m%d",object_label->object_label_section_n);
+#  endif
 				write_zstring (section_name);
 			}
 	}
 # else
 	write_zstring (".text");
 	write_zstring (".data");
+#  ifdef ELF_RELA
+	write_zstring (".rela.text");
+	write_zstring (".rela.data");
+#  else
 	write_zstring (".rel.text");
 	write_zstring (".rel.data");
+#  endif
 # endif
 	write_zstring (".symtab");
 	write_zstring (".strtab");
@@ -5494,7 +5725,6 @@ static void relocate_short_branches_and_move_code (void)
 			
 			if (source_buffer_offset<=BUFFER_SIZE-5){
 				v += *(LONG*)(source_object_buffer->data+(source_buffer_offset+1));
-								
 			} else {
 				unsigned char *p1,*p2,*p3,*p4,*end_buffer;
 				
@@ -5687,10 +5917,18 @@ static void relocate_code (void)
 # endif	
 						++n_code_relocations;
 						relocation_p=&relocation->next;
+# ifdef ELF_RELA
+						relocation->relocation_addend+=v;
+						continue;
+# else
 						break;
+# endif
 					}
 #endif
 					v=label->label_offset-(instruction_offset+4);
+#ifdef ELF_RELA
+					v+=relocation->relocation_addend;
+#endif
 					*relocation_p=relocation->next;
 					break;
 				} else {
@@ -5699,13 +5937,57 @@ static void relocate_code (void)
 #ifdef ELF
 					instruction_offset=relocation->relocation_offset;
 					v= -4;
+# ifdef ELF_RELA
+					relocation->relocation_addend+=v;
+					continue;
+# else
 					break;
+# endif
 #else
 					continue;
 #endif
 				}
+#ifdef ELF
+			case PC_RELATIVE_LONG_WORD_RELOCATION:
+				relocation_p=&relocation->next;
+				
+				label=relocation->relocation_label;
+
+				if (label->label_id==TEXT_LABEL_ID || (label->label_id==DATA_LABEL_ID
+# if defined (RELOCATIONS_RELATIVE_TO_EXPORTED_DATA_LABEL) && defined (FUNCTION_LEVEL_LINKING)
+					&& !((label->label_flags & EXPORT_LABEL) && label->label_object_label->object_label_kind==EXPORTED_DATA_LABEL)
+# endif
+					))
+				{
+					instruction_offset=relocation->relocation_offset;
+					v=label->label_offset;
+
+					v -= 4;
+					
+# ifdef FUNCTION_LEVEL_LINKING
+					v -= label->label_object_label->object_label_offset;
+# endif
+# ifdef ELF_RELA
+					relocation->relocation_addend+=v;
+					continue;
+# else
+					break;
+# endif
+				} else {
+					instruction_offset=relocation->relocation_offset;
+					v= -4;
+# ifdef ELF_RELA
+					relocation->relocation_addend+=v;
+					continue;
+# else
+					break;
+# endif
+				}
+			case LONG_WORD_RELOCATION:
+#else
 			case LONG_WORD_RELOCATION:
 			case PC_RELATIVE_LONG_WORD_RELOCATION:
+#endif
 				relocation_p=&relocation->next;
 				
 				label=relocation->relocation_label;
@@ -5721,7 +6003,12 @@ static void relocate_code (void)
 #ifdef FUNCTION_LEVEL_LINKING
 					v -= label->label_object_label->object_label_offset;
 #endif
+#ifdef ELF_RELA
+					relocation->relocation_addend+=v;
+					continue;
+#else
 					break;
+#endif
 				} else
 					continue;
 #ifdef FUNCTION_LEVEL_LINKING
@@ -5781,6 +6068,32 @@ static void relocate_code (void)
 
 static void relocate_data (void)
 {
+#ifdef ELF_RELA
+	struct relocation *relocation;
+	
+	for_l (relocation,first_data_relocation,next){
+		struct label *label;
+		
+		label=relocation->relocation_label;
+
+		if (relocation->relocation_kind==LONG_WORD_RELOCATION){
+			if (label->label_id==TEXT_LABEL_ID || (label->label_id==DATA_LABEL_ID
+#if defined (RELOCATIONS_RELATIVE_TO_EXPORTED_DATA_LABEL) && defined (FUNCTION_LEVEL_LINKING)
+				&& !((label->label_flags & EXPORT_LABEL) && label->label_object_label->object_label_kind==EXPORTED_DATA_LABEL)
+#endif
+				))
+			{
+				int v;
+				
+				v = label->label_offset;
+#ifdef FUNCTION_LEVEL_LINKING
+				v -= label->label_object_label->object_label_offset;
+#endif
+				relocation->relocation_addend += v;
+			}
+		}
+	}
+#else
 	struct relocation *relocation;
 	struct object_buffer *object_buffer;
 	int data_buffer_offset;
@@ -5842,6 +6155,7 @@ static void relocate_data (void)
 			}
 		}
 	}
+#endif
 }
 
 static void as_import_labels (struct label_node *label_node)
@@ -5902,42 +6216,42 @@ static void write_object_labels (void)
 #ifdef ELF
 	write_l (0);
 	write_l (0);
-	write_l (0);
-	write_l (0);
+	write_q (0);
+	write_q (0);
 # ifndef FUNCTION_LEVEL_LINKING
 	write_l (1);
-	write_l (0);
-	write_l (0);
 	write_c (ELF32_ST_INFO (STB_LOCAL,STT_SECTION));
 	write_c (0);
 	write_w (2);
+	write_q (0);
+	write_q (0);
 
 	write_l (7);
-	write_l (0);
-	write_l (0);
 	write_c (ELF32_ST_INFO (STB_LOCAL,STT_SECTION));
 	write_c (0);
 	write_w (3);
+	write_q (0);
+	write_q (0);
 # else
 	{
 		int section_n;
 
 		for (section_n=0; section_n<n_code_sections; ++section_n){
 			write_l (0);
-			write_l (0);
-			write_l (0);
 			write_c (ELF32_ST_INFO (STB_LOCAL,STT_SECTION));
 			write_c (0);
 			write_w (2+section_n);
+			write_q (0);
+			write_q (0);
 		}
 
 		for (section_n=0; section_n<n_data_sections; ++section_n){
 			write_l (0);
-			write_l (0);
-			write_l (0);
 			write_c (ELF32_ST_INFO (STB_LOCAL,STT_SECTION));
 			write_c (0);
 			write_w (2+n_code_sections+section_n);
+			write_q (0);
+			write_q (0);
 		}
 	}
 # endif
@@ -6013,11 +6327,11 @@ static void write_object_labels (void)
 				label=object_label->object_label_label;
 #ifdef ELF
 				write_l (object_label->object_label_string_offset);
-				write_l (0);
-				write_l (0);
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_NOTYPE));
 				write_c (0);
 				write_w (0);
+				write_q (0);
+				write_q (0);
 #else
 				if (object_label->object_label_string_offset==0)
 					write_string_8 (label->label_name);
@@ -6041,19 +6355,16 @@ static void write_object_labels (void)
 				label=object_label->object_label_label;
 #ifdef ELF
 				write_l (object_label->object_label_string_offset);
-# ifdef FUNCTION_LEVEL_LINKING
-				write_l (label->label_offset - label->label_object_label->object_label_offset);
-# else
-				write_l (label->label_offset);
-# endif
-				write_l (0);
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_FUNC));
 				write_c (0);
 # ifdef FUNCTION_LEVEL_LINKING
 				write_w (2+label->label_object_label->object_label_section_n);
+				write_q (label->label_offset - label->label_object_label->object_label_offset);
 # else
 				write_w (2);
+				write_q (label->label_offset);
 # endif
+				write_q (0);
 #else
 				if (object_label->object_label_string_offset==0)
 					write_string_8 (label->label_name);
@@ -6082,23 +6393,20 @@ static void write_object_labels (void)
 				label=object_label->object_label_label;
 #ifdef ELF
 				write_l (object_label->object_label_string_offset);
-# ifdef FUNCTION_LEVEL_LINKING
-#  ifdef RELOCATIONS_RELATIVE_TO_EXPORTED_DATA_LABEL
-				write_l (label->label_offset - current_text_or_data_object_label->object_label_offset);
-#  else
-				write_l (label->label_offset - label->label_object_label->object_label_offset);
-# endif
-# else
-				write_l (label->label_offset);
-# endif
-				write_l (0);
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_OBJECT));
 				write_c (0);
 # ifdef FUNCTION_LEVEL_LINKING
 				write_w (2+n_code_sections+label->label_object_label->object_label_section_n);
+#  ifdef RELOCATIONS_RELATIVE_TO_EXPORTED_DATA_LABEL
+				write_q (label->label_offset - current_text_or_data_object_label->object_label_offset);
+#  else
+				write_q (label->label_offset - label->label_object_label->object_label_offset);
+#  endif
 # else
 				write_w (3);
+				write_q (label->label_offset);
 # endif
+				write_q (0);
 #else
 				if (object_label->object_label_string_offset==0)
 					write_string_8 (label->label_name);
@@ -6211,14 +6519,19 @@ static void write_code_relocations (void)
 #endif
 					internal_error_in_function ("write_code_relocations");
 
-				write_l (relocation->relocation_offset);
 #ifdef ELF
+				write_q (relocation->relocation_offset);
+				write_l (R_X86_64_PC32);
 # ifdef FUNCTION_LEVEL_LINKING
-				write_l (ELF32_R_INFO (elf_label_number (label),R_386_PC32));
+				write_l (elf_label_number (label));
 # else
-				write_l (ELF32_R_INFO (label->label_id,R_386_PC32));
+				write_l (label->label_id);
+# endif
+# ifdef ELF_RELA
+				write_q (relocation->relocation_addend);
 # endif
 #else
+				write_l (relocation->relocation_offset);
 # ifdef FUNCTION_LEVEL_LINKING
 				if (label->label_id==TEXT_LABEL_ID || label->label_id==DATA_LABEL_ID)
 					write_l (label->label_object_label->object_label_number);
@@ -6241,14 +6554,19 @@ static void write_code_relocations (void)
 #endif
 					internal_error_in_function ("write_code_relocations");
 
-				write_l (relocation->relocation_offset);
 #ifdef ELF
+				write_q (relocation->relocation_offset);
+				write_l (R_X86_64_32S);
 # ifdef FUNCTION_LEVEL_LINKING
-				write_l (ELF32_R_INFO (elf_label_number (label),R_386_32));
+				write_l (elf_label_number (label));
 # else
-				write_l (ELF32_R_INFO (label->label_id,R_386_32));
+				write_l (label->label_id);
+# endif
+# ifdef ELF_RELA
+				write_q (relocation->relocation_addend);
 # endif
 #else
+				write_l (relocation->relocation_offset);
 # ifdef FUNCTION_LEVEL_LINKING
 				if (label->label_id==TEXT_LABEL_ID || label->label_id==DATA_LABEL_ID)
 					write_l (label->label_object_label->object_label_number);
@@ -6271,14 +6589,19 @@ static void write_code_relocations (void)
 #endif
 					internal_error_in_function ("write_code_relocations");
 
-				write_l (relocation->relocation_offset);
 #ifdef ELF
+				write_q (relocation->relocation_offset);
+				write_l (R_X86_64_PC32);
 # ifdef FUNCTION_LEVEL_LINKING
-				write_l (ELF32_R_INFO (elf_label_number (label),R_386_32));
+				write_l (elf_label_number (label));
 # else
-				write_l (ELF32_R_INFO (label->label_id,R_386_32));
+				write_l (label->label_id);
+# endif
+# ifdef ELF_RELA
+				write_q (relocation->relocation_addend);
 # endif
 #else
+				write_l (relocation->relocation_offset);
 # ifdef FUNCTION_LEVEL_LINKING
 				if (label->label_id==TEXT_LABEL_ID || label->label_id==DATA_LABEL_ID)
 					write_l (label->label_object_label->object_label_number);
@@ -6298,10 +6621,15 @@ static void write_code_relocations (void)
 				if (label->label_id==-1)
 					internal_error_in_function ("write_code_relocations");
 
-				write_l (relocation->relocation_offset - 4);
 #ifdef ELF
-				write_l (ELF32_R_INFO (elf_label_number (label),R_386_NONE));
+				write_q (relocation->relocation_offset - 4);
+				write_l (R_X86_64_NONE);
+				write_l (elf_label_number (label));
+# ifdef ELF_RELA
+				write_q (relocation->relocation_addend);
+# endif
 #else
+				write_l (relocation->relocation_offset - 4);
 				if (label->label_id==TEXT_LABEL_ID || label->label_id==DATA_LABEL_ID)
 					write_l (label->label_object_label->object_label_number);
 				else
@@ -6339,14 +6667,19 @@ static void write_data_relocations (void)
 #endif
 					internal_error_in_function ("write_data_relocations");
 
-				write_l (relocation->relocation_offset);
 #ifdef ELF
+				write_q (relocation->relocation_offset);
+				write_l (R_X86_64_32S);
 # ifdef FUNCTION_LEVEL_LINKING
-				write_l (ELF32_R_INFO (elf_label_number (label),R_386_32));
+				write_l (elf_label_number (label));
 # else
-				write_l (ELF32_R_INFO (label->label_id,R_386_32));
+				write_l (label->label_id);
+# endif
+# ifdef ELF_RELA
+				write_q (relocation->relocation_addend);
 # endif
 #else
+				write_l (relocation->relocation_offset);
 # ifdef FUNCTION_LEVEL_LINKING
 				if (label->label_id==TEXT_LABEL_ID || label->label_id==DATA_LABEL_ID)
 					write_l (label->label_object_label->object_label_number);
