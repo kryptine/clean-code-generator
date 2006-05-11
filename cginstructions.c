@@ -3861,7 +3861,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 				break;
 			case 'R':
 				begin_new_basic_block();
-				init_b_stack (2,r_vector);
+				init_b_stack (1,r_vector);
 				break;
 			case 'S':
 				if (string_to_string_node_label==NULL)
