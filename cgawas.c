@@ -1378,7 +1378,7 @@ static void w_as_shift_instruction (struct instruction *instruction,char *opcode
 		w_as_opcode (opcode);
 		if (intel_asm)
 			w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
-		w_as_immediate (instruction->instruction_parameters[0].parameter_data.i & 31);
+		w_as_immediate (instruction->instruction_parameters[0].parameter_data.i & 63);
 		if (!intel_asm)
 			w_as_comma_register (instruction->instruction_parameters[1].parameter_data.reg.r);
 		w_as_newline();
@@ -1429,7 +1429,7 @@ static void w_as_shift_s_instruction (struct instruction *instruction,char *opco
 			w_as_opcode (opcode);
 			if (intel_asm)
 				w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
-			w_as_immediate (instruction->instruction_parameters[0].parameter_data.i & 31);
+			w_as_immediate (instruction->instruction_parameters[0].parameter_data.i & 63);
 			if (!intel_asm)
 				w_as_comma_register (instruction->instruction_parameters[1].parameter_data.reg.r);
 			w_as_newline();

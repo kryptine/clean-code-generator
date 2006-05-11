@@ -2275,7 +2275,7 @@ static void as_shift_instruction (struct instruction *instruction,int shift_code
 		store_c (0x48 | ((reg_n & 8)>>3));
 		store_c (0301);
 		store_c (0300 | (shift_code<<3) | (reg_n & 7));
-		store_c (instruction->instruction_parameters[0].parameter_data.i & 31);
+		store_c (instruction->instruction_parameters[0].parameter_data.i & 63);
 	} else if (
 		instruction->instruction_parameters[0].parameter_type==P_REGISTER &&
 		instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A0
@@ -2314,7 +2314,7 @@ static void as_shift_s_instruction (struct instruction *instruction,int shift_co
 			store_c (0x48 | ((reg_n & 8)>>3));
 			store_c (0301);
 			store_c (0300 | (shift_code<<3) | (reg_n & 7));
-			store_c (instruction->instruction_parameters[0].parameter_data.i & 31);
+			store_c (instruction->instruction_parameters[0].parameter_data.i & 63);
 		} else
 			internal_error_in_function ("as_shift_s_instruction");
 	} else {
