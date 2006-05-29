@@ -4320,11 +4320,9 @@ static void as_apply_update_entry (struct basic_block *block)
 		store_l (0);
 		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
 	}
-	
-	if (!block->block_profile){
-		store_c (0x90);
-		store_c (0x90);
-	}
+
+	store_c (0x90);
+	store_c (0x90);
 }
 #endif
 
@@ -4468,7 +4466,7 @@ static void write_code (void)
 # else
 						store_l (-8);
 						as_branch_label (eval_upd_labels[n_node_arguments],JUMP_RELOCATION);
-#endif
+# endif
 						as_move_l_r (block->block_ea_label,REGISTER_D0);
 
 						store_c (0xeb);
@@ -5329,7 +5327,9 @@ static int search_short_branches (void)
 				v=label->label_offset-(instruction_offset-offset_difference);
 				if (relocation->relocation_kind==JUMP_RELOCATION)
 					--v;
-				
+#ifdef ELF_RELA
+				v+=relocation->relocation_addend;
+#endif
 				if (instruction_offset-code_buffer_offset<=BUFFER_SIZE-4)
 					v += *(LONG*)(object_buffer->data+(instruction_offset-code_buffer_offset));
 				else {
@@ -5722,7 +5722,10 @@ static void relocate_short_branches_and_move_code (void)
 		
 		if (relocation->relocation_kind==SHORT_JUMP_RELOCATION){
 			v=label->label_offset-(instruction_offset+2-offset_difference);
-			
+
+#ifdef ELF_RELA
+			v+=relocation->relocation_addend;
+#endif
 			if (source_buffer_offset<=BUFFER_SIZE-5){
 				v += *(LONG*)(source_object_buffer->data+(source_buffer_offset+1));
 			} else {
@@ -5753,6 +5756,10 @@ static void relocate_short_branches_and_move_code (void)
 			offset_difference+=3;
 		} else if (relocation->relocation_kind==SHORT_BRANCH_RELOCATION){
 			v=label->label_offset-(instruction_offset+2-offset_difference);
+
+#ifdef ELF_RELA
+			v+=relocation->relocation_addend;
+#endif
 			
 			if (source_buffer_offset<=BUFFER_SIZE-6){
 				v += *(LONG*)(source_object_buffer->data+(source_buffer_offset+2));

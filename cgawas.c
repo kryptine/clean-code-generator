@@ -3482,11 +3482,9 @@ static void w_as_apply_update_entry (struct basic_block *block)
 		w_as_label (block->block_ea_label->label_name);
 		w_as_newline();
 	}
-	
-	if (!block->block_profile){
-		w_as_instruction_without_parameters ("nop");
-		w_as_instruction_without_parameters ("nop");
-	}
+
+	w_as_instruction_without_parameters ("nop");
+	w_as_instruction_without_parameters ("nop");
 }
 #endif
 
