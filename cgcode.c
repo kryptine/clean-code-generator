@@ -9016,31 +9016,26 @@ static LABEL *code_string_or_module (char label_name[],char string[],int string_
 	return label;
 }
 
-void code_string (char label_name[],char string[],int string_length)
-{
-	code_string_or_module (label_name,string,string_length);
-}
-
-void code_module (char label_name[],char string[],int string_length)
-{	
 #ifdef G_A64
+static LABEL *code_string_or_module4 (char label_name[],char string[],int string_length)
+{
 	LABEL *label;
 
 	label=enter_label (label_name,LOCAL_LABEL
-#ifdef G_POWER
+# ifdef G_POWER
 								  | DATA_LABEL | STRING_LABEL
-#endif
+# endif
 	);
 
 	if (label->label_id>=0)
 		error_s ("Label %d defined twice\n",label_name);
 	label->label_id=next_label_id++;
 
-#ifdef FUNCTION_LEVEL_LINKING
+# ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
-#endif
+# endif
 
 # ifdef GEN_OBJ
 	define_data_label (label);
@@ -9050,7 +9045,23 @@ void code_module (char label_name[],char string[],int string_length)
 	if (assembly_flag)
 		w_as_abc_string_and_label_in_data_section (string,string_length,label_name);
 
-	module_label=label;
+	return label;
+}
+#endif
+
+void code_string (char label_name[],char string[],int string_length)
+{
+#ifdef G_A64
+	code_string_or_module4 (label_name,string,string_length);
+#else
+	code_string_or_module (label_name,string,string_length);
+#endif
+}
+
+void code_module (char label_name[],char string[],int string_length)
+{	
+#ifdef G_A64
+	module_label=code_string_or_module4 (label_name,string,string_length);
 #else
 	module_label=code_string_or_module (label_name,string,string_length);
 #endif
