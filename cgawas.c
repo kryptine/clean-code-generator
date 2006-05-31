@@ -677,7 +677,7 @@ static void w_as_parameter (struct parameter *parameter)
 				w_as_label (parameter->parameter_data.l->label_name);
 			break;
 		case P_IMMEDIATE:
-			fprintf (assembly_file,intel_asm ? "%ld" : "$%ld",parameter->parameter_data.i);
+			w_as_immediate (parameter->parameter_data.imm);
 			break;
 		case P_INDIRECT:
 			w_as_indirect (parameter->parameter_offset,parameter->parameter_data.reg.r);
