@@ -2441,12 +2441,15 @@ void code_ccall (char *c_function_name,char *s,int length)
 #if defined (sparc) || defined (G_POWER)
 		int	c_parameter_n;
 # ifdef G_POWER
-		int c_offset,c_fp_parameter_n;
+		int c_offset;
 # endif
 #elif defined (I486)
 		int c_offset;		
 #else
 		error ("ABC instruction 'ccall' not implemented");
+#endif
+#if defined (G_POWER) || defined (G_A64)
+		int c_fp_parameter_n;
 #endif
 
 	function_address_parameter=0;
@@ -2781,7 +2784,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 						i_fmove_id_fr (b_o,B_STACK_REGISTER,1+c_fp_parameter_n-14);
 					} else {
 #  ifdef LINUX_ELF
-						error_s ("Passing more than 8 fp register not implemented (in '%s')",c_function_name);
+						error_s ("Passing more than 8 fp registers not implemented (in '%s')",c_function_name);
 #  else
 						i_move_id_r (b_o,B_STACK_REGISTER,REGISTER_A3);
 						i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
@@ -3226,7 +3229,8 @@ void code_ccall (char *c_function_name,char *s,int length)
 # else /* G_AI64 */
 		a_o=-b_result_offset-a_result_offset;
 		b_o=0;
-				
+		c_fp_parameter_n=0;
+
 		if (a_result_offset+b_result_offset>b_offset){
 			i_sub_i_r (a_result_offset+b_result_offset-b_offset,B_STACK_POINTER);
 			c_offset=a_result_offset+b_result_offset;
@@ -3449,26 +3453,29 @@ void code_ccall (char *c_function_name,char *s,int length)
 						}
 						break;
 					case 'R':
-					{
-						int temp_register;
-						
 						b_o-=8;
-						if (c_parameter_n>2 || n_c_parameters<=2)
-							temp_register=REGISTER_A1;
-						else if ((used_clean_b_parameter_registers & 1)==0)
-							temp_register=REGISTER_D0;
-						else if ((used_clean_b_parameter_registers & 2)==0)
-							temp_register=REGISTER_D1;
-						else if ((used_clean_b_parameter_registers & 4)==0)
-							temp_register=REGISTER_D2;
-						else
-							error_s (ccall_error_string,c_function_name);
-
-						i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,temp_register);
-						i_move_r_pd (temp_register,B_STACK_POINTER);
-						c_offset+=8;
+						if (c_fp_parameter_n<8){
+							i_fmove_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_fp_parameter_n);
+							++c_fp_parameter_n;
+						} else {
+							int temp_register;
+	
+							if (c_parameter_n>2 || n_c_parameters<=2)
+								temp_register=REGISTER_A1;
+							else if ((used_clean_b_parameter_registers & 1)==0)
+								temp_register=REGISTER_D0;
+							else if ((used_clean_b_parameter_registers & 2)==0)
+								temp_register=REGISTER_D1;
+							else if ((used_clean_b_parameter_registers & 4)==0)
+								temp_register=REGISTER_D2;
+							else
+								error_s (ccall_error_string,c_function_name);
+	
+							i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,temp_register);
+							i_move_r_pd (temp_register,B_STACK_POINTER);
+							c_offset+=8;
+						}
 						break;
-					}
 					case 'S':
 					case 's':
 					case 'A':
@@ -3689,9 +3696,14 @@ void code_ccall (char *c_function_name,char *s,int length)
 						break;
 					case 'R':
 						b_o-=8;
-						i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
-						i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
-						c_offset+=8;
+						if (c_fp_parameter_n<8){
+							i_fmove_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_fp_parameter_n);
+							++c_fp_parameter_n;
+						} else {
+							i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
+							i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+							c_offset+=8;
+						}
 						break;
 					case 'S':
 						if (--c_parameter_n<4){
