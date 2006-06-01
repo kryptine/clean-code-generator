@@ -2434,7 +2434,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 	int a_offset,b_offset,a_result_offset,b_result_offset;
 	int result,a_o,b_o,float_parameters;
 	int n_clean_b_register_parameters,clean_b_register_parameter_n;
-	int n_extra_clean_b_register_parameters,extra_float_parameters;
+	int n_extra_clean_b_register_parameters;
 	int first_pointer_result_index,callee_pops_arguments,save_state_in_global_variables;
 	int function_address_parameter;
 
@@ -2537,7 +2537,6 @@ void code_ccall (char *c_function_name,char *s,int length)
 	b_result_offset=0;
 
 	n_extra_clean_b_register_parameters=0;
-	extra_float_parameters=0;
 
 	for (++l; l<length; ++l){
 		switch (s[l]){
@@ -2564,12 +2563,11 @@ void code_ccall (char *c_function_name,char *s,int length)
 						switch (s[l]){
 							case 'I':
 							case 'p':
-								if (!extra_float_parameters)
+								if (!float_parameters)
 									++n_extra_clean_b_register_parameters;
 								break;
 							case 'R':
 								float_parameters=1;
-								extra_float_parameters=1;
 								break;
 							case 'S':
 							case 'A':
