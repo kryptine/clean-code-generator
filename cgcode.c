@@ -10,9 +10,6 @@
 # include <stdint.h>
 #endif
 
-#if defined (G_POWER) || defined (I486) || defined (sparc)
-# define NO_STRING_ADDRESS_IN_DESCRIPTOR
-#endif
 #undef NO_FUNCTION_NAMES
 #undef NO_CONSTRUCTOR_NAMES
 
@@ -23,6 +20,10 @@
 #define TIME_PROFILE_WITH_MODULE_NAMES 1
 
 #include "cgport.h"
+
+#if defined (G_POWER) || defined (I486) || defined (sparc)
+# define NO_STRING_ADDRESS_IN_DESCRIPTOR
+#endif
 
 #if defined (G_POWER) || defined (I486)
 #	define PROFILE
