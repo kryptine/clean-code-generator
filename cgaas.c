@@ -3805,10 +3805,10 @@ static void as_fmovel_instruction (struct instruction *instruction)
 			/* cvtsd2si */
 
 			store_c (0xf2);
-			store_c (0x48 | ((s_freg & 8)>>1) | ((reg1_n & 8)>>3));
+			store_c (0x48 | ((reg1_n & 8)>>1) | ((s_freg & 8)>>3));
 			store_c (0x0f);
 			store_c (0x2d);
-			store_c (0xc0 | ((s_freg & 7)<<3) | (reg1_n & 7));
+			store_c (0xc0 | ((reg1_n & 7)<<3) | (s_freg & 7));
 		} else
 			internal_error_in_function ("as_fmovel_instruction");
 	} else {
