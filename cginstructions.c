@@ -2471,6 +2471,21 @@ void code_ccall (char *c_function_name,char *s,int length)
 		++s;
 		--length;
 		callee_pops_arguments=1;
+
+#ifdef G_AI64
+		{
+			int l;
+			
+			l=strlen (c_function_name)-1;
+			if (l>=0 && isdigit (c_function_name[l])){
+				do
+					--l;
+				while (l>=0 && isdigit (c_function_name[l]));
+				if (l>0 && c_function_name[l]=='@')
+					c_function_name[l]='\0';
+			}
+		}
+#endif
 	} else
 		callee_pops_arguments=0;
 
@@ -3577,8 +3592,10 @@ void code_ccall (char *c_function_name,char *s,int length)
 		}
 	
 		if (save_state_in_global_variables){
-			i_move_r_l (-4/*ESI*/,saved_a_stack_p_label);
-			i_move_r_l (-5/*EDI*/,saved_heap_p_label);
+			i_move_r_l (-6/*RSI*/,saved_a_stack_p_label);
+			i_lea_l_i_r (saved_heap_p_label,0,-6/*RSI*/);
+			i_move_r_id (-7/*RDI*/,  0,-6/*RSI*/);
+			i_move_r_id (REGISTER_D7,8,-6/*RSI*/);
 		}
 
 		if (!function_address_parameter)
@@ -3786,8 +3803,10 @@ void code_ccall (char *c_function_name,char *s,int length)
 		}
 
 		if (save_state_in_global_variables){
-			i_move_r_l (-4/*ESI*/,saved_a_stack_p_label);
-			i_move_r_l (-5/*EDI*/,saved_heap_p_label);
+			i_move_r_l (-6/*RSI*/,saved_a_stack_p_label);
+			i_lea_l_i_r (saved_heap_p_label,0,-6/*RSI*/);
+			i_move_r_id (-7/*RDI*/,  0,-6/*RSI*/);
+			i_move_r_id (REGISTER_D7,8,-6/*RSI*/);
 		}
 
 		i_sub_i_r (32,B_STACK_POINTER);
@@ -3805,8 +3824,10 @@ void code_ccall (char *c_function_name,char *s,int length)
 #  endif
 
 		if (save_state_in_global_variables){
-			i_move_l_r (saved_a_stack_p_label,-4/*ESI*/);
-			i_move_l_r (saved_heap_p_label,-5/*EDI*/);
+			i_lea_l_i_r (saved_heap_p_label,0,-7/*RDI*/);
+			i_move_l_r (saved_a_stack_p_label,-6/*RSI*/);
+			i_move_id_r (8,-7/*RDI*/,REGISTER_D7);
+			i_move_id_r (0,-7/*RDI*/,-7/*RDI*/);
 		}
 
 		if (callee_pops_arguments)
@@ -3969,7 +3990,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 #endif
 		error_s (centry_error_string,c_function_name);
 
-# if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
+# if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (G_AI64) && !defined (LINUX_ELF)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
 	{
 		char label_name [202];
 
@@ -4018,6 +4039,30 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	}
 
 # if defined (I486)
+#  ifdef G_AI64
+	i_sub_i_r (144,B_STACK_POINTER);
+
+	i_move_r_id (-6/*RSI*/,136,B_STACK_POINTER);
+	i_move_l_r (saved_a_stack_p_label,-6/*RSI*/);
+
+	i_move_r_id (-7/*RDI*/,128,B_STACK_POINTER);
+	i_lea_l_i_r (saved_heap_p_label,0,-7/*RDI*/);
+	i_move_r_id ( 7/*R15*/,80,B_STACK_POINTER);
+	i_move_id_r (8,-7/*RDI*/,REGISTER_D7);
+	i_move_id_r (0,-7/*RDI*/,-7/*RDI*/);
+
+	i_move_r_id ( 1/*RBX*/,120,B_STACK_POINTER);
+	i_move_r_id (-5/*RBP*/,112,B_STACK_POINTER);
+	i_move_r_id ( 4/*R12*/,104,B_STACK_POINTER);
+	i_move_r_id ( 5/*R13*/,96,B_STACK_POINTER);
+	i_move_r_id ( 6/*R14*/,88,B_STACK_POINTER);
+	{
+		int i;
+		
+		for (i=6; i<16; ++i)
+			i_fmove_fr_id (i,(15-i)<<3,B_STACK_POINTER);
+	}
+#  else
 	i_sub_i_r (20,B_STACK_POINTER);
 
 	i_move_r_id (-4/*ESI*/,16,B_STACK_POINTER);
@@ -4029,6 +4074,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	i_move_r_id (1/*EBX*/,8,B_STACK_POINTER);
 	i_move_r_id (-1/*ECX*/,4,B_STACK_POINTER);
 	i_move_r_id (-3/*EBP*/,0,B_STACK_POINTER);
+#  endif
 # elif defined (G_POWER)
 	{
 		int i,offset;
@@ -4074,7 +4120,14 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 #ifdef G_POWER
 		s_push_b (g_g_register (C_PARAMETER_REGISTER_0+((n_integer_parameters-1)-n)));
 #else
+# ifdef G_AI64
+		if (n>=n_integer_parameters-4)
+			s_push_b (g_g_register (REGISTER_A0-((n_integer_parameters-1)-n)));
+		else
+			s_push_b (s_get_b (18+1+4+(n_integer_parameters-4-1)));
+# else
 		s_push_b (s_get_b (5+1+(n_integer_parameters-1)));
+# endif
 #endif
 
 	{
@@ -4144,10 +4197,14 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 
 	{
 		int result_n,result_pointer_parameter_offset,n_data_parameter_registers;
-		
-		result_pointer_parameter_offset=20+4+(n_integer_parameters<<2);
+
+#ifdef G_AI64
+		result_pointer_parameter_offset=((18+1+4+n_integer_parameters-4)<<STACK_ELEMENT_LOG_SIZE);
+#else
+		result_pointer_parameter_offset=20+4+(n_integer_parameters<<STACK_ELEMENT_LOG_SIZE);
+#endif
 		if (n_integer_results-integer_c_function_result>N_DATA_PARAMETER_REGISTERS)
-			result_pointer_parameter_offset+=(n_integer_results-integer_c_function_result-N_DATA_PARAMETER_REGISTERS)<<2;
+			result_pointer_parameter_offset+=(n_integer_results-integer_c_function_result-N_DATA_PARAMETER_REGISTERS)<<STACK_ELEMENT_LOG_SIZE;
 
 		n_data_parameter_registers=n_integer_results;
 		if (n_data_parameter_registers>N_DATA_PARAMETER_REGISTERS)
@@ -4158,12 +4215,12 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 			if (result_n<n_data_parameter_registers)
 				i_move_r_id (n_data_parameter_registers-1-result_n,0,-1/*ECX*/);
 			else
-				i_move_id_id ((result_n-n_data_parameter_registers)<<2,B_STACK_POINTER,0,-1/*ECX*/);
-			result_pointer_parameter_offset+=4;
+				i_move_id_id ((result_n-n_data_parameter_registers)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER,0,-1/*ECX*/);
+			result_pointer_parameter_offset+=STACK_ELEMENT_SIZE;
 		}
 		
 		if (n_integer_results>n_data_parameter_registers)
-			i_add_i_r ((n_integer_results-n_data_parameter_registers)<<2,B_STACK_POINTER);
+			i_add_i_r ((n_integer_results-n_data_parameter_registers)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
 		
 		if (integer_c_function_result && n_data_parameter_registers>1)
 			i_move_r_r (n_data_parameter_registers-1,0);
@@ -4172,6 +4229,29 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	code_o (0,integer_c_function_result,i_vector);
 
 # if defined (I486)
+#  ifdef G_AI64
+	i_move_r_l (-6/*RSI*/,saved_a_stack_p_label);
+	i_lea_l_i_r (saved_heap_p_label,0,-6/*RSI*/);
+	i_move_r_id (-7/*RDI*/,  0,-6/*RSI*/);
+	i_move_r_id (REGISTER_D7,8,-6/*RSI*/);
+
+	i_move_id_r (136,B_STACK_POINTER,-6/*RSI*/);
+	i_move_id_r (128,B_STACK_POINTER,-7/*RDI*/);
+	i_move_id_r ( 80,B_STACK_POINTER, 7/*R15*/);
+
+	i_move_id_r (120,B_STACK_POINTER, 1/*RBX*/);
+	i_move_id_r (112,B_STACK_POINTER,-5/*RBP*/);
+	i_move_id_r (104,B_STACK_POINTER, 4/*R12*/);
+	i_move_id_r ( 96,B_STACK_POINTER, 5/*R13*/);
+	i_move_id_r ( 88,B_STACK_POINTER, 6/*R14*/);
+	{
+		int i;
+		
+		for (i=6; i<16; ++i)
+			i_fmove_id_fr ((15-i)<<3,B_STACK_POINTER,i);
+	}
+	i_add_i_r (144,B_STACK_POINTER);
+#  else
 	i_move_r_l (-4/*ESI*/,saved_a_stack_p_label);
 	i_move_id_r (16,B_STACK_POINTER,-4/*ESI*/);
 
@@ -4182,6 +4262,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	i_move_id_r (4,B_STACK_POINTER,-1/*ECX*/);
 	i_move_id_r (0,B_STACK_POINTER,-3/*EBP*/);
 	i_add_i_r (20,B_STACK_POINTER);
+# endif
 # elif defined (G_POWER)
 	i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_A3);
 	i_move_r_id (A_STACK_POINTER,0,REGISTER_A3);
