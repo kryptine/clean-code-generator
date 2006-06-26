@@ -2716,6 +2716,73 @@ static void w_as_float_neg_instruction (struct instruction *instruction)
 	w_as_newline();
 }
 
+static int abs_real_mask_imported=0;
+
+static void w_as_float_abs_instruction (struct instruction *instruction)
+{
+	int d_freg;
+	
+	d_freg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	
+	switch (instruction->instruction_parameters[0].parameter_type){
+		case P_F_IMMEDIATE:
+		{
+			int label_number=next_label_id++;
+
+			w_as_float_constant (label_number,instruction->instruction_parameters[0].parameter_data.r);
+			
+			w_as_opcode ("movlpd");
+			w_as_fp_register (d_freg);
+			w_as_comma();
+			fprintf (assembly_file,"qword ptr i_%d",label_number);
+			w_as_newline();
+			break;
+		}
+		case P_INDIRECT:
+			w_as_opcode ("movlpd");
+			w_as_fp_register (d_freg);
+			w_as_comma();
+			fprintf (assembly_file,"qword ptr ");
+			w_as_indirect (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.reg.r);
+			w_as_newline();
+			break;
+		case P_INDEXED:
+			w_as_opcode ("movlpd");
+			w_as_fp_register (d_freg);
+			w_as_comma();
+			fprintf (assembly_file,"qword ptr ");
+			w_as_indexed (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.ir);
+			w_as_newline();
+			break;
+		case P_F_REGISTER:
+			if (instruction->instruction_parameters[0].parameter_data.reg.r!=d_freg){
+				w_as_opcode ("movsd");
+				w_as_fp_register (d_freg);
+				w_as_comma();
+				w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+				w_as_newline();
+			}
+			break;
+		default:
+			internal_error_in_function ("w_as_float_abs_instruction");
+			return;
+	}
+	
+	if (!abs_real_mask_imported){
+		w_as_opcode ("extrn");
+		fprintf (assembly_file,"abs_real_mask:near");
+		w_as_newline();
+		
+		abs_real_mask_imported=1;
+	}
+
+	w_as_opcode ("andpd");
+	w_as_fp_register (d_freg);
+	w_as_comma();
+	fprintf (assembly_file,"oword ptr abs_real_mask");	
+	w_as_newline();
+}
+
 static void w_as_fmove_instruction (struct instruction *instruction)
 {
 	switch (instruction->instruction_parameters[1].parameter_type){
@@ -3104,6 +3171,9 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case IFNEG:
 				w_as_float_neg_instruction (instruction);
+				break;
+			case IFABS:
+				w_as_float_abs_instruction (instruction);
 				break;
 			case IFSEQ:
 				w_as_set_float_condition_instruction (instruction,0);

@@ -3549,7 +3549,7 @@ static void as_dyadic_float_instruction (struct instruction *instruction,int cod
 
 LABEL *sign_real_mask_label;
 
-static void as_float_neg_instruction (struct instruction *instruction,int code)
+static void as_float_neg_instruction (struct instruction *instruction)
 {
 	int d_freg;
 	
@@ -3598,6 +3598,59 @@ static void as_float_neg_instruction (struct instruction *instruction,int code)
 	}
 
 	as_f_a (0x66,0x57,sign_real_mask_label,d_freg); /* xorpd */
+}
+
+LABEL *abs_real_mask_label;
+
+static void as_float_abs_instruction (struct instruction *instruction)
+{
+	int d_freg;
+	
+	d_freg=instruction->instruction_parameters[1].parameter_data.reg.r;
+			
+	switch (instruction->instruction_parameters[0].parameter_type){
+		case P_F_REGISTER:
+			if (instruction->instruction_parameters[0].parameter_data.reg.r!=d_freg)
+				as_f_r (0xf2,0x10,instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
+			break;
+		case P_INDIRECT:
+			as_f_id (0x66,0x12,instruction->instruction_parameters[0].parameter_offset,
+							   instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
+			break;
+		case P_INDEXED:
+			as_f_x (0x66,0x12,instruction->instruction_parameters[0].parameter_offset,
+							  instruction->instruction_parameters[0].parameter_data.ir,d_freg);
+			break;
+		case P_F_IMMEDIATE:
+			as_f_i (0x66,0x12,instruction->instruction_parameters[0].parameter_data.r,d_freg);
+			break;
+		default:
+			internal_error_in_function ("as_float_abs_instruction");
+			return;
+	}
+	
+	if (abs_real_mask_label==NULL){
+		LABEL *new_label;
+		
+		new_label=allocate_memory_from_heap (sizeof (struct label));
+
+		new_label->label_flags=DATA_LABEL;
+
+		if (data_object_label->object_section_align<4)
+			data_object_label->object_section_align=4;
+		while ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 0xc)
+			store_long_word_in_data_section (0);
+
+		define_data_label (new_label);
+		store_long_word_in_data_section (0xffffffff);
+		store_long_word_in_data_section (0x7fffffff);
+		store_long_word_in_data_section (0xffffffff);
+		store_long_word_in_data_section (0x7fffffff);
+
+		abs_real_mask_label=new_label;
+	}
+
+	as_f_a (0x66,0x54,abs_real_mask_label,d_freg); /* andpd */
 }
 
 static void as_float_branch_instruction (struct instruction *instruction,int n)
@@ -4144,7 +4197,10 @@ static void as_instructions (struct instruction *instruction)
 				as_dyadic_float_instruction (instruction,0xf2,0x51);
 				break;
 			case IFNEG:
-				as_float_neg_instruction (instruction,0xe0);
+				as_float_neg_instruction (instruction);
+				break;
+			case IFABS:
+				as_float_abs_instruction (instruction);
 				break;
 			case IFSEQ:
 				as_set_float_condition_instruction (instruction,0);
