@@ -685,6 +685,70 @@ static int parse_string (char *string,int *string_length_p)
 	return 1;
 }
 
+static char *resize_string (char *string,int length,int max_length)
+{
+	if (length==MAX_STRING_LENGTH){
+		char *new_string;
+		int i;
+		
+		new_string=malloc (max_length);
+		if (new_string==NULL)
+			error ("Out of memory");
+		
+		for (i=0; i<length; ++i)
+			new_string[i]=string[i];
+
+		return new_string;
+	} else {
+		string=realloc (string,max_length);
+		if (string==NULL)	
+			error ("Out of memory");
+		
+		return string;
+	}	
+}
+
+static char *parse_string2 (char *string,int *string_length_p)
+{
+	int length,max_length;
+
+	if (last_char!='"')
+		error_i ("String expected at line %d",line_number);
+
+	last_char=getc (abc_file);
+	
+	length=0;
+	max_length=MAX_STRING_LENGTH;
+	
+	while (last_char!='"'){
+		char c;
+		
+		if (!parse_string_character (&c))
+			abc_parser_error_i ("Error in string at line %d\n",line_number);
+
+		if (length<max_length)
+			string[length++]=c;
+		else {
+			max_length=max_length<<1;
+			string=resize_string (string,length,max_length);
+			string[length++]=c;
+		}
+	}
+
+	last_char=getc (abc_file);
+
+	if (length>=max_length){
+		++max_length;
+		string=resize_string (string,length,max_length);
+	}
+	string[length]='\0';
+	*string_length_p=length;
+	
+	skip_spaces_and_tabs();
+
+	return string;
+}
+
 static int parse_descriptor_string (char *string,int *string_length_p)
 {
 	int length;
@@ -851,6 +915,22 @@ static int parse_instruction_s (InstructionP instruction)
 	if (!parse_string (s,&length))
 		return 0;
 	instruction->instruction_code_function (s,length);
+	return 1;
+}
+
+static int parse_instruction_s2 (InstructionP instruction)
+{
+	STRING s;
+	int length;
+	char *string;
+
+	string=parse_string2 (s,&length);
+
+	instruction->instruction_code_function (string,length);
+	
+	if (string!=s)
+		free (string);
+
 	return 1;
 }
 
@@ -1789,7 +1869,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("buildC",			parse_instruction_c,		code_buildC );
 	put_instruction_name ("buildI",			parse_instruction_i,		code_buildI );
 	put_instruction_name ("buildR",			parse_instruction_r,		code_buildR );
-	put_instruction_name ("buildAC",		parse_instruction_s,		code_buildAC );
+	put_instruction_name ("buildAC",		parse_instruction_s2,		code_buildAC );
 	put_instruction_name ("buildB_b",		parse_instruction_n,		code_buildB_b );
 	put_instruction_name ("buildC_b",		parse_instruction_n,		code_buildC_b );
 	put_instruction_name ("buildF_b",		parse_instruction_n,		code_buildF_b );
@@ -1839,7 +1919,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("eqR",			parse_instruction,			code_eqR );
 	put_instruction_name ("eqR_a",			parse_instruction_r_n,		code_eqR_a );
 	put_instruction_name ("eqR_b",			parse_instruction_r_n,		code_eqR_b );
-	put_instruction_name ("eqAC_a",			parse_instruction_s,		code_eqAC_a );
+	put_instruction_name ("eqAC_a",			parse_instruction_s2,		code_eqAC_a );
 	put_instruction_name ("eq_desc",		parse_instruction_a_n_n,	code_eq_desc );
 	put_instruction_name ("eq_desc_b",		parse_instruction_a_n,		code_eq_desc_b );
 	put_instruction_name ("eq_nulldesc",	parse_instruction_a_n,		code_eq_nulldesc );
