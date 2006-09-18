@@ -1373,8 +1373,8 @@ static void as_r_a (int code,int reg1,LABEL *label)
 	int reg1_n;
 	
 	reg1_n=reg_num (reg1);
-	
-	store_c (0x48 | ((reg1_n & 8)>>3));
+
+	store_c (0x48 | ((reg1_n & 8)>>1));
 	store_c (code);
 	store_c (((reg1_n & 7)<<3) | 5);
 	store_l (0);
