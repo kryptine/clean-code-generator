@@ -2341,7 +2341,13 @@ void code_eq_desc_b (char descriptor_name[],int arity)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 	LABEL *descriptor;
-	
+
+#ifdef G_AI64
+	if (descriptor_name[0]=='I' && descriptor_name[1]=='N' &&
+		descriptor_name[2]=='T' && descriptor_name[3]=='\0')
+		descriptor_name="dINT";
+#endif
+
 	descriptor=enter_label (descriptor_name,DATA_LABEL);
 	
 	graph_1=s_pop_b();
