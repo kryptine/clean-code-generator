@@ -1344,7 +1344,7 @@ static int set_basic_block_begin_d_registers
 
 	n_d_registers=0;
 	n_f_registers=0;
-			
+
 	for (offset=0; offset<b_stack_size; ++offset)
 		if (!test_bit (vector,offset)){
 #ifdef I486
@@ -1409,7 +1409,18 @@ static int set_basic_block_begin_d_registers
 					} else {
 						graph=element->b_stack_load_graph;
 						if (graph!=NULL){
-#ifndef G_A64
+#ifdef G_A64
+							if (graph->instruction_code==GFROMF &&
+								graph->instruction_parameters[0].p->instruction_code==GFLOAD)
+							{
+								INSTRUCTION_GRAPH fload_graph,low_graph;
+								
+								fload_graph=graph->instruction_parameters[0].p;
+								
+								fload_graph->instruction_code=GTOF;
+								fload_graph->instruction_parameters[0].p=graph;
+							}
+#else
 							if (graph->instruction_code==GFHIGH &&
 								graph->instruction_parameters[0].p->instruction_code==GFLOAD)
 							{
@@ -1427,11 +1438,9 @@ static int set_basic_block_begin_d_registers
 									|| low_graph->instruction_parameters[0].p!=fload_graph)
 									internal_error_in_function ("compute_b_load_offsets");
 
-								/* added 25-10-2001 */
 								low_graph->instruction_code=GLOAD;
 								low_graph->instruction_parameters[0].i=fload_graph->instruction_parameters[0].i+4;
 								low_graph->instruction_parameters[1].i=fload_graph->instruction_parameters[1].i;
-								/* */
 								
 								fload_graph->instruction_code=GFJOIN;
 								fload_graph->instruction_parameters[0].p=graph;
