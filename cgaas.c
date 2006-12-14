@@ -3903,7 +3903,7 @@ static void as_fmovel_instruction (struct instruction *instruction)
 				new_label->label_flags=DATA_LABEL;
 			
 				define_data_label (new_label);
-				store_long_word_in_data_section (instruction->instruction_parameters[0].parameter_data.i);
+				store_word64_in_data_section (instruction->instruction_parameters[0].parameter_data.imm);
 
 				as_f_a_rexaw (0xf2,0x2a,new_label,d_freg);
 				break;
