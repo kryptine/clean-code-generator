@@ -314,7 +314,8 @@ static LABEL	*halt_label,*cmp_string_label,*eqD_label,
 				*print_char_label,*print_int_label,*print_real_label;
 
 LABEL			*new_int_reducer_label,*channelP_label,*stop_reducer_label,*send_request_label,
-				*send_graph_label,*string_to_string_node_label,*cat_string_label;
+				*send_graph_label,*string_to_string_node_label,*int_array_to_node_label,
+				*real_array_to_node_label,*cat_string_label;
 
 #ifdef M68000
 static LABEL	*add_real,*sub_real,*mul_real,*div_real,*eq_real,*gt_real,*lt_real;
@@ -9318,6 +9319,7 @@ void initialize_coding (VOID)
 	print_label=print_sc_label=print_symbol_label=print_symbol_sc_label=NULL;
 	update_string_label=equal_string_label=entier_real_label=cycle_in_spine_label=NULL;
 	yet_args_needed_label=string_to_string_node_label=NULL;
+	int_array_to_node_label=real_array_to_node_label=NULL;
 	repl_args_b_label=push_arg_b_label=del_args_label=printD_label=reserve_label=NULL;
 	suspend_label=stop_reducer_label=new_int_reducer_label=new_ext_reducer_label=NULL;
 	send_graph_label=send_request_label=copy_graph_label=create_channel_label=NULL;
