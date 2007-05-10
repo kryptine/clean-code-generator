@@ -2843,6 +2843,47 @@ static void w_as_monadic_float_instruction (struct instruction *instruction,char
 #endif
 }
 
+static void w_as_fsincos_instruction (struct instruction *instruction)
+{
+	int f_reg1,f_reg2;
+	
+	f_reg1=instruction->instruction_parameters[0].parameter_data.reg.r;
+	f_reg2=instruction->instruction_parameters[1].parameter_data.reg.r;
+
+	if (f_reg1!=0){
+		w_as_opcode ("fxch");
+		w_as_fp_register_newline (f_reg1);
+	}
+
+	w_as_opcode ("fsincos");
+	w_as_newline();
+
+	if (f_reg1==0){
+#ifdef FP_STACK_OPTIMIZATIONS
+		fstpl_instruction (f_reg2,instruction);	
+#else
+		w_as_opcode ("fstp");
+		w_as_fp_register_newline (f_reg2+1);
+#endif
+	} else if (f_reg2==0){
+		w_as_opcode ("fxch");
+		w_as_fp_register_newline (1);
+
+#ifdef FP_STACK_OPTIMIZATIONS
+		fstpl_instruction (f_reg1,instruction);	
+#else
+		w_as_opcode ("fstp");
+		w_as_fp_register_newline (f_reg1+1);
+#endif
+	} else {
+		w_as_opcode ("fstp");
+		w_as_fp_register_newline (f_reg2+1);
+
+		w_as_opcode ("fxch");
+		w_as_fp_register_newline (f_reg1);
+	}
+}
+
 static struct instruction *w_as_fmove_instruction (struct instruction *instruction)
 {
 	switch (instruction->instruction_parameters[1].parameter_type){
@@ -3376,7 +3417,7 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IBTST:
 				w_as_btst_instruction (instruction);
 				break;
-			case IMOVEW:
+			case IMOVEDB:
 				w_as_move_instruction (instruction,SIZE_WORD);
 				break;
 			case IMOVEB:
@@ -3505,16 +3546,19 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IFCNE:
 				w_as_convert_float_condition_instruction (instruction,3);
 				break;
-#ifdef FP_STACK_OPTIMIZATIONS
-			case IFEXG:
-				w_as_fexg (instruction);
-				break;
-#endif
 			case IWORD:
 				w_as_word_instruction (instruction);
 				break;
 			case IRTSI:
 				w_as_rtsi_instruction (instruction);
+				break;
+#ifdef FP_STACK_OPTIMIZATIONS
+			case IFEXG:
+				w_as_fexg (instruction);
+				break;
+#endif
+			case IFSINCOS:
+				w_as_fsincos_instruction (instruction);
 				break;
 			case IFTST:
 			default:

@@ -880,7 +880,7 @@ static void as_x_r (int code,int offset,struct index_registers *index_registers,
 	
 	if (reg2==ESP)
 		internal_error_in_function ("as_x_r");
-		
+
 	store_c (code);
 	if (offset==0 && reg1!=EBP){
 		store_c (0x04 | (reg_num (reg3)<<3));
@@ -2637,6 +2637,43 @@ static void as_mulud_instruction (struct instruction *instruction)
 	reg_1=instruction->instruction_parameters[0].parameter_data.reg.r;
 	reg_2=instruction->instruction_parameters[1].parameter_data.reg.r;
 
+#if 0
+	reg_3=instruction->instruction_parameters[2].parameter_data.reg.r;
+
+	if (reg_3==REGISTER_D0){
+		if (reg_1==REGISTER_A1){
+			as_move_r_r (reg_2,REGISTER_D0);
+			as_r (0367,040,reg_1); /* mul */
+			as_move_r_r (REGISTER_D0,reg_2);
+		} else if (reg_2==REGISTER_A1){
+			as_move_r_r (reg_2,REGISTER_D0);
+			as_r (0367,040,reg_1); /* mul */
+			as_2move_registers (REGISTER_D0,REGISTER_A1,reg_1);
+		} else {
+			as_2move_registers (REGISTER_A1,reg_2,REGISTER_D0);
+			as_r (0367,040,reg_1); /* mul */
+			as_3move_registers (REGISTER_D0,reg_2,REGISTER_A1,reg_1);
+		}
+		return;
+	}
+
+	if (reg_3==REGISTER_A1){
+		if (reg_2==REGISTER_D0){
+			as_r (0367,040,reg_1); /* mul */
+			as_move_r_r (REGISTER_A1,reg_1);
+		} else if (reg_1==REGISTER_D0){
+			as_r (0367,040,reg_2); /* mul */
+			as_2move_registers (REGISTER_A1,REGISTER_D0,reg_2);
+		} else {
+			store_c (0x90+reg_num (reg_2)); /* xchg reg_2,D0 */
+			as_r (0367,040,reg_1); /* mul */
+			store_c (0x90+reg_num (reg_2)); /* xchg reg_2,D0 */
+			as_move_r_r (REGISTER_A1,reg_1);
+		}
+		return;
+	}
+#endif
+
 	if (reg_2==REGISTER_D0){
 		if (reg_1==REGISTER_A1)
 			as_r (0367,040,reg_1); /* mul */
@@ -3028,7 +3065,7 @@ struct instruction *find_next_fp_instruction (struct instruction *instruction)
 #endif
 			case IFSEQ: case IFSGE: case IFSGT: case IFSLE: case IFSLT: case IFSNE:
 			case IFCEQ: case IFCGE: case IFCGT: case IFCLE: case IFCLT: case IFCNE:
-			case IFCOS: case IFSIN: case IFSQRT: case IFTAN:
+			case IFCOS: case IFSIN: case IFSQRT: case IFTAN: case IFSINCOS:
 			case IFEXG:
 			case IWORD:
 				return instruction;
@@ -3727,6 +3764,44 @@ static void as_monadic_float_instruction (struct instruction *instruction,int co
 #endif
 }
 
+static void as_fsincos_instruction (struct instruction *instruction)
+{
+	int f_reg1,f_reg2;
+	
+	f_reg1=instruction->instruction_parameters[0].parameter_data.reg.r;
+	f_reg2=instruction->instruction_parameters[1].parameter_data.reg.r;
+
+	if (f_reg1!=0){
+		store_c (0xd9); /* fxch f1 */
+		store_c (0xc8+f_reg1);
+	}
+
+	store_c (0xd9); /* fsincos */
+	store_c (0xfb);
+
+	if (f_reg1==0){
+#ifdef FP_STACK_OPTIMIZATIONS
+		fstpl_instruction (f_reg2,instruction);	
+#else
+		as_f_r (0xdd,0xd8,f_reg2+1); /* fstp */
+#endif
+	} else if (f_reg2==0){
+		store_c (0xd9); /* fxch st(1) */
+		store_c (0xc8+1);
+
+#ifdef FP_STACK_OPTIMIZATIONS
+		fstpl_instruction (f_reg1,instruction);	
+#else
+		as_f_r (0xdd,0xd8,f_reg1+1); /* fstp */
+#endif
+	} else {
+		as_f_r (0xdd,0xd8,f_reg2+1); /* fstp */
+
+		store_c (0xd9); /* fxch f1 */
+		store_c (0xc8+f_reg1);
+	}	
+}
+
 static void as_test_floating_point_condition_code (int n)
 {
 	store_c (0xdf);
@@ -4245,7 +4320,7 @@ static void as_instructions (struct instruction *instruction)
 			case IBTST:
 				as_btst_instruction (instruction);
 				break;
-			case IMOVEW:
+			case IMOVEDB:
 				as_movew_instruction (instruction);
 				break;
 			case IMOVEB:
@@ -4384,7 +4459,10 @@ static void as_instructions (struct instruction *instruction)
 			case IFEXG:
 				as_fexg (instruction);
 				break;
-#endif			
+#endif
+			case IFSINCOS:
+				as_fsincos_instruction (instruction);
+				break;
 			default:
 				internal_error_in_function ("as_instructions");
 		}

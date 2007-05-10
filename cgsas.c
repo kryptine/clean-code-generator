@@ -1868,7 +1868,7 @@ static void as_instructions (register struct instruction *instruction)
 			case IBTST:
 				as_btst_instruction (instruction);
 				break;
-			case IMOVEW:
+			case IMOVEDB:
 				as_move_instruction (instruction,SIZE_WORD);
 				break;
 			case IMOVEB:

@@ -2095,6 +2095,9 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("shiftr%",		parse_instruction,			code_shiftr );
 	put_instruction_name ("shiftrU",		parse_instruction,			code_shiftrU );
 	put_instruction_name ("sinR",			parse_instruction,			code_sinR );
+#if defined (I486) && !defined (G_AI64)
+	put_instruction_name ("sincosR",		parse_instruction,			code_sincosR );
+#endif
 	put_instruction_name ("sliceS",			parse_instruction_n_n,		code_sliceS );
 	put_instruction_name ("sqrtR",			parse_instruction,			code_sqrtR );
 	put_instruction_name ("stop_reducer",	parse_instruction,			code_stop_reducer );

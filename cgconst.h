@@ -18,7 +18,7 @@ enum {
 	,GNOT
 #endif
 #ifndef G_A64
-	,GFHIGH,GFJOIN,GFLOW
+	,GFHIGH,GFJOIN,GFLOW,
 #else
 	,GFROMF,GTOF
 #endif
@@ -30,6 +30,12 @@ enum {
 #endif
 #ifdef I486
 	,GADDDU,	GDIVDU,	GMULUD,	GREMU,	GRESULT0,	GRESULT1,	GSUBDU
+#endif
+#if defined (I486) && !defined (G_A64)
+	,GFSINCOS,	GFRESULT0,	GFRESULT1
+#endif
+#ifdef G_AI64
+	,GLOAD_S_X,	GSTORE_S_X,	GFLOAD_S_X, GFSTORE_S_X
 #endif
 #ifdef M68000
 	,GFACOS,	GFASIN,	GFEXP,	GFLN,	GFLOG10

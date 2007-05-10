@@ -3416,7 +3416,7 @@ static void write_instructions (struct instruction *instructions)
 			case IMOVEM:
 				as_movem_instruction (instruction);
 				break;
-			case IMOVEW:
+			case IMOVEDB:
 				as_move_instruction (instruction,SIZE_WORD);
 				break;
 			case IMOVEB:

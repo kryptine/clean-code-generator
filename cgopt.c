@@ -51,8 +51,6 @@
 # define OPTIMIZE_LOOPS
 #endif
 
-#pragma segment Code4
-
 /* from cgcode.c : */
 
 extern struct basic_block *first_block;
@@ -1595,7 +1593,10 @@ IF_G_POWER ( case IUMULH: )
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IMOVE:
 #endif
-			case IMOVEB:	case IMOVEW:
+			case IMOVEB:	case IMOVEDB:
+#ifdef G_AI64
+			case IMOVEQB:
+#endif
 			case IFCOS:		case IFSIN:		case IFTAN:
 #ifdef M68000
 			case IFACOS:	case IFASIN:	case IFATAN:	case IFEXP:		case IFLN:		case IFLOG10:
@@ -1608,7 +1609,10 @@ IF_G_POWER ( case IUMULH: )
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)
 IF_G_RISC (case IADDI: case ILSLI:)
 #ifdef G_AI64
-			case IMOVESW:
+			case ILOADSQB:	case IFLOADS:	case IFCVT2S:	case IFMOVES:
+#endif
+#if defined (I486) && !defined (G_A64)
+			case IFSINCOS:
 #endif
 				define_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
@@ -3897,7 +3901,10 @@ IF_G_POWER (case ICMPLW:)
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IMOVE:
 #endif
-			case IMOVEB:	case IMOVEW:
+			case IMOVEB:	case IMOVEDB:
+#ifdef G_AI64
+			case IMOVEQB:
+#endif
 			case IFCOS:		case IFSIN:		case IFTAN:
 #ifdef M68000
 			case IFACOS:	case IFASIN:	case IFATAN:	case IFEXP:		case IFLN:		case IFLOG10:	
@@ -3910,7 +3917,7 @@ IF_G_POWER (case ICMPLW:)
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)
 IF_G_RISC (case IADDI: case ILSLI:)
 #ifdef G_AI64
-			case IMOVESW:
+			case ILOADSQB:	case IFLOADS:	case IFCVT2S:	case IFMOVES:
 #endif
 #if 1
 				if (instruction->instruction_parameters[1].parameter_type==P_REGISTER ||
@@ -4033,6 +4040,14 @@ IF_G_RISC (case IADDI: case ILSLI:)
 			case IBEQ:	case IBGE:	case IBGT:	case IBLE:	case IBLT:	case IBNE:
 			case IBO:	case IBGEU:	case IBGTU:	case IBLEU:	case IBLTU:	case IBNO:
 				break;
+#if defined (I486) && !defined (G_A64)
+			case IFSINCOS:
+				use_2_same_type_registers
+					(&instruction->instruction_parameters[0].parameter_data.reg,USE_DEF,
+					 &instruction->instruction_parameters[1].parameter_data.reg,DEF,
+					 F_REGISTER);
+				break;
+#endif
 			default:
 				internal_error_in_function ("allocate_registers");
 		}

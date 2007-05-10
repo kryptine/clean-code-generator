@@ -463,7 +463,7 @@ static void as_branch_label (struct label *label,int relocation_kind)
 	new_relocation->kind=relocation_kind;
 }
 
-enum { SIZE_LONG, SIZE_WORD, SIZE_BYTE };
+enum { SIZE_QBYTE, SIZE_DBYTE, SIZE_BYTE };
 
 #define REGISTER_O0 (-13)
 #define REGISTER_O1 (-23)
@@ -753,27 +753,27 @@ static int as_register_parameter (struct parameter parameter,int size_flag)
 		case P_REGISTER:
 			return parameter.parameter_data.reg.r;
 		case P_INDIRECT:
-			if (size_flag==SIZE_LONG)
+			if (size_flag==SIZE_QBYTE)
 				as_lwz (REGISTER_O0,parameter.parameter_offset,parameter.parameter_data.reg.r);
-			else if (size_flag==SIZE_WORD)
+			else if (size_flag==SIZE_DBYTE)
 				as_lha (REGISTER_O0,parameter.parameter_offset,parameter.parameter_data.reg.r);
 			else
 				as_lbz (REGISTER_O0,parameter.parameter_offset,parameter.parameter_data.reg.r);
 
 			return REGISTER_O0;
 		case P_INDIRECT_WITH_UPDATE:
-			if (size_flag==SIZE_LONG)
+			if (size_flag==SIZE_QBYTE)
 				as_lwzu (REGISTER_O0,parameter.parameter_offset,parameter.parameter_data.reg.r);
-			else if (size_flag==SIZE_WORD)
+			else if (size_flag==SIZE_DBYTE)
 				as_lhau (REGISTER_O0,parameter.parameter_offset,parameter.parameter_data.reg.r);
 			else
 				as_lbzu (REGISTER_O0,parameter.parameter_offset,parameter.parameter_data.reg.r);
 
 			return REGISTER_O0;
 		case P_INDEXED:
-			if (size_flag==SIZE_LONG)
+			if (size_flag==SIZE_QBYTE)
 				as_lwzx (REGISTER_O0,parameter.parameter_data.ir->a_reg.r,parameter.parameter_data.ir->d_reg.r);
-			else if (size_flag==SIZE_WORD)
+			else if (size_flag==SIZE_DBYTE)
 				as_lhax (REGISTER_O0,parameter.parameter_data.ir->a_reg.r,parameter.parameter_data.ir->d_reg.r);
 			else
 				as_lbzx (REGISTER_O0,parameter.parameter_data.ir->a_reg.r,parameter.parameter_data.ir->d_reg.r);
@@ -818,12 +818,12 @@ static void as_move_instruction (struct instruction *instruction,int size_flag)
 							instruction->instruction_parameters[0].parameter_data.reg.r);
 					return;
 				case P_INDIRECT:
-					if (size_flag==SIZE_LONG)
+					if (size_flag==SIZE_QBYTE)
 						as_lwz (
 							instruction->instruction_parameters[1].parameter_data.reg.r,
 							instruction->instruction_parameters[0].parameter_offset,
 							instruction->instruction_parameters[0].parameter_data.reg.r);
-					else if (size_flag==SIZE_WORD)
+					else if (size_flag==SIZE_DBYTE)
 						as_lha (
 							instruction->instruction_parameters[1].parameter_data.reg.r,
 							instruction->instruction_parameters[0].parameter_offset,
@@ -835,12 +835,12 @@ static void as_move_instruction (struct instruction *instruction,int size_flag)
 							instruction->instruction_parameters[0].parameter_data.reg.r);
 					return;
 				case P_INDIRECT_WITH_UPDATE:
-					if (size_flag==SIZE_LONG)
+					if (size_flag==SIZE_QBYTE)
 						as_lwzu (
 							instruction->instruction_parameters[1].parameter_data.reg.r,
 							instruction->instruction_parameters[0].parameter_offset,
 							instruction->instruction_parameters[0].parameter_data.reg.r);
-					else if (size_flag==SIZE_WORD)
+					else if (size_flag==SIZE_DBYTE)
 						as_lhau (
 							instruction->instruction_parameters[1].parameter_data.reg.r,
 							instruction->instruction_parameters[0].parameter_offset,
@@ -852,12 +852,12 @@ static void as_move_instruction (struct instruction *instruction,int size_flag)
 							instruction->instruction_parameters[0].parameter_data.reg.r);
 					return;
 				case P_INDEXED:
-					if (size_flag==SIZE_LONG)
+					if (size_flag==SIZE_QBYTE)
 						as_lwzx (
 							instruction->instruction_parameters[1].parameter_data.reg.r,
 							instruction->instruction_parameters[0].parameter_data.ir->a_reg.r,
 							instruction->instruction_parameters[0].parameter_data.ir->d_reg.r);
-					else if (size_flag==SIZE_WORD)
+					else if (size_flag==SIZE_DBYTE)
 						as_lhax (
 							instruction->instruction_parameters[1].parameter_data.reg.r,
 							instruction->instruction_parameters[0].parameter_data.ir->a_reg.r,
@@ -878,11 +878,11 @@ static void as_move_instruction (struct instruction *instruction,int size_flag)
 
 			reg=as_register_parameter (instruction->instruction_parameters[0],size_flag);
 
-			if (size_flag==SIZE_LONG)
+			if (size_flag==SIZE_QBYTE)
 				as_stw (reg,
 					instruction->instruction_parameters[1].parameter_offset,
 					instruction->instruction_parameters[1].parameter_data.reg.r);
-			else if (size_flag==SIZE_WORD)
+			else if (size_flag==SIZE_DBYTE)
 				as_sth (reg,
 					instruction->instruction_parameters[1].parameter_offset,
 					instruction->instruction_parameters[1].parameter_data.reg.r);
@@ -898,11 +898,11 @@ static void as_move_instruction (struct instruction *instruction,int size_flag)
 
 			reg=as_register_parameter (instruction->instruction_parameters[0],size_flag);
 
-			if (size_flag==SIZE_LONG)
+			if (size_flag==SIZE_QBYTE)
 				as_stwu (reg,
 					instruction->instruction_parameters[1].parameter_offset,
 					instruction->instruction_parameters[1].parameter_data.reg.r);
-			else if (size_flag==SIZE_WORD)
+			else if (size_flag==SIZE_DBYTE)
 				as_sthu	(reg,
 					instruction->instruction_parameters[1].parameter_offset,
 					instruction->instruction_parameters[1].parameter_data.reg.r);
@@ -918,11 +918,11 @@ static void as_move_instruction (struct instruction *instruction,int size_flag)
 
 			reg=as_register_parameter (instruction->instruction_parameters[0],size_flag);
 
-			if (size_flag==SIZE_LONG)
+			if (size_flag==SIZE_QBYTE)
 				as_stwx (reg,
 					instruction->instruction_parameters[1].parameter_data.ir->a_reg.r,
 					instruction->instruction_parameters[1].parameter_data.ir->d_reg.r);
-			else if (size_flag==SIZE_WORD)
+			else if (size_flag==SIZE_DBYTE)
 				as_sthx (reg,
 					instruction->instruction_parameters[1].parameter_data.ir->a_reg.r,
 					instruction->instruction_parameters[1].parameter_data.ir->d_reg.r);
@@ -947,9 +947,9 @@ static void as_move_instruction (struct instruction *instruction,int size_flag)
 				offset=(WORD)offset;
 			}
 
-			if (size_flag==SIZE_LONG)
+			if (size_flag==SIZE_QBYTE)
 				as_stw (reg1,offset,reg2);
-			else if (size_flag==SIZE_WORD)
+			else if (size_flag==SIZE_DBYTE)
 				as_sth	(reg1,offset,reg2);
 			else
 				as_stb (reg1,offset,reg2);
@@ -1020,7 +1020,7 @@ static void as_add_instruction (struct instruction *instruction)
 		{
 			int reg;
 
-			reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+			reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 
 			as_add (instruction->instruction_parameters[1].parameter_data.reg.r,
 					instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1041,7 +1041,7 @@ static void as_addo_instruction (struct instruction *instruction)
 {
 	int reg;
 
-	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 
 	as_addo_ (instruction->instruction_parameters[1].parameter_data.reg.r,
 			  instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1075,7 +1075,7 @@ static void as_sub_instruction (struct instruction *instruction)
 		{
 			int reg;
 
-			reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+			reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 			
 			as_sub (instruction->instruction_parameters[1].parameter_data.reg.r,
 					instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1087,7 +1087,7 @@ static void as_subo_instruction (struct instruction *instruction)
 {
 	int reg;
 
-	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 	
 	as_subo_ (instruction->instruction_parameters[1].parameter_data.reg.r,
 			  instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1254,7 +1254,7 @@ static void as_slw_instruction (struct instruction *instruction)
 	} else {
 		int reg;
 
-		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 	
 		as_slw (instruction->instruction_parameters[1].parameter_data.reg.r,
 			instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1270,7 +1270,7 @@ static void as_srw_instruction (struct instruction *instruction)
 	} else {
 		int reg;
 
-		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 	
 		as_srw (instruction->instruction_parameters[1].parameter_data.reg.r,
 			instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1286,7 +1286,7 @@ static void as_sraw_instruction (struct instruction *instruction)
 	} else {
 		int reg;
 
-		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 	
 		as_sraw (instruction->instruction_parameters[1].parameter_data.reg.r,
 			instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1321,7 +1321,7 @@ static void as_mul_instruction (struct instruction *instruction)
 			break;
 		}
 		default:
-			reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+			reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 	}
 	
 	as_mullw (r,r,reg);
@@ -1333,7 +1333,7 @@ static void as_umulh_instruction (struct instruction *instruction)
 	
 	r=instruction->instruction_parameters[1].parameter_data.reg.r;
 
-	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 	
 	as_mulhwu (r,r,reg);
 }
@@ -1342,7 +1342,7 @@ static void as_mulo_instruction (struct instruction *instruction)
 {
 	int r,reg;
 	
-	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 
 	r=instruction->instruction_parameters[1].parameter_data.reg.r;
 		
@@ -1457,7 +1457,7 @@ static void as_div_instruction (struct instruction *instruction)
 		}
 	}
 
-	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 	
 	as_divw (instruction->instruction_parameters[1].parameter_data.reg.r,
 			instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1467,7 +1467,7 @@ static void as_divu_instruction (struct instruction *instruction)
 {
 	int reg;
 
-	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 	
 	as_divwu (instruction->instruction_parameters[1].parameter_data.reg.r,
 			 instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1557,7 +1557,7 @@ static void as_rem_instruction (struct instruction *instruction)
 		}
 	}
 
-	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 	
 	as_divw (REGISTER_O1,instruction->instruction_parameters[1].parameter_data.reg.r,reg);
 	as_mullw (REGISTER_O1,REGISTER_O1,reg);
@@ -1603,7 +1603,7 @@ static void as_and_instruction (struct instruction *instruction)
 			reg=REGISTER_O0;
 		}
 	} else
-		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 	
 	as_and (instruction->instruction_parameters[1].parameter_data.reg.r,
 			instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1632,7 +1632,7 @@ static void as_or_instruction (struct instruction *instruction)
 	} else {
 		int reg;
 
-		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 
 		as_or (instruction->instruction_parameters[1].parameter_data.reg.r,
 			   instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1662,7 +1662,7 @@ static void as_xor_instruction (struct instruction *instruction)
 	} else {
 		int reg;
 
-		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 
 		as_xor (instruction->instruction_parameters[1].parameter_data.reg.r,
 			   instruction->instruction_parameters[1].parameter_data.reg.r,reg);
@@ -1673,7 +1673,7 @@ static void as_tst_instruction (struct instruction *instruction)
 {
 	int reg;
 
-	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+	reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 
 	as_cmpi (reg,0);
 }
@@ -2728,7 +2728,7 @@ static void as_fmovel_instruction (struct instruction *instruction)
 		int reg;
 		struct label *new_label;
 
-		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_LONG);
+		reg=as_register_parameter (instruction->instruction_parameters[0],SIZE_QBYTE);
 		
 		as_new_data_module();
 	
@@ -2771,7 +2771,7 @@ static void write_instructions (struct instruction *instructions)
 	for_l (instruction,instructions,instruction_next){
 		switch (instruction->instruction_icode){
 			case IMOVE:
-				as_move_instruction (instruction,SIZE_LONG);
+				as_move_instruction (instruction,SIZE_QBYTE);
 				break;
 			case ILEA:
 				as_lea_instruction (instruction);
@@ -2910,8 +2910,8 @@ static void write_instructions (struct instruction *instructions)
 			case IBTST:
 				as_btst_instruction (instruction);
 				break;
-			case IMOVEW:
-				as_move_instruction (instruction,SIZE_WORD);
+			case IMOVEDB:
+				as_move_instruction (instruction,SIZE_DBYTE);
 				break;
 			case IMOVEB:
 				as_move_instruction (instruction,SIZE_BYTE);

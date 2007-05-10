@@ -4,8 +4,6 @@
 	At:		University of Nijmegen
 */
 
-#pragma segment Code1
-
 #include <stdio.h>
 #if defined (LINUX) && defined (G_AI64)
 # include <stdint.h>
@@ -1410,6 +1408,9 @@ static void calculate_store_x_operator (INSTRUCTION_GRAPH graph)
 		switch (select_graph->instruction_code){
 			case GLOAD_X:
 			case GLOAD_B_X:
+#ifdef G_AI64
+			case GLOAD_S_X:
+#endif
 				if (graph_2==select_graph->instruction_parameters[0].p
 					/* */ && select_graph!=graph_1 /* added 18-5-1999 */
 				){
@@ -1437,6 +1438,9 @@ static void calculate_store_x_operator (INSTRUCTION_GRAPH graph)
 				select_graph=select_graph->instruction_parameters[3].p;			
 				break;
 			case GFLOAD_X:
+#ifdef G_AI64
+			case GFLOAD_S_X:
+#endif
 			case GREGISTER:
 			case GFREGISTER:
 				select_graph=select_graph->instruction_parameters[3].p;
@@ -1753,6 +1757,9 @@ static void calculate_fstore_x_operator (INSTRUCTION_GRAPH graph)
 	while (select_graph!=NULL){
 		switch (select_graph->instruction_code){
 			case GFLOAD_X:
+#ifdef G_AI64
+			case GFLOAD_S_X:
+#endif
 				if (graph_2==select_graph->instruction_parameters[0].p){
 					calculate_graph_register_uses (select_graph);
 
@@ -1777,6 +1784,9 @@ static void calculate_fstore_x_operator (INSTRUCTION_GRAPH graph)
 				break;
 			case GLOAD_X:
 			case GLOAD_B_X:
+#ifdef G_AI64
+			case GLOAD_S_X:
+#endif
 			case GREGISTER:
 			case GFREGISTER:
 				select_graph=select_graph->instruction_parameters[3].p;
@@ -2208,6 +2218,9 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 		}
 		case GLOAD_X:
 		case GLOAD_B_X:
+#ifdef G_AI64
+		case GLOAD_S_X:
+#endif
 			calculate_load_x_operator (graph);
 			return;
 		case GSTORE:
@@ -2245,6 +2258,9 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 		}
 		case GSTORE_X:
 		case GSTORE_B_X:
+#ifdef G_AI64
+		case GSTORE_S_X:
+#endif
 			calculate_store_x_operator (graph);
 			return;
 		case GBEFORE:
@@ -2471,9 +2487,15 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			calculate_fstore_operator (graph);
 			return;
 		case GFLOAD_X:
+#ifdef G_AI64
+		case GFLOAD_S_X:
+#endif
 			calculate_fload_x_operator (graph);
 			return;
 		case GFSTORE_X:
+#ifdef G_AI64
+		case GFSTORE_S_X:
+#endif
 			calculate_fstore_x_operator (graph);
 			return;
 		case GFSTORE_R:
@@ -2578,7 +2600,7 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 		case GRESULT1:
 		{
 			INSTRUCTION_GRAPH graph_0;
-			
+
 			graph_0=graph->instruction_parameters[0].p;
 			if (graph_0->order_mode==R_NOMODE)
 				if (graph_0->instruction_code==GMULUD)
@@ -2598,6 +2620,56 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			graph->i_dregs=graph_0->i_dregs;
 
 			graph->order_alterable=graph->node_count<=1;		
+			return;
+		}
+#endif
+#if defined (I486) && !defined (G_AI64)
+		case GFRESULT0:
+		case GFRESULT1:
+		{
+			INSTRUCTION_GRAPH graph_0;
+
+			graph_0=graph->instruction_parameters[0].p;
+			if (graph_0->order_mode==R_NOMODE){
+				INSTRUCTION_GRAPH graph_1;
+				int i_dregs,u_dregs;
+
+				/* GFSINCOS */
+
+				graph_1=graph_0->instruction_parameters[0].p;
+				
+				calculate_graph_register_uses (graph_1);
+
+				u_dregs=graph_1->u_dregs;
+				i_dregs=graph_1->i_dregs;
+
+				graph_0->u_aregs=graph_1->u_aregs;
+				graph_0->i_aregs=graph_1->i_aregs;
+				
+				if (graph_1->order_mode==R_DREGISTER)
+					i_dregs-=graph_1->order_alterable;
+				else
+					graph_0->i_aregs-=graph_1->order_alterable;
+				
+				i_dregs+=2;
+
+				if (u_dregs<i_dregs)
+					u_dregs=i_dregs;
+
+				graph_0->i_dregs=i_dregs;
+				graph_0->u_dregs=u_dregs;
+
+				graph_0->order_mode=R_DREGISTER;
+				graph_0->order_alterable=0;
+			}
+
+			graph->order_mode=R_DREGISTER;
+			graph->u_aregs=graph_0->u_aregs;
+			graph->u_dregs=graph_0->u_dregs;
+			graph->i_aregs=graph_0->i_aregs;
+			graph->i_dregs=graph_0->i_dregs;
+
+			graph->order_alterable=graph->node_count<=1;			
 			return;
 		}
 #endif
@@ -2732,6 +2804,11 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GRESULT0:
 		case GRESULT1:
 #endif
+#if defined (I486) && !defined (G_AI64)
+		case GFRESULT0:
+		case GFRESULT1:
+		case GFSINCOS:
+#endif
 			if (++graph->node_count==1)
 				count_graph (graph->instruction_parameters[0].p);
 			break;
@@ -2780,6 +2857,10 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GLOAD_X:
 		case GLOAD_B_X:
 		case GFLOAD_X:
+#ifdef G_AI64
+		case GLOAD_S_X:
+		case GFLOAD_S_X:
+#endif
 			if (++graph->node_count==1){
 				count_graph (graph->instruction_parameters[0].p);
 				if (graph->instruction_parameters[2].p!=NULL)
@@ -2788,9 +2869,15 @@ void count_graph (INSTRUCTION_GRAPH graph)
 			break;
 		case GSTORE_X:
 		case GSTORE_B_X:
+#ifdef G_AI64
+		case GSTORE_S_X:
+#endif
 			count_gstore_x_node (graph);
 			break;
 		case GFSTORE_X:
+#ifdef G_AI64
+		case GFSTORE_S_X:
+#endif
 			if (++graph->node_count==1){
 				count_graph (graph->instruction_parameters[0].p);
 				count_graph (graph->instruction_parameters[1].p);
@@ -2928,6 +3015,11 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GRESULT0:
 		case GRESULT1:
 #endif
+#if defined (I486) && !defined (G_AI64)
+		case GFRESULT0:
+		case GFRESULT1:
+		case GFSINCOS:
+#endif
 			if (graph->node_mark<2){
 				graph->node_mark=2;
 				mark_graph_2 (graph->instruction_parameters[0].p);
@@ -2988,6 +3080,10 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GLOAD_X:
 		case GLOAD_B_X:
 		case GFLOAD_X:
+#ifdef G_AI64
+		case GLOAD_S_X:
+		case GFLOAD_S_X:
+#endif
 			if (graph->node_mark<2){
 				graph->node_mark=2;
 				mark_graph_2 (graph->instruction_parameters[0].p);
@@ -2997,7 +3093,13 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 			break;
 		case GSTORE_X:
 		case GSTORE_B_X:
+#ifdef G_AI64
+		case GSTORE_S_X:
+#endif
 		case GFSTORE_X:
+#ifdef G_AI64
+		case GFSTORE_S_X:
+#endif
 			if (graph->node_mark<2){
 				graph->node_mark=2;
 				mark_graph_2 (graph->instruction_parameters[0].p);
@@ -3133,6 +3235,11 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GRESULT0:
 		case GRESULT1:
 #endif
+#if defined (I486) && !defined (G_AI64)
+		case GFRESULT0:
+		case GFRESULT1:
+		case GFSINCOS:
+#endif
 			if (!graph->node_mark){
 				graph->node_mark=1;
 				mark_graph_2 (graph->instruction_parameters[0].p);
@@ -3187,6 +3294,10 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GLOAD_X:
 		case GLOAD_B_X:
 		case GFLOAD_X:
+#ifdef G_AI64
+		case GLOAD_S_X:
+		case GFLOAD_S_X:
+#endif
 			if (!graph->node_mark){
 				graph->node_mark=1;
 				mark_graph_2 (graph->instruction_parameters[0].p);
@@ -3196,7 +3307,13 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 			break;
 		case GSTORE_X:
 		case GSTORE_B_X:
+#ifdef G_AI64
+		case GSTORE_S_X:
+#endif
 		case GFSTORE_X:
+#ifdef G_AI64
+		case GFSTORE_S_X:
+#endif
 			if (!graph->node_mark){
 				graph->node_mark=1;
 				mark_graph_2 (graph->instruction_parameters[0].p);

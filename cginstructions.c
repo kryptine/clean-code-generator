@@ -87,8 +87,6 @@ LABEL		*realloc_0_label,*realloc_1_label,*realloc_2_label,*realloc_3_label,
 LABEL	*end_a_stack_label,*end_b_stack_label;
 #endif
 
-#pragma segment Code20
-
 INSTRUCTION_GRAPH g_new_node (int instruction_code,int arity,int arg_size)
 {
 	INSTRUCTION_GRAPH instruction;
@@ -675,6 +673,26 @@ INSTRUCTION_GRAPH g_fload_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INST
 	return instruction;
 }
 
+#ifdef G_AI64
+INSTRUCTION_GRAPH g_fload_s_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2)
+{
+	INSTRUCTION_GRAPH instruction;
+	
+	instruction=g_new_node (GFLOAD_S_X,0,4*sizeof (union instruction_parameter));
+	
+	instruction->instruction_parameters[0].p=graph_1;
+	instruction->instruction_parameters[1].i=(offset<<2) | shift;
+	instruction->instruction_parameters[2].p=graph_2;
+	instruction->instruction_parameters[3].p=load_indexed_list;
+
+	graph_1->instruction_d_min_a_cost+=1;
+	
+	load_indexed_list=instruction;
+
+	return instruction;
+}
+#endif
+
 INSTRUCTION_GRAPH g_fstore (int offset,int reg_1,INSTRUCTION_GRAPH graph_1,
 #ifdef G_A64
 	INSTRUCTION_GRAPH graph_2)
@@ -869,6 +887,26 @@ INSTRUCTION_GRAPH g_load_des_id (int offset,INSTRUCTION_GRAPH graph_1)
 	return instruction;
 }
 
+#ifdef G_AI64
+INSTRUCTION_GRAPH g_load_s_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2)
+{
+	INSTRUCTION_GRAPH instruction;
+	
+	instruction=g_new_node (GLOAD_S_X,0,4*sizeof (union instruction_parameter));
+	
+	instruction->instruction_parameters[0].p=graph_1;
+	instruction->instruction_parameters[1].imm=(((CleanInt)offset)<<4) | (shift<<2);
+	instruction->instruction_parameters[2].p=graph_2;
+	instruction->instruction_parameters[3].p=load_indexed_list;
+
+	graph_1->instruction_d_min_a_cost+=1;
+	
+	load_indexed_list=instruction;
+
+	return instruction;
+}
+#endif
+
 INSTRUCTION_GRAPH g_movem (int offset,INSTRUCTION_GRAPH graph_1,int n)
 {
 	INSTRUCTION_GRAPH instruction;
@@ -915,7 +953,7 @@ INSTRUCTION_GRAPH g_fregister (int float_reg)
 
 INSTRUCTION_GRAPH g_fstore_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,int shift,INSTRUCTION_GRAPH graph_3)
 {
-	register INSTRUCTION_GRAPH instruction;
+	INSTRUCTION_GRAPH instruction;
 	
 	instruction=g_new_node (GFSTORE_X,0,5*sizeof (union instruction_parameter));
 	
@@ -934,6 +972,25 @@ INSTRUCTION_GRAPH g_fstore_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_
 	
 	return instruction;
 }
+
+#ifdef G_AI64
+INSTRUCTION_GRAPH g_fstore_s_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,int shift,INSTRUCTION_GRAPH graph_3)
+{
+	INSTRUCTION_GRAPH instruction;
+	
+	instruction=g_new_node (GFSTORE_S_X,0,5*sizeof (union instruction_parameter));
+	
+	instruction->instruction_parameters[0].p=graph_1;
+	instruction->instruction_parameters[1].p=graph_2;
+	instruction->instruction_parameters[2].i=(offset<<2) | shift;
+	instruction->instruction_parameters[3].p=graph_3;
+	instruction->instruction_parameters[4].p=load_indexed_list;
+
+	graph_2->instruction_d_min_a_cost+=1;
+	
+	return instruction;
+}
+#endif
 
 INSTRUCTION_GRAPH g_g_register (int reg)
 {
@@ -1002,6 +1059,25 @@ INSTRUCTION_GRAPH g_store_b_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph
 	
 	return instruction;
 }
+
+#ifdef G_AI64
+INSTRUCTION_GRAPH g_store_s_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,int shift,INSTRUCTION_GRAPH graph_3)
+{
+	INSTRUCTION_GRAPH instruction;
+	
+	instruction=g_new_node (GSTORE_S_X,0,5*sizeof (union instruction_parameter));
+	
+	instruction->instruction_parameters[0].p=graph_1;
+	instruction->instruction_parameters[1].p=graph_2;
+	instruction->instruction_parameters[2].imm=(((CleanInt)offset)<<4) | (shift<<2);
+	instruction->instruction_parameters[3].p=graph_3;
+	instruction->instruction_parameters[4].p=load_indexed_list;
+
+	graph_2->instruction_d_min_a_cost+=1;
+	
+	return instruction;
+}
+#endif
 
 INSTRUCTION_GRAPH g_store_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,int shift,INSTRUCTION_GRAPH graph_3)
 {
@@ -3912,7 +3988,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 		for (l=first_pointer_result_index; l<length; ++l){
 			switch (s[l]){
 				case 'I':
-					i_movesw_id_r (b_o,B_STACK_POINTER,REGISTER_RBP);
+					i_loadsqb_id_r (b_o,B_STACK_POINTER,REGISTER_RBP);
 					i_move_r_id (REGISTER_RBP,b_o,B_STACK_POINTER);
 					b_o+=STACK_ELEMENT_SIZE;
 					break;
@@ -3932,7 +4008,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 
 		switch (result){
 			case 'I':
-				i_movesw_r_r (REGISTER_D0,REGISTER_D0);
+				i_loadsqb_r_r (REGISTER_D0,REGISTER_D0);
 			case 'p':
 				begin_new_basic_block();
 				init_b_stack (1,i_vector);

@@ -253,6 +253,9 @@ void code_shiftl (VOID);
 void code_shiftr (VOID);
 void code_shiftrU (VOID);
 void code_sinR (VOID);
+#if defined (I486) && !defined (G_AI64)
+void code_sincosR (VOID);
+#endif
 void code_sliceS (int source_offset,int destination_offset);
 void code_sqrtR (VOID);
 void code_stop_reducer (VOID);

@@ -22,6 +22,9 @@ extern INSTRUCTION_GRAPH g_fload (int offset,int stack);
 extern INSTRUCTION_GRAPH g_fload_i (DOUBLE v);
 extern INSTRUCTION_GRAPH g_fload_id (int offset,INSTRUCTION_GRAPH graph_1);
 extern INSTRUCTION_GRAPH g_fload_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2);
+#ifdef G_AI64
+extern INSTRUCTION_GRAPH g_fload_s_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2);
+#endif
 extern INSTRUCTION_GRAPH g_lea (LABEL *label);
 extern INSTRUCTION_GRAPH g_lea_i (LABEL *label,int offset);
 extern INSTRUCTION_GRAPH g_load (int offset,int stack);
@@ -32,14 +35,23 @@ extern INSTRUCTION_GRAPH g_load_x (INSTRUCTION_GRAPH graph_1,int offset,int shif
 extern INSTRUCTION_GRAPH g_load_b_id (int offset,INSTRUCTION_GRAPH graph_1);
 extern INSTRUCTION_GRAPH g_load_des_i (LABEL *descriptor_label,int arity);
 extern INSTRUCTION_GRAPH g_load_des_id (int offset,INSTRUCTION_GRAPH graph_1);
+#ifdef G_AI64
+extern INSTRUCTION_GRAPH g_load_s_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2);
+#endif
 extern INSTRUCTION_GRAPH g_movem (int offset,INSTRUCTION_GRAPH graph_1,int n);
 extern INSTRUCTION_GRAPH g_movemi (int number,INSTRUCTION_GRAPH movem_graph);
 extern INSTRUCTION_GRAPH g_fregister (int float_reg);
 extern INSTRUCTION_GRAPH g_fstore_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,int shift,INSTRUCTION_GRAPH graph_3);
+#ifdef G_AI64
+extern INSTRUCTION_GRAPH g_fstore_s_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,int shift,INSTRUCTION_GRAPH graph_3);
+#endif
 extern INSTRUCTION_GRAPH g_g_register (int reg);
 extern INSTRUCTION_GRAPH g_register (int reg);
 extern INSTRUCTION_GRAPH g_store (int offset,int reg_1,INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2);
 extern INSTRUCTION_GRAPH g_store_b_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,INSTRUCTION_GRAPH graph_3);
+#ifdef G_AI64
+extern INSTRUCTION_GRAPH g_store_s_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,int shift,INSTRUCTION_GRAPH graph_3);
+#endif
 extern INSTRUCTION_GRAPH g_store_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,int shift,INSTRUCTION_GRAPH graph_3);
 extern INSTRUCTION_GRAPH g_store_r (int reg_1,INSTRUCTION_GRAPH graph_1);
 

@@ -1718,7 +1718,7 @@ static void as_moveb_instruction (struct instruction *instruction)
 	internal_error_in_function ("as_moveb_instruction");
 }
 
-static void as_movew_instruction (struct instruction *instruction)
+static void as_movedb_instruction (struct instruction *instruction)
 {
 	switch (instruction->instruction_parameters[1].parameter_type){
 		case P_REGISTER:
@@ -1763,10 +1763,135 @@ static void as_movew_instruction (struct instruction *instruction)
 			break;
 		}
 	}
-	internal_error_in_function ("as_movew_instruction");
+	internal_error_in_function ("as_movedb_instruction");
 }
 
-static void as_movesw_instruction (struct instruction *instruction)
+static void as_moveqb_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[1].parameter_type){
+		case P_REGISTER:
+		{
+			int reg;
+			
+			reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+			switch (instruction->instruction_parameters[0].parameter_type){
+				case P_REGISTER:
+					as_br_br (0213,instruction->instruction_parameters[0].parameter_data.reg.r,reg);
+					return;
+				case P_IMMEDIATE:
+				{
+					int reg_n;
+					
+					reg_n=reg_num (reg);
+					if (reg_n>=4)
+						store_c (0x40 | ((reg_n & 8)>>3));
+					store_c (0270 | (reg_n & 7));
+					store_l (instruction->instruction_parameters[0].parameter_data.i);
+					return;
+				}
+			}
+
+			break;
+		}
+		case P_INDIRECT:
+			switch (instruction->instruction_parameters[0].parameter_type){
+				case P_IMMEDIATE:
+				{
+					int reg1,reg1_n,offset;
+			
+					offset=instruction->instruction_parameters[1].parameter_offset;
+					reg1=instruction->instruction_parameters[1].parameter_data.reg.r;
+				
+					reg1_n=reg_num (reg1);
+
+					if (reg1_n & 8)
+						store_c (0x41);
+					store_c (0307);
+					if ((reg1_n & 7)==4/*RSP or R12*/){
+						if (offset==0){
+							store_c (0x04);
+							store_c (0044);
+						} else if (((signed char)offset)==offset){
+							store_c (0x44);
+							store_c (0044);
+							store_c (offset);
+						} else {
+							store_c (0x84);
+							store_c (0044);
+							store_l (offset);		
+						}
+					} else {
+						if (offset==0 && (reg1_n & 7)!=5/*RBP or R13*/){
+							store_c (reg1_n & 7);
+						} else if (((signed char)offset)==offset){
+							store_c (0x40 | (reg1_n & 7));
+							store_c (offset);
+						} else {
+							store_c (0x80 | (reg1_n & 7));
+							store_l (offset);		
+						}
+					}
+					store_l (instruction->instruction_parameters[0].parameter_data.i);
+					return;
+				}
+				case P_REGISTER:
+					as_br_id (0211,instruction->instruction_parameters[0].parameter_data.reg.r,
+								   instruction->instruction_parameters[1].parameter_offset,
+								   instruction->instruction_parameters[1].parameter_data.reg.r);				
+					return;
+			}
+			break;
+		case P_INDEXED:
+			switch (instruction->instruction_parameters[0].parameter_type){
+				case P_IMMEDIATE:
+				{
+					int reg1,reg2,reg1_n,reg2_n,shift,offset,x;
+				
+					offset=instruction->instruction_parameters[1].parameter_offset;
+					reg1=instruction->instruction_parameters[1].parameter_data.ir->a_reg.r;
+					reg2=instruction->instruction_parameters[1].parameter_data.ir->d_reg.r;
+				
+					reg1_n=reg_num (reg1);
+					reg2_n=reg_num (reg2);
+				
+					shift=offset & 3;
+					offset=offset>>2;
+					
+					if (reg2==ESP)
+						internal_error_in_function ("as_moveqb_instruction");
+					
+					if (((reg1_n | reg2_n) & 8)!=0)
+						store_c (0x40 | ((reg2_n & 8)>>2) | ((reg1_n & 8)>>3));	
+					store_c (0307);
+					x=(shift<<6) | ((reg2_n & 7)<<3) | (reg1_n & 7);
+					if (offset==0 && (reg1_n & 7)!=5/*RBP or R13*/){
+						store_c (0x04);
+						store_c (x);
+					} else if (((signed char)offset)==offset){
+						store_c (0x44);
+						store_c (x);
+						store_c (offset);
+					} else {
+						store_c (0x84);
+						store_c (x);
+						store_l (offset);
+					}
+					store_l (instruction->instruction_parameters[0].parameter_data.i);
+
+					return;
+				}
+				case P_REGISTER:
+					as_br_x (0211,instruction->instruction_parameters[0].parameter_data.reg.r,
+								  instruction->instruction_parameters[1].parameter_offset,
+								  instruction->instruction_parameters[1].parameter_data.ir);
+					return;
+			}
+			break;
+	}
+	internal_error_in_function ("as_moveqb_instruction");
+}
+
+static void as_loadsqb_instruction (struct instruction *instruction)
 {
 	switch (instruction->instruction_parameters[1].parameter_type){
 		case P_REGISTER:
@@ -1788,7 +1913,7 @@ static void as_movesw_instruction (struct instruction *instruction)
 			break;
 		}
 	}
-	internal_error_in_function ("as_movesw_instruction");
+	internal_error_in_function ("as_loadsqb_instruction");
 }
 
 static void as_lea_instruction (struct instruction *instruction)
@@ -3464,6 +3589,11 @@ static void as_f_i (int code1,int code2,DOUBLE *r_p,int d_freg)
 
 	new_label->label_flags=DATA_LABEL;
 
+#ifdef FUNCTION_LEVEL_LINKING
+	if (data_object_label==NULL)
+		as_new_data_module();
+#endif
+
 	if (data_object_label->object_section_align<3)
 		data_object_label->object_section_align=3;
 	if ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 4)
@@ -3518,6 +3648,53 @@ static void as_fmove_instruction (struct instruction *instruction)
 			}
 	}
 	internal_error_in_function ("as_fmove_instruction");
+}
+
+static void as_floads_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[1].parameter_type){
+		case P_F_REGISTER:
+			switch (instruction->instruction_parameters[0].parameter_type){
+				case P_INDIRECT:
+					/* cvtss2sd */
+					as_f_id (0xf3,0x5a,instruction->instruction_parameters[0].parameter_offset,
+									   instruction->instruction_parameters[0].parameter_data.reg.r,
+									   instruction->instruction_parameters[1].parameter_data.reg.r);
+					return;
+				case P_INDEXED:
+					/* cvtss2sd */
+					as_f_x (0xf3,0x5a,instruction->instruction_parameters[0].parameter_offset,
+									  instruction->instruction_parameters[0].parameter_data.ir,
+									  instruction->instruction_parameters[1].parameter_data.reg.r);
+					return;
+			}
+			break;
+	}
+	internal_error_in_function ("as_floads_instruction");
+}
+
+static void as_fmoves_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[1].parameter_type){
+		case P_INDIRECT:
+			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+				/* movss */
+				as_f_id (0xf3,0x11,instruction->instruction_parameters[1].parameter_offset,
+								   instruction->instruction_parameters[1].parameter_data.reg.r,
+								   instruction->instruction_parameters[0].parameter_data.reg.r);
+				return;
+			}
+			break;
+		case P_INDEXED:
+			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+				/* movsd */
+				as_f_x (0xf3,0x11,instruction->instruction_parameters[1].parameter_offset,
+								  instruction->instruction_parameters[1].parameter_data.ir,
+								  instruction->instruction_parameters[0].parameter_data.reg.r);
+				return;
+			}
+	}
+	internal_error_in_function ("as_fmoves_instruction");
 }
 
 static void as_dyadic_float_instruction (struct instruction *instruction,int code1,int code2)
@@ -3583,6 +3760,11 @@ static void as_float_neg_instruction (struct instruction *instruction)
 
 		new_label->label_flags=DATA_LABEL;
 
+#ifdef FUNCTION_LEVEL_LINKING
+		if (data_object_label==NULL)
+			as_new_data_module();
+#endif
+
 		if (data_object_label->object_section_align<4)
 			data_object_label->object_section_align=4;
 		while ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 0xc)
@@ -3635,6 +3817,11 @@ static void as_float_abs_instruction (struct instruction *instruction)
 		new_label=allocate_memory_from_heap (sizeof (struct label));
 
 		new_label->label_flags=DATA_LABEL;
+
+#ifdef FUNCTION_LEVEL_LINKING
+		if (data_object_label==NULL)
+			as_new_data_module();
+#endif
 
 		if (data_object_label->object_section_align<4)
 			data_object_label->object_section_align=4;
@@ -4121,14 +4308,17 @@ static void as_instructions (struct instruction *instruction)
 			case IBTST:
 				as_btst_instruction (instruction);
 				break;
-			case IMOVEW:
-				as_movew_instruction (instruction);
-				break;
-			case IMOVESW:
-				as_movesw_instruction (instruction);
+			case ILOADSQB:
+				as_loadsqb_instruction (instruction);
 				break;
 			case IMOVEB:
 				as_moveb_instruction (instruction);
+				break;
+			case IMOVEDB:
+				as_movedb_instruction (instruction);
+				break;
+			case IMOVEQB:
+				as_moveqb_instruction (instruction);
 				break;
 			case IEXG:
 				as_exg_instruction (instruction);
@@ -4219,6 +4409,15 @@ static void as_instructions (struct instruction *instruction)
 				break;
 			case IFSNE:
 				as_set_float_condition_instruction (instruction,3);
+				break;
+			case IFLOADS:
+				as_floads_instruction (instruction);
+				break;
+			case IFCVT2S:
+				as_dyadic_float_instruction (instruction,0xf2,0x5a); /* cvtsd2ss */
+				break;
+			case IFMOVES:
+				as_fmoves_instruction (instruction);
 				break;
 			case IRTSI:
 				as_rtsi_instruction (instruction);

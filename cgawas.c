@@ -367,7 +367,7 @@ void w_as_descriptor_string_in_data_section (char *string,int length,int string_
 		w_as_newline();
 }
 
-enum { SIZE_LONG, SIZE_WORD, SIZE_BYTE };
+enum { SIZE_OBYTE, SIZE_QBYTE, SIZE_DBYTE, SIZE_BYTE, };
 
 static void w_as_label (char *label)
 {
@@ -487,6 +487,12 @@ static char register_name_char2[16]="piip  xxxx012345";
 
 static char *byte_register_name[16]= {"spl","dil","sil","bpl","r9b","r8b","dl","cl","al","bl",
 									  "r10b","r11b","r12b","r13b","r14b","r15b"};
+
+static char *dbyte_register_name[16]= {"sp","di","si","bp","r9w","r8w","dx","cx","ax","bx",
+									  "r10w","r11w","r12w","r13w","r14w","r15w"};
+
+static char *qbyte_register_name[16]= {"esp","edi","esi","ebp","r9l","r8l","edx","ecx","eax","ebx",
+									  "r10l","r11l","r12l","r13l","r14l","r15l"};
 
 #define REGISTER_O0 (-5)
 #define REGISTER_R8 (-3)
@@ -750,6 +756,17 @@ static void w_as_comma_byte_register (int reg)
 	w_as_byte_register (reg);
 }
 
+static void w_as_qbyte_register (int reg)
+{
+	fprintf (assembly_file,"%s",qbyte_register_name[reg+8]);
+}
+
+static void w_as_comma_qbyte_register (int reg)
+{	
+	w_as_comma();
+	w_as_qbyte_register (reg);
+}
+
 static void w_as_call_or_jump (struct parameter *parameter,char *opcode)
 {
 	switch (parameter->parameter_type){
@@ -853,8 +870,12 @@ static void w_as_opcode_movl (void)
 
 static void w_as_opcode_move (int size_flag)
 {
-	w_as_opcode (intel_asm  ? (size_flag==SIZE_LONG ? "mov" : size_flag==SIZE_WORD ? "movsx" : "movzx")
-							: (size_flag==SIZE_LONG ? "movl" : size_flag==SIZE_WORD ? "movswl" : "movzbl")
+	w_as_opcode (intel_asm  ? (size_flag==SIZE_OBYTE ? "mov"  :
+							   size_flag==SIZE_BYTE  ? "movzx" :
+							   size_flag==SIZE_DBYTE ? "movsx" : "movsxd")
+							: (size_flag==SIZE_OBYTE ? "movl" :
+							   size_flag==SIZE_BYTE  ? "movzbl" :
+							   size_flag==SIZE_DBYTE  ? "movswl" : "movsxd")
 							);
 }
 
@@ -899,6 +920,20 @@ static void w_as_immediate_register_newline (int_64 i,int reg)
 	w_as_newline();
 }
 
+static void print_ptr (int size_flag)
+{
+	char *s;
+
+	switch (size_flag){
+		case SIZE_BYTE:  s="byte ptr "; break;
+		case SIZE_DBYTE: s="word ptr "; break;
+		case SIZE_QBYTE: s="dword ptr "; break;
+		case SIZE_OBYTE: s="qword ptr "; break;
+		default: return;
+	}
+	fprintf (assembly_file,s);
+}
+
 static void w_as_move_instruction (struct instruction *instruction,int size_flag)
 {
 	switch (instruction->instruction_parameters[1].parameter_type){
@@ -932,8 +967,8 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					w_as_opcode_move (size_flag);
 					if (intel_asm){
 						w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
-						if (size_flag!=SIZE_LONG)
-							fprintf (assembly_file,size_flag==SIZE_WORD ? "word ptr " : "byte ptr ");
+						if (size_flag!=SIZE_OBYTE)
+							print_ptr (size_flag);
 					}
 					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,
 								   instruction->instruction_parameters[0].parameter_data.reg.r);
@@ -942,8 +977,8 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					w_as_opcode_move (size_flag);
 					if (intel_asm){
 						w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
-						if (size_flag!=SIZE_LONG)
-							fprintf (assembly_file,size_flag==SIZE_WORD ? "word ptr " : "byte ptr ");
+						if (size_flag!=SIZE_OBYTE)
+							print_ptr (size_flag);
 					}
 					w_as_indexed (instruction->instruction_parameters[0].parameter_offset,
 								  instruction->instruction_parameters[0].parameter_data.ir);
@@ -989,8 +1024,8 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					w_as_opcode_move (size_flag);
 					if (intel_asm){
 						w_as_scratch_register_comma();
-						if (size_flag!=SIZE_LONG)
-							fprintf (assembly_file,size_flag==SIZE_WORD ? "word ptr " : "byte ptr ");
+						if (size_flag!=SIZE_OBYTE)
+							print_ptr (size_flag);
 					}
 					w_as_indirect (parameter.parameter_offset,parameter.parameter_data.reg.r);
 					if (!intel_asm)
@@ -1004,8 +1039,8 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					w_as_opcode_move (size_flag);
 					if (intel_asm){
 						w_as_scratch_register_comma();
-						if (size_flag!=SIZE_LONG)
-							fprintf (assembly_file,size_flag==SIZE_WORD ? "word ptr " : "byte ptr ");
+						if (size_flag!=SIZE_OBYTE)
+							print_ptr (size_flag);
 					}
 					w_as_indexed (parameter.parameter_offset,parameter.parameter_data.ir);
 					if (!intel_asm)
@@ -1029,7 +1064,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 #else
 					w_as_opcode_movl();
 					if (intel_asm){
-						fprintf (assembly_file,size_flag==SIZE_LONG ? "qword ptr " : size_flag==SIZE_WORD ? "word ptr " : "byte ptr ");
+						print_ptr (size_flag);
 						w_as_indirect (instruction->instruction_parameters[1].parameter_offset,
 									   instruction->instruction_parameters[1].parameter_data.reg.r);
 						w_as_comma();
@@ -1069,51 +1104,27 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					internal_error_in_function ("w_as_move");
 			}
 
-			if (size_flag==SIZE_BYTE && parameter.parameter_type==P_REGISTER && parameter.parameter_data.reg.r<REGISTER_A1){
-				int reg,reg1;
-				
-				reg=parameter.parameter_data.reg.r;
-				
-				w_as_opcode_register_register_newline ("xchg",reg,REGISTER_D0);
-
-				reg1=instruction->instruction_parameters[1].parameter_data.reg.r;
-				if (reg1==reg)
-					reg1=REGISTER_D0;
-				else if (reg1==REGISTER_D0)
-					reg1=reg;
-
-				w_as_opcode (intel_asm ? "mov" : "movb");
-				if (!intel_asm)
-					w_as_register_comma (REGISTER_D0);
-				w_as_indirect (instruction->instruction_parameters[1].parameter_offset,reg1);
-				if (intel_asm){
-					if (parameter.parameter_type!=P_REGISTER)
-						internal_error_in_function ("w_as_move_instruction");
-					w_as_comma_byte_register (REGISTER_D0);
-				}
-				w_as_newline();
-
-				w_as_opcode_register_register_newline ("xchg",reg,REGISTER_D0);
-
-				return;
-			}
-
-			w_as_opcode (intel_asm ? "mov" : (size_flag==SIZE_LONG ? "movl" : size_flag==SIZE_WORD ? "movw" : "movb"));
+			w_as_opcode (intel_asm ? "mov" : (size_flag==SIZE_OBYTE ? "movq" : 
+											  size_flag==SIZE_BYTE  ? "movb" :
+											  size_flag==SIZE_DBYTE ? "movw" :"movl"));
 			if (!intel_asm)
 				w_as_parameter_comma (&parameter);
 			else if (parameter.parameter_type==P_IMMEDIATE)
-				fprintf (assembly_file,size_flag==SIZE_LONG ? "qword ptr " : size_flag==SIZE_WORD ? "word ptr " : "byte ptr ");
+				print_ptr (size_flag);
 			w_as_indirect (instruction->instruction_parameters[1].parameter_offset,
 						   instruction->instruction_parameters[1].parameter_data.reg.r);
 			if (intel_asm){
-				if (size_flag==SIZE_LONG || parameter.parameter_type==P_IMMEDIATE)
-				w_as_comma_parameter (&parameter);
-				else if (size_flag==SIZE_WORD)
+				if (size_flag==SIZE_OBYTE || parameter.parameter_type==P_IMMEDIATE)
+					w_as_comma_parameter (&parameter);
+				else if (size_flag==SIZE_DBYTE)
 					w_as_comma_word_parameter (&parameter);
 				else {
 					if (parameter.parameter_type!=P_REGISTER)
 						internal_error_in_function ("w_as_move_instruction");
-					w_as_comma_byte_register (parameter.parameter_data.reg.r);
+					if (size_flag==SIZE_BYTE)
+						w_as_comma_byte_register (parameter.parameter_data.reg.r);
+					else
+						w_as_comma_qbyte_register (parameter.parameter_data.reg.r);
 				}
 			}
 			w_as_newline();
@@ -1154,8 +1165,8 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					w_as_opcode_move (size_flag);
 					if (intel_asm){
 						w_as_scratch_register_comma();
-						if (size_flag!=SIZE_LONG)
-							fprintf (assembly_file,size_flag==SIZE_WORD ? "word ptr " : "byte ptr ");
+						if (size_flag!=SIZE_OBYTE)
+							print_ptr (size_flag);
 					}
 					w_as_indirect (parameter.parameter_offset,parameter.parameter_data.reg.r);
 					if (!intel_asm)
@@ -1206,62 +1217,25 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					internal_error_in_function ("w_as_move");
 			}
 
-			if (size_flag==SIZE_BYTE && parameter.parameter_type==P_REGISTER && parameter.parameter_data.reg.r<REGISTER_A1){
-				int reg,reg1,reg2;
-				struct index_registers index_registers;
-				
-				reg=parameter.parameter_data.reg.r;
-				
-				w_as_opcode_register_register_newline ("xchg",reg,REGISTER_D0);
-
-				reg1=instruction->instruction_parameters[1].parameter_data.ir->a_reg.r;
-				reg2=instruction->instruction_parameters[1].parameter_data.ir->d_reg.r;
-				
-				if (reg1==reg)
-					reg1=REGISTER_D0;
-				else if (reg1==REGISTER_D0)
-					reg1=reg;
-
-				if (reg2==reg)
-					reg2=REGISTER_D0;
-				else if (reg2==REGISTER_D0)
-					reg2=reg;
-
-				index_registers.a_reg.r=reg1;
-				index_registers.d_reg.r=reg2;
-				
-				w_as_opcode (intel_asm ? "mov" : "movb");
-				if (!intel_asm)
-					w_as_register_comma (REGISTER_D0);
-				w_as_indexed (instruction->instruction_parameters[1].parameter_offset,&index_registers);
-				if (intel_asm){
-					if (parameter.parameter_type!=P_REGISTER)
-						internal_error_in_function ("w_as_move_instruction");
-					w_as_comma_byte_register (REGISTER_D0);
-				}
-				w_as_newline();
-
-				w_as_opcode_register_register_newline ("xchg",reg,REGISTER_D0);
-
-				return;
-			}
-
-			w_as_opcode (intel_asm ? "mov" : (size_flag==SIZE_LONG ? "movl" : size_flag==SIZE_WORD ? "movw" : "movb"));
+			w_as_opcode (intel_asm ? "mov" : (size_flag==SIZE_OBYTE ? "movl" : size_flag==SIZE_DBYTE ? "movw" : "movb"));
 			if (!intel_asm)
 				w_as_parameter_comma (&parameter);
 			else if (parameter.parameter_type==P_IMMEDIATE)
-				fprintf (assembly_file,size_flag==SIZE_LONG ? "qword ptr " : size_flag==SIZE_WORD ? "word ptr " : "byte ptr ");
+				fprintf (assembly_file,size_flag==SIZE_OBYTE ? "qword ptr " : size_flag==SIZE_DBYTE ? "word ptr " : "byte ptr ");
 			w_as_indexed (instruction->instruction_parameters[1].parameter_offset,
 						  instruction->instruction_parameters[1].parameter_data.ir);
 			if (intel_asm){
-				if (size_flag==SIZE_LONG || parameter.parameter_type==P_IMMEDIATE)
-				w_as_comma_parameter (&parameter);
-				else if (size_flag==SIZE_WORD)
+				if (size_flag==SIZE_OBYTE || parameter.parameter_type==P_IMMEDIATE)
+					w_as_comma_parameter (&parameter);
+				else if (size_flag==SIZE_DBYTE)
 					w_as_comma_word_parameter (&parameter);
 				else {
 					if (parameter.parameter_type!=P_REGISTER)
 						internal_error_in_function ("w_as_move_instruction");
-					w_as_comma_byte_register (parameter.parameter_data.reg.r);
+					if (size_flag==SIZE_BYTE)
+						w_as_comma_byte_register (parameter.parameter_data.reg.r);
+					else
+						w_as_comma_qbyte_register (parameter.parameter_data.reg.r);
 				}
 			}
 			w_as_newline();
@@ -1288,7 +1262,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 	}
 }
 
-static void w_as_movesw_instruction (struct instruction *instruction)
+static void w_as_loadsqb_instruction (struct instruction *instruction)
 {
 	if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
 		switch (instruction->instruction_parameters[0].parameter_type){
@@ -1296,7 +1270,7 @@ static void w_as_movesw_instruction (struct instruction *instruction)
 				w_as_opcode ("movsxd");
 				if (intel_asm){
 					w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
-					fprintf (assembly_file,"word ptr ");
+					fprintf (assembly_file,"qword ptr ");
 				}
 				w_as_indirect (instruction->instruction_parameters[0].parameter_offset,
 							   instruction->instruction_parameters[0].parameter_data.reg.r);
@@ -1305,7 +1279,7 @@ static void w_as_movesw_instruction (struct instruction *instruction)
 				w_as_opcode ("movsxd");
 				if (intel_asm){
 					w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
-					fprintf (assembly_file,"word ptr ");
+					fprintf (assembly_file,"qword ptr ");
 				}
 				w_as_indexed (instruction->instruction_parameters[0].parameter_offset,
 							  instruction->instruction_parameters[0].parameter_data.ir);
@@ -1317,7 +1291,7 @@ static void w_as_movesw_instruction (struct instruction *instruction)
 				w_as_register (instruction->instruction_parameters[0].parameter_data.reg.r);
 				break;
 			default:
-				internal_error_in_function ("w_as_movesw_instruction");
+				internal_error_in_function ("w_as_loadsqb_instruction");
 				return;
 		}
 		if (!intel_asm)
@@ -1325,7 +1299,7 @@ static void w_as_movesw_instruction (struct instruction *instruction)
 		w_as_newline();
 		return;
 	}
-	internal_error_in_function ("w_as_movesw_instruction");
+	internal_error_in_function ("w_as_loadsqb_instruction");
 }
 
 static void w_as_lea_instruction (struct instruction *instruction)
@@ -1591,9 +1565,9 @@ static void w_as_tst_instruction (struct instruction *instruction,int size_flag)
 {
 	switch (instruction->instruction_parameters[0].parameter_type){
 		case P_INDIRECT:
-			w_as_opcode (intel_asm ? "cmp" : (size_flag==SIZE_LONG ? "cmpl" : "cmpb"));
+			w_as_opcode (intel_asm ? "cmp" : (size_flag==SIZE_OBYTE ? "cmpl" : "cmpb"));
 			if (intel_asm){
-				fprintf (assembly_file,size_flag==SIZE_LONG ? "qword ptr " : "byte ptr ");
+				fprintf (assembly_file,size_flag==SIZE_OBYTE ? "qword ptr " : "byte ptr ");
 				w_as_indirect (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.reg.r);
 				w_as_comma();
 			}
@@ -1605,7 +1579,7 @@ static void w_as_tst_instruction (struct instruction *instruction,int size_flag)
 			w_as_newline();
 			break;
 		case P_INDEXED:
-			w_as_opcode (intel_asm ? "cmp" : (size_flag==SIZE_LONG ? "cmpl" : "cmpb"));
+			w_as_opcode (intel_asm ? "cmp" : (size_flag==SIZE_OBYTE ? "cmpl" : "cmpb"));
 			if (intel_asm){
 				w_as_indexed (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.ir);
 				w_as_comma();
@@ -2810,7 +2784,7 @@ static void w_as_fmove_instruction (struct instruction *instruction)
 					if (intel_asm)
 						fprintf (assembly_file,"qword ptr ");
 					w_as_indexed (instruction->instruction_parameters[0].parameter_offset,
-								   instruction->instruction_parameters[0].parameter_data.ir);
+								  instruction->instruction_parameters[0].parameter_data.ir);
 					break;
 				case P_F_IMMEDIATE:
 				{
@@ -2857,6 +2831,69 @@ static void w_as_fmove_instruction (struct instruction *instruction)
 	}
 	internal_error_in_function ("w_as_fmove_instruction");
 	return;
+}
+
+static void w_as_floads_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[1].parameter_type){
+		case P_F_REGISTER:
+			switch (instruction->instruction_parameters[0].parameter_type){
+				case P_INDIRECT:
+					w_as_opcode ("cvtss2sd");
+					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_comma();
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,
+								   instruction->instruction_parameters[0].parameter_data.reg.r);
+					break;
+				case P_INDEXED:
+					w_as_opcode ("cvtss2sd");
+					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_comma();
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					w_as_indexed (instruction->instruction_parameters[0].parameter_offset,
+								  instruction->instruction_parameters[0].parameter_data.ir);
+					break;
+				default:
+					internal_error_in_function ("w_as_floads_instruction");
+					return;
+			}
+			w_as_newline();
+			return;
+	}
+	internal_error_in_function ("w_as_floads_instruction");
+	return;
+}
+
+static void w_as_fmoves_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[1].parameter_type){
+		case P_INDIRECT:
+		case P_INDEXED:
+			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+				int s_freg;
+				
+				s_freg=instruction->instruction_parameters[0].parameter_data.reg.r;
+				
+				w_as_opcode ("movss");
+				if (intel_asm)
+					fprintf (assembly_file,"dword ptr ");
+				if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT)
+					w_as_indirect (instruction->instruction_parameters[1].parameter_offset,
+								   instruction->instruction_parameters[1].parameter_data.reg.r);
+				else
+					w_as_indexed (instruction->instruction_parameters[1].parameter_offset,
+								  instruction->instruction_parameters[1].parameter_data.ir);
+					
+				w_as_comma();
+				w_as_fp_register (s_freg);
+				w_as_newline();
+				return;
+			}
+	}
+	internal_error_in_function ("w_as_fmoves_instruction");
 }
 
 static int int_to_real_scratch_imported=0;
@@ -2943,7 +2980,7 @@ static void w_as_instructions (register struct instruction *instruction)
 	while (instruction!=NULL){
 		switch (instruction->instruction_icode){
 			case IMOVE:
-				w_as_move_instruction (instruction,SIZE_LONG);
+				w_as_move_instruction (instruction,SIZE_OBYTE);
 				break;
 			case ILEA:
 				w_as_lea_instruction (instruction);
@@ -3092,19 +3129,22 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 #endif
 			case ITST:
-				w_as_tst_instruction (instruction,SIZE_LONG);
+				w_as_tst_instruction (instruction,SIZE_OBYTE);
 				break;
 			case IBTST:
 				w_as_btst_instruction (instruction);
 				break;
-			case IMOVEW:
-				w_as_move_instruction (instruction,SIZE_WORD);
-				break;
-			case IMOVESW:
-				w_as_movesw_instruction (instruction);
+			case ILOADSQB:
+				w_as_loadsqb_instruction (instruction);
 				break;
 			case IMOVEB:
 				w_as_move_instruction (instruction,SIZE_BYTE);
+				break;
+			case IMOVEDB:
+				w_as_move_instruction (instruction,SIZE_DBYTE);
+				break;
+			case IMOVEQB:
+				w_as_move_instruction (instruction,SIZE_QBYTE);
 				break;
 			case IEXG:
 				w_as_dyadic_instruction (instruction,"xchg");
@@ -3195,6 +3235,15 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case IWORD:
 				w_as_word_instruction (instruction);
+				break;
+			case IFLOADS:
+				w_as_floads_instruction (instruction);
+				break;
+			case IFCVT2S:
+				w_as_dyadic_float_instruction (instruction,"cvtsd2ss");
+				break;
+			case IFMOVES:
+				w_as_fmoves_instruction (instruction);
 				break;
 			case IRTSI:
 				w_as_rtsi_instruction (instruction);

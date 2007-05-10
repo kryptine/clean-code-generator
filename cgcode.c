@@ -224,8 +224,6 @@ int no_memory_profiling;
 int no_time_profiling;
 #endif
 
-#pragma segment Code2
-
 #define g_add(g1,g2) g_instruction_2(GADD,(g1),(g2))
 #define g_and(g1,g2) g_instruction_2(GAND,(g1),(g2))
 #define g_asr(g1,g2) g_instruction_2(GASR,(g1),(g2))
@@ -312,6 +310,10 @@ static LABEL	*halt_label,*cmp_string_label,*eqD_label,
 				*create_arrayB_label,*create_arrayC_label,*create_arrayI_label,*create_arrayR_label,*create_r_array_label,
 				*create_arrayB__label,*create_arrayC__label,*create_arrayI__label,*create_arrayR__label,*create_r_array__label,
 				*print_char_label,*print_int_label,*print_real_label;
+
+#ifdef G_AI64
+static LABEL	*create_arrayI32_label,*create_arrayR32_label;
+#endif
 
 LABEL			*new_int_reducer_label,*channelP_label,*stop_reducer_label,*send_request_label,
 				*send_graph_label,*string_to_string_node_label,*int_array_to_node_label,
@@ -1387,6 +1389,21 @@ static void code_create_arrayI (VOID)
 	init_a_stack (1);
 }
 
+#ifdef G_AI64
+static void code_create_arrayI32 (VOID)
+{
+	if (create_arrayI32_label==NULL)
+		create_arrayI32_label=enter_label ("create_arrayI32",IMPORT_LABEL);
+
+	s_push_b (s_get_b (0));
+	s_put_b (1,s_get_b (2));
+	s_put_b (2,NULL);
+	insert_basic_block (JSR_BLOCK,0,2+1,i_i_vector,create_arrayI32_label);
+
+	init_a_stack (1);
+}
+#endif
+
 static void code_create_arrayR (VOID)
 {
 	if (create_arrayR_label==NULL)
@@ -1435,6 +1452,21 @@ static void code_create_arrayR (VOID)
 	
 	init_a_stack (1);
 }
+
+#ifdef G_AI64
+static void code_create_arrayR32 (VOID)
+{
+	if (create_arrayR32_label==NULL)
+		create_arrayR32_label=enter_label ("create_arrayR32",IMPORT_LABEL);
+
+	s_push_b (s_get_b (0));
+	s_put_b (1,s_get_b (2));
+	s_put_b (2,NULL);
+	insert_basic_block (JSR_BLOCK,0,2+1,i_r_vector,create_arrayR32_label);
+	
+	init_a_stack (1);
+}
+#endif
 
 static void code_create_r_array (char element_descriptor[],int a_size,int b_size)
 {
@@ -1529,9 +1561,17 @@ void code_create_array (char element_descriptor[],int a_size,int b_size)
 			}
 			break;		
 		case 'I':
-			if (element_descriptor[1]=='N' && element_descriptor[2]=='T' && element_descriptor[3]=='\0'){
-				code_create_arrayI();
-				return;	
+			if (element_descriptor[1]=='N' && element_descriptor[2]=='T'){
+				if (element_descriptor[3]=='\0'){
+					code_create_arrayI();
+					return;
+				}
+#ifdef G_AI64
+				if (element_descriptor[3]=='3' && element_descriptor[4]=='2' && element_descriptor[5]=='\0'){
+					code_create_arrayI32();
+					return;
+				}
+#endif
 			}
 			break;
 		case 'P':
@@ -1541,11 +1581,17 @@ void code_create_array (char element_descriptor[],int a_size,int b_size)
 			}
 			break;
 		case 'R':
-			if (element_descriptor[1]=='E' && element_descriptor[2]=='A' && element_descriptor[3]=='L' &&
-				element_descriptor[4]=='\0')
-			{
-				code_create_arrayR();
-				return;	
+			if (element_descriptor[1]=='E' && element_descriptor[2]=='A' && element_descriptor[3]=='L'){
+				if (element_descriptor[4]=='\0'){
+					code_create_arrayR();
+					return;
+				}
+#ifdef G_AI64
+				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
+					code_create_arrayR32();
+					return;
+				}
+#endif
 			}
 			break;
 		case 'A':
@@ -1553,7 +1599,7 @@ void code_create_array (char element_descriptor[],int a_size,int b_size)
 				element_descriptor[4]=='Y' && element_descriptor[5]=='\0')
 			{
 				code_create_lazy_array();
-				return;	
+				return;
 			}
 			break;
 		case 'S':
@@ -1561,19 +1607,19 @@ void code_create_array (char element_descriptor[],int a_size,int b_size)
 				element_descriptor[4]=='N' && element_descriptor[5]=='G' && element_descriptor[6]=='\0')
 			{
 				code_create_lazy_array();
-				return;	
+				return;
 			}
 			break;
 		case 'W':
 			if (is__orld (element_descriptor)){
 				code_create_lazy_array();
-				return;	
+				return;
 			}
 			break;
 		case '_':
 			if (element_descriptor[1]=='_' && element_descriptor[2]=='\0'){
 				code_create_lazy_array();
-				return;	
+				return;
 			}
 			break;
 	}
@@ -6080,6 +6126,39 @@ static void code_replaceI (VOID)
 	s_put_a (0,graph_4);
 }
 
+#ifdef G_AI64
+static void code_replaceI32 (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
+
+	graph_1=s_get_a (0);
+	graph_2=s_pop_b();
+	graph_3=s_get_b (0);
+
+	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
+	{
+		int offset;
+
+		offset=ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<2);
+
+		graph_5=g_load_s_x (graph_1,offset,0,NULL);
+		graph_4=g_store_s_x (graph_3,graph_1,offset,0,NULL);
+	} else {
+		int offset;
+
+		if (check_index_flag)
+			graph_2=g_bounds (graph_1,graph_2);
+
+		graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,2,graph_2,&offset);
+		graph_5=g_load_s_x (graph_1,offset,2,graph_2);
+		graph_4=g_store_s_x (graph_3,graph_1,offset,2,graph_2);
+	}
+
+	s_put_b (0,graph_5);	
+	s_put_a (0,graph_4);
+}
+#endif
 
 static INSTRUCTION_GRAPH char_or_bool_array_offset (int offset,INSTRUCTION_GRAPH graph_1)
 {
@@ -6252,7 +6331,7 @@ static void code_replaceR (VOID)
 #if defined (M68000) || defined (I486)
 			int offset;
 
-			graph_2=optimize_array_index (REAL_ARRAY_ELEMENTS_OFFSET,3,graph_2,&offset);
+			graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,3,graph_2,&offset);
 			graph_4=g_fload_x (graph_1,offset,3,graph_2);
 			graph_8=g_fstore_x (graph_7,graph_1,offset,3,graph_2);
 #else
@@ -6285,6 +6364,43 @@ static void code_replaceR (VOID)
 #endif
 	s_push_b (graph_9);
 }
+
+#ifdef G_AI64
+static void code_replaceR32 (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_7,graph_8,graph_9;
+
+	graph_1=s_get_a (0);
+	graph_2=s_pop_b();
+	graph_3=s_pop_b();
+
+	if (check_index_flag)
+		graph_2=g_bounds (graph_1,graph_2);
+
+	graph_7=g_fp_arg (graph_3);
+
+	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
+	{
+		int offset;
+		
+		offset=ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<2);
+		graph_4=g_fload_s_x (graph_1,offset,0,NULL);
+		graph_8=g_fstore_s_x (graph_7,graph_1,offset,0,NULL);
+	} else {
+		int offset;
+
+		graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,2,graph_2,&offset);
+		graph_4=g_fload_s_x (graph_1,offset,2,graph_2);
+		graph_8=g_fstore_s_x (graph_7,graph_1,offset,2,graph_2);
+	}
+
+	graph_9=g_fromf (graph_4);
+
+	s_put_a (0,graph_8);
+	s_push_b (graph_9);
+}
+#endif
 
 static void code_r_replace (int a_size,int b_size)
 {
@@ -6403,9 +6519,17 @@ void code_replace (char element_descriptor[],int a_size,int b_size)
 			}
 			break;
 		case 'I':
-			if (element_descriptor[1]=='N' && element_descriptor[2]=='T' && element_descriptor[3]=='\0'){
-				code_replaceI();
-				return;	
+			if (element_descriptor[1]=='N' && element_descriptor[2]=='T'){
+				if (element_descriptor[3]=='\0'){
+					code_replaceI();
+					return;
+				}
+#ifdef G_AI64
+				if (element_descriptor[3]=='3' && element_descriptor[4]=='2' && element_descriptor[5]=='\0'){
+					code_replaceI32();
+					return;
+				}
+#endif
 			}
 			break;
 		case 'P':
@@ -6415,11 +6539,17 @@ void code_replace (char element_descriptor[],int a_size,int b_size)
 			}
 			break;
 		case 'R':
-			if (element_descriptor[1]=='E' && element_descriptor[2]=='A' && element_descriptor[3]=='L' &&
-				element_descriptor[4]=='\0')
-			{
-				code_replaceR();
-				return;	
+			if (element_descriptor[1]=='E' && element_descriptor[2]=='A' && element_descriptor[3]=='L'){
+				if (element_descriptor[4]=='\0'){
+					code_replaceR();
+					return;
+				}
+#ifdef G_AI64
+				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
+					code_replaceR32();
+					return;
+				}
+#endif
 			}
 			break;
 		case 'A':
@@ -6919,6 +7049,32 @@ static void code_selectI (VOID)
 	s_put_b (0,graph_3);
 }
 
+#ifdef G_AI64
+static void code_selectI32 (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+	
+	graph_1=s_pop_a();
+	graph_2=s_get_b (0);
+
+	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
+	{
+		graph_3=g_load_s_x (graph_1,ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<2),0,NULL);
+	} else {
+		int offset;
+
+		if (check_index_flag)
+			graph_2=g_bounds (graph_1,graph_2);
+
+		graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,2,graph_2,&offset);
+		graph_3=g_load_s_x (graph_1,offset,2,graph_2);
+	}
+	
+	s_put_b (0,graph_3);
+}
+#endif
+
 static void code_selectR (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
@@ -6990,6 +7146,34 @@ static void code_selectR (VOID)
 #endif
 	s_push_b (graph_5);
 }
+
+#ifdef G_AI64
+static void code_selectR32 (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
+	
+	graph_1=s_pop_a();
+	graph_2=s_pop_b();
+
+	if (check_index_flag)
+		graph_2=g_bounds (graph_1,graph_2);
+
+	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
+	{
+		graph_4=g_fload_s_x (graph_1,ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<2),0,NULL);
+	} else {
+		int offset;
+
+		graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,2,graph_2,&offset);
+		graph_4=g_fload_s_x (graph_1,offset,2,graph_2);
+	}
+
+	graph_5=g_fromf (graph_4);
+
+	s_push_b (graph_5);
+}
+#endif
 
 static void code_r_select (int a_size,int b_size)
 {
@@ -7065,9 +7249,17 @@ void code_select (char element_descriptor[],int a_size,int b_size)
 			}
 			break;
 		case 'I':
-			if (element_descriptor[1]=='N' && element_descriptor[2]=='T' && element_descriptor[3]=='\0'){
-				code_selectI();
-				return;	
+			if (element_descriptor[1]=='N' && element_descriptor[2]=='T'){
+				if (element_descriptor[3]=='\0'){
+					code_selectI();
+					return;	
+				}
+#ifdef G_AI64
+				if (element_descriptor[3]=='3' && element_descriptor[4]=='2' && element_descriptor[5]=='\0'){
+					code_selectI32();
+					return;	
+				}				
+#endif
 			}
 			break;
 		case 'P':
@@ -7077,11 +7269,17 @@ void code_select (char element_descriptor[],int a_size,int b_size)
 			}
 			break;
 		case 'R':
-			if (element_descriptor[1]=='E' && element_descriptor[2]=='A' && element_descriptor[3]=='L' &&
-				element_descriptor[4]=='\0')
-			{
-				code_selectR();
-				return;	
+			if (element_descriptor[1]=='E' && element_descriptor[2]=='A' && element_descriptor[3]=='L'){
+				if (element_descriptor[4]=='\0'){
+					code_selectR();
+					return;
+				}
+#ifdef G_AI64
+				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
+					code_selectR32();
+					return;
+				}
+#endif
 			}
 			break;
 		case 'A':
@@ -7215,7 +7413,7 @@ void code_shiftl (VOID)
 		graph_2=remove_and_31_or_63 (graph_2);
 #endif
 	graph_3=g_lsl (graph_2,graph_1);
-	
+
 	s_put_b (0,graph_3);
 }
 
@@ -7286,6 +7484,33 @@ void code_sinR (VOID)
 # endif
 #endif
 }
+
+#if defined (I486) && !defined (G_AI64)
+void code_sincosR (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7,graph_8,graph_9,graph_10;
+	
+	graph_2=s_get_b (1);
+	graph_1=s_get_b (0);
+	graph_3=g_fjoin (graph_1,graph_2);
+
+	graph_4=g_instruction_1 (GFSINCOS,graph_3);
+
+	graph_5=g_instruction_2 (GFRESULT1,graph_4,NULL);
+	graph_6=g_instruction_2 (GFRESULT0,graph_4,NULL);
+	graph_5->instruction_parameters[1].p=graph_6;
+	graph_6->instruction_parameters[1].p=graph_5;
+
+	g_fhighlow (graph_7,graph_8,graph_5);
+	g_fhighlow (graph_9,graph_10,graph_6);
+
+	s_put_b (1,graph_8);
+	s_put_b (0,graph_7);
+
+	s_push_b (graph_10);
+	s_push_b (graph_9);
+}
+#endif
 
 void code_sqrtR (VOID)
 {
@@ -7578,6 +7803,33 @@ static void code_updateI (VOID)
 	s_put_a (0,graph_4);
 }
 
+#ifdef G_AI64
+static void code_updateI32 (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
+	
+	graph_1=s_get_a (0);
+	graph_2=s_pop_b();
+	graph_3=s_pop_b();
+
+	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
+	{
+		graph_4=g_store_x (graph_3,graph_1,ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<2),0,NULL);
+	} else {
+		int offset;
+
+		if (check_index_flag)
+			graph_2=g_bounds (graph_1,graph_2);
+
+		graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,2,graph_2,&offset);
+		graph_4=g_store_s_x (graph_3,graph_1,offset,2,graph_2);
+	}
+	
+	s_put_a (0,graph_4);
+}
+#endif
+
 static void code_updateR (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7,graph_8;
@@ -7648,6 +7900,35 @@ static void code_updateR (VOID)
 
 	s_put_a (0,graph_8);
 }
+
+#ifdef G_AI64
+static void code_updateR32 (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_7,graph_8;
+	
+	graph_1=s_get_a (0);
+	graph_2=s_pop_b();	
+	graph_3=s_pop_b();
+
+	if (check_index_flag)
+		graph_2=g_bounds (graph_1,graph_2);
+
+	graph_7=g_fp_arg (graph_3);
+
+	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
+		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-REAL_ARRAY_ELEMENTS_OFFSET)>>2))
+	{
+		graph_8=g_fstore_s_x (graph_7,graph_1,REAL_ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<2),0,NULL);
+	} else {
+		int offset;
+
+		graph_2=optimize_array_index (REAL_ARRAY_ELEMENTS_OFFSET,2,graph_2,&offset);
+		graph_8=g_fstore_s_x (graph_7,graph_1,offset,2,graph_2);
+	}
+
+	s_put_a (0,graph_8);
+}
+#endif
 
 static int equal_graph (INSTRUCTION_GRAPH graph_0,INSTRUCTION_GRAPH graph_1)
 {
@@ -7809,9 +8090,17 @@ void code_update (char element_descriptor[],int a_size,int b_size)
 			}
 			break;
 		case 'I':
-			if (element_descriptor[1]=='N' && element_descriptor[2]=='T' && element_descriptor[3]=='\0'){
-				code_updateI();
-				return;	
+			if (element_descriptor[1]=='N' && element_descriptor[2]=='T'){
+				if (element_descriptor[3]=='\0'){
+					code_updateI();
+					return;
+				}
+#ifdef G_AI64
+				if (element_descriptor[3]=='3' && element_descriptor[4]=='2' && element_descriptor[5]=='\0'){
+					code_updateI32();
+					return;	
+				}
+#endif
 			}
 			break;
 		case 'P':
@@ -7821,11 +8110,17 @@ void code_update (char element_descriptor[],int a_size,int b_size)
 			}
 			break;
 		case 'R':
-			if (element_descriptor[1]=='E' && element_descriptor[2]=='A' && element_descriptor[3]=='L' &&
-				element_descriptor[4]=='\0')
-			{
-				code_updateR();
-				return;	
+			if (element_descriptor[1]=='E' && element_descriptor[2]=='A' && element_descriptor[3]=='L'){
+				if (element_descriptor[4]=='\0'){
+					code_updateR();
+					return;
+				}
+#ifdef G_AI64
+				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
+					code_updateR32();
+					return;
+				}				
+#endif
 			}
 			break;
 		case 'A':
@@ -9335,6 +9630,10 @@ void initialize_coding (VOID)
 	create_arrayB_label=create_arrayC_label=create_arrayI_label=create_arrayR_label=create_r_array_label=NULL;
 	create_arrayB__label=create_arrayC__label=create_arrayI__label=create_arrayR__label=create_r_array__label=NULL;
 	push_a_r_args_label=index_error_label=NULL;
+
+#ifdef G_AI64
+	create_arrayI32_label=create_arrayR32_label=NULL;
+#endif
 
 	small_integers_label=static_characters_label=NULL;
 
