@@ -5950,7 +5950,7 @@ static void linearize_fromf_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 				ad_p->ad_register=reg;
 				ad_p->ad_count_p=&graph->node_count;
 				
-				graph->instruction_code=P_REGISTER;
+				graph->instruction_code=GREGISTER;
 				graph->instruction_parameters[0].i=reg;
 			}
 			return;
@@ -6063,7 +6063,7 @@ static void linearize_fromf_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 				ad_p->ad_register=reg;
 				ad_p->ad_count_p=&graph->node_count;
 				
-				graph->instruction_code=P_REGISTER;
+				graph->instruction_code=GREGISTER;
 				graph->instruction_parameters[0].i=reg;
 
 				register_node (graph,reg);
@@ -6111,7 +6111,7 @@ static void linearize_fhigh_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 				ad_p->ad_register=reg;
 				ad_p->ad_count_p=&graph->node_count;
 				
-				graph->instruction_code=P_REGISTER;
+				graph->instruction_code=GREGISTER;
 				graph->instruction_parameters[0].i=reg;
 			}
 			return;
@@ -6243,7 +6243,7 @@ static void linearize_fhigh_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 				ad_p->ad_register=reg;
 				ad_p->ad_count_p=&graph->node_count;
 				
-				graph->instruction_code=P_REGISTER;
+				graph->instruction_code=GREGISTER;
 				graph->instruction_parameters[0].i=reg;
 
 				register_node (graph,reg);
@@ -6321,7 +6321,7 @@ static void linearize_flow_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 				ad_p->ad_register=reg;
 				ad_p->ad_count_p=&graph->node_count;
 				
-				graph->instruction_code=P_REGISTER;
+				graph->instruction_code=GREGISTER;
 				graph->instruction_parameters[0].i=reg;
 			} else {
 				ad_p->ad_mode=P_INDIRECT;
@@ -6411,7 +6411,7 @@ static void linearize_flow_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 				ad_p->ad_register=reg;
 				ad_p->ad_count_p=&graph->node_count;
 				
-				graph->instruction_code=P_REGISTER;
+				graph->instruction_code=GREGISTER;
 				graph->instruction_parameters[0].i=reg;
 			} else {
 				if (load_x_graph->inode_arity & LOAD_X_TO_ADDRESS){
