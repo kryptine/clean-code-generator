@@ -18,7 +18,7 @@ enum {
 	,GNOT
 #endif
 #ifndef G_A64
-	,GFHIGH,GFJOIN,GFLOW,
+	,GFHIGH,GFJOIN,GFLOW
 #else
 	,GFROMF,GTOF
 #endif
