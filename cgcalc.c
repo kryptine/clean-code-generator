@@ -1438,7 +1438,7 @@ static void calculate_store_x_operator (INSTRUCTION_GRAPH graph)
 				select_graph=select_graph->instruction_parameters[3].p;			
 				break;
 			case GFLOAD_X:
-#ifdef G_AI64
+#ifdef I486
 			case GFLOAD_S_X:
 #endif
 			case GREGISTER:
@@ -1757,7 +1757,7 @@ static void calculate_fstore_x_operator (INSTRUCTION_GRAPH graph)
 	while (select_graph!=NULL){
 		switch (select_graph->instruction_code){
 			case GFLOAD_X:
-#ifdef G_AI64
+#ifdef I486
 			case GFLOAD_S_X:
 #endif
 				if (graph_2==select_graph->instruction_parameters[0].p){
@@ -2487,13 +2487,13 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			calculate_fstore_operator (graph);
 			return;
 		case GFLOAD_X:
-#ifdef G_AI64
+#ifdef I486
 		case GFLOAD_S_X:
 #endif
 			calculate_fload_x_operator (graph);
 			return;
 		case GFSTORE_X:
-#ifdef G_AI64
+#ifdef I486
 		case GFSTORE_S_X:
 #endif
 			calculate_fstore_x_operator (graph);
@@ -2859,6 +2859,8 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GFLOAD_X:
 #ifdef G_AI64
 		case GLOAD_S_X:
+#endif
+#ifdef I486
 		case GFLOAD_S_X:
 #endif
 			if (++graph->node_count==1){
@@ -2875,7 +2877,7 @@ void count_graph (INSTRUCTION_GRAPH graph)
 			count_gstore_x_node (graph);
 			break;
 		case GFSTORE_X:
-#ifdef G_AI64
+#ifdef I486
 		case GFSTORE_S_X:
 #endif
 			if (++graph->node_count==1){
@@ -3082,6 +3084,8 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GFLOAD_X:
 #ifdef G_AI64
 		case GLOAD_S_X:
+#endif
+#ifdef I486
 		case GFLOAD_S_X:
 #endif
 			if (graph->node_mark<2){
@@ -3097,7 +3101,7 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GSTORE_S_X:
 #endif
 		case GFSTORE_X:
-#ifdef G_AI64
+#ifdef I486
 		case GFSTORE_S_X:
 #endif
 			if (graph->node_mark<2){
@@ -3296,6 +3300,8 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GFLOAD_X:
 #ifdef G_AI64
 		case GLOAD_S_X:
+#endif
+#ifdef I486
 		case GFLOAD_S_X:
 #endif
 			if (!graph->node_mark){
@@ -3311,7 +3317,7 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GSTORE_S_X:
 #endif
 		case GFSTORE_X:
-#ifdef G_AI64
+#ifdef I486
 		case GFSTORE_S_X:
 #endif
 			if (!graph->node_mark){

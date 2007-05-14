@@ -1609,7 +1609,10 @@ IF_G_POWER ( case IUMULH: )
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)
 IF_G_RISC (case IADDI: case ILSLI:)
 #ifdef G_AI64
-			case ILOADSQB:	case IFLOADS:	case IFCVT2S:	case IFMOVES:
+			case ILOADSQB:	case IFCVT2S:
+#endif
+#ifdef I486
+			case IFLOADS:	case IFMOVES:
 #endif
 #if defined (I486) && !defined (G_A64)
 			case IFSINCOS:
@@ -3917,7 +3920,10 @@ IF_G_POWER (case ICMPLW:)
 IF_G_SPARC (case IFMOVEHI:	case IFMOVELO:)
 IF_G_RISC (case IADDI: case ILSLI:)
 #ifdef G_AI64
-			case ILOADSQB:	case IFLOADS:	case IFCVT2S:	case IFMOVES:
+			case ILOADSQB:	case IFCVT2S:
+#endif
+#ifdef I486
+			case IFLOADS:	case IFMOVES:
 #endif
 #if 1
 				if (instruction->instruction_parameters[1].parameter_type==P_REGISTER ||

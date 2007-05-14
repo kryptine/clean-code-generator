@@ -6365,19 +6365,26 @@ static void code_replaceR (VOID)
 	s_push_b (graph_9);
 }
 
-#ifdef G_AI64
+#ifdef I486
 static void code_replaceR32 (VOID)
 {
-	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_7,graph_8,graph_9;
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_7,graph_8,graph_9,graph_10;
 
 	graph_1=s_get_a (0);
 	graph_2=s_pop_b();
 	graph_3=s_pop_b();
+# ifndef G_A64
+	graph_4=s_pop_b();
+# endif
 
 	if (check_index_flag)
 		graph_2=g_bounds (graph_1,graph_2);
 
+# ifdef G_A64
 	graph_7=g_fp_arg (graph_3);
+# else
+	graph_7=g_fjoin (graph_3,graph_4);
+# endif
 
 	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
 		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-ARRAY_ELEMENTS_OFFSET)>>2))
@@ -6395,9 +6402,16 @@ static void code_replaceR32 (VOID)
 		graph_8=g_fstore_s_x (graph_7,graph_1,offset,2,graph_2);
 	}
 
+# ifdef G_A64
 	graph_9=g_fromf (graph_4);
+# else
+	g_fhighlow (graph_9,graph_10,graph_4);
+# endif
 
 	s_put_a (0,graph_8);
+# ifndef G_A64
+	s_push_b (graph_10);
+# endif
 	s_push_b (graph_9);
 }
 #endif
@@ -6544,7 +6558,7 @@ void code_replace (char element_descriptor[],int a_size,int b_size)
 					code_replaceR();
 					return;
 				}
-#ifdef G_AI64
+#ifdef I486
 				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
 					code_replaceR32();
 					return;
@@ -7147,7 +7161,7 @@ static void code_selectR (VOID)
 	s_push_b (graph_5);
 }
 
-#ifdef G_AI64
+#ifdef I486
 static void code_selectR32 (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
@@ -7169,8 +7183,12 @@ static void code_selectR32 (VOID)
 		graph_4=g_fload_s_x (graph_1,offset,2,graph_2);
 	}
 
+# ifdef G_A64
 	graph_5=g_fromf (graph_4);
-
+# else
+	g_fhighlow (graph_5,graph_6,graph_4);
+	s_push_b (graph_6);
+# endif
 	s_push_b (graph_5);
 }
 #endif
@@ -7274,7 +7292,7 @@ void code_select (char element_descriptor[],int a_size,int b_size)
 					code_selectR();
 					return;
 				}
-#ifdef G_AI64
+#ifdef I486
 				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
 					code_selectR32();
 					return;
@@ -7901,19 +7919,26 @@ static void code_updateR (VOID)
 	s_put_a (0,graph_8);
 }
 
-#ifdef G_AI64
+#ifdef I486
 static void code_updateR32 (VOID)
 {
-	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_7,graph_8;
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_7,graph_8;
 	
 	graph_1=s_get_a (0);
 	graph_2=s_pop_b();	
 	graph_3=s_pop_b();
+# ifndef G_A64
+	graph_4=s_pop_b();
+# endif
 
 	if (check_index_flag)
 		graph_2=g_bounds (graph_1,graph_2);
 
+# ifdef G_A64
 	graph_7=g_fp_arg (graph_3);
+# else
+	graph_7=g_fjoin (graph_3,graph_4);
+# endif
 
 	if (!check_index_flag && graph_2->instruction_code==GLOAD_I &&
 		LESS_UNSIGNED (graph_2->instruction_parameters[0].i,(MAX_INDIRECT_OFFSET-REAL_ARRAY_ELEMENTS_OFFSET)>>2))
@@ -8115,7 +8140,7 @@ void code_update (char element_descriptor[],int a_size,int b_size)
 					code_updateR();
 					return;
 				}
-#ifdef G_AI64
+#ifdef I486
 				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
 					code_updateR32();
 					return;

@@ -431,7 +431,7 @@ static void i_fexg_fr_fr (int register_1,int register_2)
 }
 #endif
 
-#ifdef G_AI64
+#ifdef I486
 static void i_floads_id_fr (int offset,int register_2,int register_1)
 {
 	struct instruction *instruction;
@@ -622,7 +622,7 @@ static void i_fmovel_fr_r (int register_1,int register_2)
 												parameter_data.i=register_2);
 }
 
-#ifdef G_AI64
+#ifdef I486
 static void i_fmoves_fr_id (int register_1,int offset,int register_2)
 {
 	struct instruction *instruction;
@@ -689,7 +689,7 @@ static void i_fmove_x_fr (int offset,int register_1,int register_2,int register_
 	set_float_register_parameter (instruction->instruction_parameters[1],register_3);
 }
 
-#ifdef G_AI64
+#ifdef I486
 static void i_floads_x_fr (int offset,int register_1,int register_2,int register_3)
 {
 	struct instruction *instruction;
@@ -6882,7 +6882,7 @@ static void linearize_fload_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 	}
 }
 
-#ifdef G_AI64
+#ifdef I486
 static void linearize_fload_s_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
@@ -7080,7 +7080,7 @@ static void linearize_float_graph (register INSTRUCTION_GRAPH graph,register ADD
 		case GFLOAD_X:
 			linearize_fload_x_operator (graph,ad_p);
 			return;
-#ifdef G_AI64
+#ifdef I486
 		case GFLOAD_S_X:
 			linearize_fload_s_x_operator (graph,ad_p);
 			return;
@@ -7190,7 +7190,7 @@ static void linearize_fstore_operator (INSTRUCTION_GRAPH graph)
 }
 
 static void linearize_fstore_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p);
-#ifdef G_AI64
+#ifdef I486
 static void linearize_fstore_s_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p);
 #endif
 
@@ -8092,7 +8092,7 @@ static void do_array_selects_before_update (INSTRUCTION_GRAPH select_graph,INSTR
 					}
 				}
 				break;
-#ifdef G_AI64
+#ifdef I486
 			case GFLOAD_S_X:
 				if (graph_2==select_graph->instruction_parameters[0].p){
 					if (select_graph->node_count>0 && !(select_graph->inode_arity & LOAD_X_TO_REGISTER)){
@@ -8743,7 +8743,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GFSTORE_X:
 			linearize_fstore_x_operator (graph,ad_p);
 			return;
-#ifdef G_AI64
+#ifdef I486
 		case GFSTORE_S_X:
 			linearize_fstore_s_x_operator (graph,ad_p);
 			return;
@@ -9043,7 +9043,7 @@ static void linearize_fstore_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 	}
 }
 
-#ifdef G_AI64
+#ifdef I486
 static void linearize_fstore_s_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
@@ -9110,6 +9110,7 @@ static void linearize_fstore_s_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p
 		if (ad_1.ad_mode!=P_F_REGISTER)
 			in_float_register (&ad_1);
 
+#ifdef G_AI64
 		if (--*ad_1.ad_count_p==0)
 			reg_1=ad_1.ad_register;
 		else
@@ -9119,6 +9120,15 @@ static void linearize_fstore_s_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p
 		i_fmoves_fr_id (reg_1,offset>>2,ad_p->ad_register);
 
 		free_fregister (reg_1);
+#else
+		i_fmoves_fr_id (ad_1.ad_register,offset>>2,ad_p->ad_register);
+		if (--*ad_1.ad_count_p==0){
+# ifdef FP_STACK_OPTIMIZATIONS
+			last_instruction->instruction_parameters[0].parameter_flags |= FP_REG_LAST_USE;
+# endif
+			free_fregister (ad_1.ad_register);
+		}
+#endif
 	} else {
 		int reg_1;
 
@@ -9129,7 +9139,7 @@ static void linearize_fstore_s_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p
 
 		if (ad_1.ad_mode!=P_F_REGISTER)
 			in_float_register (&ad_1);
-
+#ifdef G_AI64
 		if (--*ad_1.ad_count_p==0)
 			reg_1=ad_1.ad_register;
 		else
@@ -9139,6 +9149,15 @@ static void linearize_fstore_s_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p
 		i_fmoves_fr_x (reg_1,offset,ad_p->ad_register,ad_3.ad_register);
 
 		free_fregister (reg_1);
+#else
+		i_fmoves_fr_x (ad_1.ad_register,offset,ad_p->ad_register,ad_3.ad_register);
+		if (--*ad_1.ad_count_p==0){
+# ifdef FP_STACK_OPTIMIZATIONS
+			last_instruction->instruction_parameters[0].parameter_flags |= FP_REG_LAST_USE;
+# endif
+			free_fregister (ad_1.ad_register);
+		}
+#endif
 	}
 
 	if (graph->node_count>1){

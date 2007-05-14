@@ -673,7 +673,7 @@ INSTRUCTION_GRAPH g_fload_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INST
 	return instruction;
 }
 
-#ifdef G_AI64
+#ifdef I486
 INSTRUCTION_GRAPH g_fload_s_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2)
 {
 	INSTRUCTION_GRAPH instruction;
@@ -973,7 +973,7 @@ INSTRUCTION_GRAPH g_fstore_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_
 	return instruction;
 }
 
-#ifdef G_AI64
+#ifdef I486
 INSTRUCTION_GRAPH g_fstore_s_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,int shift,INSTRUCTION_GRAPH graph_3)
 {
 	INSTRUCTION_GRAPH instruction;

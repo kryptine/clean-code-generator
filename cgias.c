@@ -3068,6 +3068,7 @@ struct instruction *find_next_fp_instruction (struct instruction *instruction)
 			case IFCOS: case IFSIN: case IFSQRT: case IFTAN: case IFSINCOS:
 			case IFEXG:
 			case IWORD:
+			case IFLOADS: case IFMOVES:
 				return instruction;
 			case IFMOVE:
 				if (! (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER
@@ -3551,6 +3552,183 @@ static struct instruction *as_fmove_instruction (struct instruction *instruction
 			}
 	}
 	internal_error_in_function ("as_fmove_instruction");
+	return instruction;
+}
+
+static struct instruction *as_floads_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[1].parameter_type){
+		case P_F_REGISTER:
+		{
+			int reg0;
+			
+			reg0=-1;
+			
+			switch (instruction->instruction_parameters[0].parameter_type){
+				case P_INDIRECT:
+					as_f_id (0xd9,instruction->instruction_parameters[0].parameter_offset,
+								  instruction->instruction_parameters[0].parameter_data.reg.r,0); /* flds */
+					break;
+				case P_INDEXED:
+					as_f_x (0xd9,instruction->instruction_parameters[0].parameter_offset,
+							     instruction->instruction_parameters[0].parameter_data.ir,0); /* flds */
+					break;
+				default:
+					internal_error_in_function ("as_floads_instruction");
+					return instruction;
+			}
+#ifdef FP_STACK_OPTIMIZATIONS
+			fstpl_instruction (instruction->instruction_parameters[1].parameter_data.reg.r,instruction);
+			return instruction;
+		}
+#else
+			{
+				struct instruction *next_instruction;
+				int reg1;
+
+				reg1=instruction->instruction_parameters[1].parameter_data.reg.r;
+				next_instruction=instruction->instruction_next;
+
+				if (next_instruction)
+					switch (next_instruction->instruction_icode){
+						case IFADD: case IFSUB: case IFMUL: case IFDIV:
+							if (next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1){
+								if (next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+									int reg_s,code2;
+
+									reg_s=next_instruction->instruction_parameters[0].parameter_data.reg.r;
+									if (reg_s==reg1)
+										reg_s=reg0;
+
+									switch (next_instruction->instruction_icode){
+										case IFADD:
+											code2=0xc0;
+											break;
+										case IFSUB:
+# ifdef FSUB_FDIV_REVERSED
+											if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+												code2=0xe8;
+											else
+# endif
+												code2=0xe0;
+											break;
+										case IFMUL:
+											code2=0xc8;
+											break;
+										case IFDIV:
+# ifdef FSUB_FDIV_REVERSED
+											if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+												code2=0xf8;
+											else
+# endif
+												code2=0xf0;
+											break;
+									}
+
+									as_f_r (0xd8,code2,reg_s+1);
+								} else {
+									int code2;
+									
+									switch (next_instruction->instruction_icode){
+										case IFADD:
+											code2=0;
+											break;
+										case IFSUB:
+# ifdef FSUB_FDIV_REVERSED
+											if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+												code2=5;
+											else
+# endif
+												code2=4;
+											break;
+										case IFMUL:
+											code2=1;
+											break;
+										case IFDIV:
+# ifdef FSUB_FDIV_REVERSED
+											if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+												code2=7;
+											else
+# endif
+												code2=6;
+											break;
+									}
+
+									switch (next_instruction->instruction_parameters[0].parameter_type){
+										case P_F_IMMEDIATE:	
+											as_f_i (0xdc,code2,next_instruction->instruction_parameters[0].parameter_data.r);
+											break;
+										case P_INDIRECT:
+											as_f_id (0xdc,next_instruction->instruction_parameters[0].parameter_offset,
+														  next_instruction->instruction_parameters[0].parameter_data.reg.r,code2);
+											break;
+										case P_INDEXED:
+											as_f_x (0xdc,next_instruction->instruction_parameters[0].parameter_offset,
+														 next_instruction->instruction_parameters[0].parameter_data.ir,code2);
+											break;
+										default:
+											internal_error_in_function ("as_floads_instruction");
+											return instruction;
+									}
+								}
+									
+								as_f_r (0xdd,0xd8,reg1+1); /* fstp reg1+1 */
+									
+								return next_instruction;
+							}
+					}
+		
+				as_f_r (0xdd,0xd8,reg1+1); /* fstp reg */
+				return instruction;
+			}
+		}
+#endif
+	}
+	internal_error_in_function ("as_floads_instruction");
+	return instruction;
+}
+
+static struct instruction *as_fmoves_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[1].parameter_type){
+		case P_INDIRECT:
+		case P_INDEXED:
+			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+				int s_freg,code2;
+				
+				s_freg=instruction->instruction_parameters[0].parameter_data.reg.r;
+
+#ifdef FP_STACK_OPTIMIZATIONS
+				if (instruction->instruction_parameters[0].parameter_flags & FP_REG_ON_TOP){
+					if (next_instruction_is_fld_reg (s_freg,instruction))
+						code2=2; /* fsts */
+					else
+						code2=3; /* fstps */
+				} else
+#endif			
+				if (s_freg!=0){
+					as_f_r (0xd9,0xc0,s_freg); /* fld s_freg */
+
+#ifdef FP_STACK_OPTIMIZATIONS
+					if (next_instruction_is_fld_reg (s_freg,instruction))
+						code2=2; /* fsts */
+					else
+#endif
+					code2=3; /* fstps */
+				} else
+					code2=2; /* fsts */
+				
+				if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT)
+					as_f_id (0xd9,instruction->instruction_parameters[1].parameter_offset,
+							  	  instruction->instruction_parameters[1].parameter_data.reg.r,code2);
+				else
+					as_f_x (0xd9,instruction->instruction_parameters[1].parameter_offset,
+								 instruction->instruction_parameters[1].parameter_data.ir,code2);
+				
+				return instruction;
+			}
+	}
+	internal_error_in_function ("as_fmoves_instruction");
 	return instruction;
 }
 
@@ -4400,6 +4578,12 @@ static void as_instructions (struct instruction *instruction)
 #endif
 			case IFMOVEL:
 				as_fmovel_instruction (instruction);
+				break;
+			case IFLOADS:
+				instruction=as_floads_instruction (instruction);
+				break;
+			case IFMOVES:
+				instruction=as_fmoves_instruction (instruction);
 				break;
 			case IFSQRT:
 				as_monadic_float_instruction (instruction,0xfa);

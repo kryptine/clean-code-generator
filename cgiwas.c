@@ -3069,6 +3069,167 @@ static struct instruction *w_as_fmove_instruction (struct instruction *instructi
 	return instruction;
 }
 
+static struct instruction *w_as_floads_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[1].parameter_type){
+		case P_F_REGISTER:
+		{
+			int reg0;
+
+			reg0=-1;
+
+			switch (instruction->instruction_parameters[0].parameter_type){
+				case P_INDIRECT:
+					if (!intel_asm)
+						w_as_opcode ("flds");
+					else {
+						w_as_opcode ("fld");
+						fprintf (assembly_file,"dword ptr ");
+					}
+					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,
+								   instruction->instruction_parameters[0].parameter_data.reg.r);
+					w_as_newline();
+					break;
+				case P_INDEXED:
+					if (!intel_asm)
+						w_as_opcode ("flds");
+					else {
+						w_as_opcode ("fld");
+						fprintf (assembly_file,"dword ptr ");
+					}
+					w_as_indexed (instruction->instruction_parameters[0].parameter_offset,
+								   instruction->instruction_parameters[0].parameter_data.ir);
+					w_as_newline();
+					break;
+				default:
+					internal_error_in_function ("w_as_floads_instruction");
+					return instruction;
+			}
+#ifdef FP_STACK_OPTIMIZATIONS
+			fstpl_instruction (instruction->instruction_parameters[1].parameter_data.reg.r,instruction);
+			return instruction;
+		}
+#else
+			{	
+ 				struct instruction *next_instruction;
+				int reg1;
+
+				reg1=instruction->instruction_parameters[1].parameter_data.reg.r;
+				
+				next_instruction=instruction->instruction_next;
+				if (next_instruction)
+					switch (next_instruction->instruction_icode){
+						case IFADD: case IFSUB: case IFMUL: case IFDIV:
+							if (next_instruction->instruction_parameters[1].parameter_data.reg.r==reg1){
+								char *opcode;
+							
+								switch (next_instruction->instruction_icode){
+									case IFADD:
+										opcode="fadd";
+										break;
+									case IFSUB:
+# ifdef FSUB_FDIV_REVERSED
+										if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+											opcode="fsubr";
+										else
+# endif
+											opcode="fsub";
+										break;
+									case IFMUL:
+										opcode="fmul";
+										break;
+									case IFDIV:
+# ifdef FSUB_FDIV_REVERSED
+										if (next_instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+											opcode="fdivr";
+										else
+# endif
+											opcode="fdiv";
+										break;
+								}
+								
+								if (next_instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+									int reg_s;
+
+									reg_s=next_instruction->instruction_parameters[0].parameter_data.reg.r;
+									if (reg_s==reg1)
+										reg_s=reg0;
+
+									w_as_opcode (opcode);
+									if (intel_asm)
+										fprintf (assembly_file,"st,");
+									w_as_fp_register_newline (reg_s+1);
+								} else
+									w_as_opcode_parameter_newline (opcode,&next_instruction->instruction_parameters[0]);
+								
+								w_as_opcode ("fstp");
+								w_as_fp_register_newline (reg1+1);
+								
+								return next_instruction;
+							}
+					}
+			}
+		}
+
+			w_as_opcode ("fstp");
+			w_as_fp_register_newline (instruction->instruction_parameters[1].parameter_data.reg.r+1);
+			return instruction;
+#endif
+	}
+	internal_error_in_function ("w_as_floads_instruction");
+	return instruction;
+}
+
+static struct instruction *w_as_fmoves_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[1].parameter_type){
+		case P_INDIRECT:
+		case P_INDEXED:
+			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+				int s_freg;
+				
+				s_freg=instruction->instruction_parameters[0].parameter_data.reg.r;
+				
+#ifdef FP_STACK_OPTIMIZATIONS
+				if (instruction->instruction_parameters[0].parameter_flags & FP_REG_ON_TOP){
+					if (next_instruction_is_fld_reg (s_freg,instruction))
+						w_as_opcode (intel_asm ? "fst" : "fsts");
+					else {
+						w_as_opcode (intel_asm ? "fstp" : "fstps");
+					}
+				} else
+#endif
+				if (s_freg!=0){
+					w_as_opcode ("fld");
+					w_as_fp_register_newline (s_freg);
+					
+#ifdef FP_STACK_OPTIMIZATIONS
+					if (next_instruction_is_fld_reg (s_freg,instruction))
+						w_as_opcode (intel_asm ? "fst" : "fsts");
+					else
+#endif
+					w_as_opcode (intel_asm ? "fstp" : "fstps");
+				} else
+					w_as_opcode (intel_asm ? "fst" : "fsts");
+				
+				if (intel_asm)
+					fprintf (assembly_file,"dword ptr ");
+
+				if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT)
+					w_as_indirect (instruction->instruction_parameters[1].parameter_offset,
+								   instruction->instruction_parameters[1].parameter_data.reg.r);
+				else
+					w_as_indexed (instruction->instruction_parameters[1].parameter_offset,
+								  instruction->instruction_parameters[1].parameter_data.ir);
+					
+				w_as_newline();
+				return instruction;
+			}
+	}
+	internal_error_in_function ("w_as_fmoves_instruction");
+	return instruction;
+}
+
 static int int_to_real_scratch_imported=0;
 
 static void w_as_fmovel_instruction (struct instruction *instruction)
@@ -3494,6 +3655,12 @@ static void w_as_instructions (register struct instruction *instruction)
 #endif
 			case IFMOVEL:
 				w_as_fmovel_instruction (instruction);
+				break;
+			case IFLOADS:
+				instruction=w_as_floads_instruction (instruction);
+				break;
+			case IFMOVES:
+				instruction=w_as_fmoves_instruction (instruction);
 				break;
 			case IFSQRT:
 				w_as_monadic_float_instruction (instruction,"fsqrt");

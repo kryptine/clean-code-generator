@@ -67,6 +67,7 @@ enum {
 #endif
 #if defined (I486)
 	,IADC ,IRTSI, IDIVI, IREMI, IREMU, IMULUD, IDIVDU, ISBB
+	,IFLOADS, IFMOVES
 #endif
 #if defined (I486) || defined (G_POWER)
 	,IDIVU
@@ -75,7 +76,7 @@ enum {
 	,IUMULH
 #endif
 #ifdef G_AI64
-	,ILOADSQB, IMOVEQB,	IFLOADS, IFCVT2S, IFMOVES
+	,ILOADSQB, IMOVEQB,	IFCVT2S
 #endif
 };
 
