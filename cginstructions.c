@@ -4213,6 +4213,14 @@ static void restore_registers_after_c_call (void)
 #endif
 }
 
+#ifdef I486
+# ifdef G_AI64
+#  define REGISTER_EBP_OR_RBP (-5)
+# else
+#  define REGISTER_EBP_OR_RBP (-3)
+# endif
+#endif
+
 void code_centry (char *c_function_name,char *clean_function_label,char *s,int length)
 {
 #if defined (I486) || defined (G_POWER)
@@ -4259,7 +4267,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		c=s[i];
 		if (c=='I')
 			++n_integer_parameters;
-#if defined (I486) && !defined (G_A64)
+#if defined (I486)
 		else if (c=='R'){
 			++n_float_parameters;
 			float_parameter_or_result=1;
@@ -4287,7 +4295,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 				else if (c=='I'){
 					integer_c_function_result=1;
 					++n_integer_results;
-#if defined (I486) && !defined (G_A64)
+#if defined (I486)
 				} else if (c=='R'){
 					float_c_function_result=1;
 					++n_float_results;
@@ -4316,7 +4324,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 				c=s[i];
 				if (c=='I')
 					++n_integer_results;
-#if defined (I486) && !defined (G_A64)
+#if defined (I486)
 				else if (c=='R'){
 					++n_float_results;
 					float_parameter_or_result=1;
@@ -4409,11 +4417,49 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 
 	save_registers_before_c_call();
 
-#if defined (I486) && !defined (G_A64)
+#if defined (G_AI64)
+	if (n_string_or_array_parameters!=0){
+		int register_n;
+
+		for (i=first_parameter_index,register_n=0; i<colon_index && register_n<4; ++i,++register_n){
+			char c;
+
+			c=s[i];
+			if (c!='R'){
+				i_move_r_id (REGISTER_A0-register_n,(18+1+register_n)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
+				if (c=='A')
+					++i;
+			} else
+				i_fmove_fr_id (register_n,(18+1+register_n)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
+		}
+	}
+
+	{
+		int first_result_pointer_n,n_result_pointers;
+
+		first_result_pointer_n = n_integer_and_float_parameters+n_string_or_array_parameters;
+		if (first_result_pointer_n<4){
+			int register_n;
+			
+			n_result_pointers = n_integer_results-integer_c_function_result+
+								n_float_results-float_c_function_result+
+								n_string_or_array_results-string_or_array_c_function_result;
+
+			for (register_n=first_result_pointer_n; register_n<4 && register_n<first_result_pointer_n+n_result_pointers; ++register_n)
+				i_move_r_id (REGISTER_A0-register_n,(18+1+register_n)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);				
+		}
+	}
+#endif
+
+#if defined (I486)
 	if (n_string_or_array_parameters!=0){
 		int i,offset;
 
+# if defined (G_A64)
+		offset=((18+1+n_integer_parameters+n_string_or_array_parameters)<<STACK_ELEMENT_LOG_SIZE)+(n_float_parameters<<3);
+# else
 		offset=24+((n_integer_parameters+n_string_or_array_parameters)<<STACK_ELEMENT_LOG_SIZE)+(n_float_parameters<<3);
+# endif
 		
 		for (i=colon_index-1; i>=first_parameter_index; --i){
 			char c;
@@ -4471,11 +4517,15 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	init_a_stack (0);
 	init_b_stack (0,e_vector);
 
-#if defined (I486) && !defined (G_A64)
+#if defined (I486)
 	if (n_string_or_array_parameters!=0){
 		int i,offset;
 
+# if defined (G_A64)
+		offset=18+1+(n_integer_and_float_parameters+n_string_or_array_parameters-1);
+# else
 		offset=5+1+(n_integer_and_float_parameters+n_string_or_array_parameters-1);
+# endif
 
 		for (i=colon_index-1; i>=first_parameter_index; --i){
 			char c;
@@ -4485,7 +4535,9 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 				s_push_b (s_get_b (offset));
 			else if (c=='R'){
 				s_push_b (s_get_b (offset));
+# if !defined (G_A64)
 				s_push_b (s_get_b (offset));
+# endif
 			} else if (c=='S'){
 				--offset;
 			} else if (c=='i' || c=='r'){
@@ -4496,17 +4548,23 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		}
 	} else
 #endif
-	for (n=0; n<n_integer_and_float_parameters; ++n)
+		for (n=0; n<n_integer_and_float_parameters; ++n)
 #ifdef G_POWER
-		s_push_b (g_g_register (C_PARAMETER_REGISTER_0+((n_integer_parameters-1)-n)));
+			s_push_b (g_g_register (C_PARAMETER_REGISTER_0+((n_integer_parameters-1)-n)));
 #else
 # ifdef G_AI64
-		if (n>=n_integer_parameters-4)
-			s_push_b (g_g_register (REGISTER_A0-((n_integer_parameters-1)-n)));
-		else
-			s_push_b (s_get_b (18+1+4+(n_integer_parameters-4-1)));
+			if (n>=n_integer_and_float_parameters-4){
+				int register_n;
+
+				register_n = (n_integer_and_float_parameters-1)-n;
+				if (s[first_parameter_index+register_n]!='R')
+					s_push_b (g_g_register (REGISTER_A0-register_n));
+				else
+					s_push_b (g_fromf (g_fregister (register_n)));
+			} else
+				s_push_b (s_get_b (18+1+4+(n_integer_and_float_parameters-4-1)));
 # else
-		s_push_b (s_get_b (5+1+(n_integer_and_float_parameters-1)));
+			s_push_b (s_get_b (5+1+(n_integer_and_float_parameters-1)));
 # endif
 #endif
 
@@ -4642,25 +4700,25 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 			while (i<length){
 				int c;
 				
-				i_move_id_r (result_pointer_parameter_offset,B_STACK_POINTER,-3/*EBP*/);
+				i_move_id_r (result_pointer_parameter_offset,B_STACK_POINTER,REGISTER_EBP_OR_RBP);
 				result_pointer_parameter_offset+=STACK_ELEMENT_SIZE;
 
 				c=s[i];
 				if (c=='I'){
 					if (data_result_n<n_data_results_registers)
-						i_move_r_id (n_data_results_registers-1-data_result_n,0,-3/*EBP*/);
+						i_move_r_id (n_data_results_registers-1-data_result_n,0,REGISTER_EBP_OR_RBP);
 					else {
 						i_move_id_r (result_offset,B_STACK_POINTER,REGISTER_D0+integer_c_function_result);
-						i_move_r_id (REGISTER_D0+integer_c_function_result,0,-3/*EBP*/);
+						i_move_r_id (REGISTER_D0+integer_c_function_result,0,REGISTER_EBP_OR_RBP);
 						result_offset+=STACK_ELEMENT_SIZE;
 					}
 					++data_result_n;
 				} else if (c=='R'){
 					if (float_result_n<n_float_results_registers)
-						i_fmove_fr_id (n_float_results_registers-1-float_result_n,0,-3/*EBP*/);
+						i_fmove_fr_id (n_float_results_registers-1-float_result_n,0,REGISTER_EBP_OR_RBP);
 					else {
 						i_fmove_id_fr (result_offset,B_STACK_POINTER,float_c_function_result);
-						i_fmove_fr_id (float_c_function_result,0,-3/*EBP*/);
+						i_fmove_fr_id (float_c_function_result,0,REGISTER_EBP_OR_RBP);
 						result_offset+=8;
 					}
 					++float_result_n;
@@ -4675,7 +4733,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 						i_move_id_r (0,A_STACK_POINTER,reg_n);
 					}
 					i_add_i_r (STACK_ELEMENT_SIZE,reg_n);
-					i_move_r_id (reg_n,0,-3/*EBP*/);
+					i_move_r_id (reg_n,0,REGISTER_EBP_OR_RBP);
 					++string_or_array_result_n;
 				} else if (c=='A'){
 					int reg_n;
@@ -4689,7 +4747,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 						i_move_id_r (0,A_STACK_POINTER,reg_n);
 					}
 					i_add_i_r (STACK_ELEMENT_SIZE*3,reg_n);
-					i_move_r_id (reg_n,0,-3/*EBP*/);
+					i_move_r_id (reg_n,0,REGISTER_EBP_OR_RBP);
 					++string_or_array_result_n;
 				} else
 					error ("error in centry");
@@ -4697,7 +4755,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 			}
 		}
 
-# ifdef I486
+# if defined (I486) && !defined (G_AI64)
 		if (float_parameter_or_result){
 			int freg_n;
 
