@@ -3767,6 +3767,9 @@ void code_ccall (char *c_function_name,char *s,int length)
 						c_offset+=STACK_ELEMENT_SIZE;
 					}
 					break;
+				case 'i':
+				case 'r':
+					--l;
 				case 'S':
 					if (--c_parameter_n<4)
 						i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0-c_parameter_n);
@@ -3957,7 +3960,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			i_add_i_r (c_offset-(b_result_offset+a_result_offset),B_STACK_POINTER);
 		*/
 		}
-		
+
 		for (l=length-1; l>=first_pointer_result_index; --l){
 			switch (s[l]){
 				case 'S':
@@ -3965,6 +3968,24 @@ void code_ccall (char *c_function_name,char *s,int length)
 						string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
 					i_move_pi_r (B_STACK_POINTER,REGISTER_A0);
 					i_jsr_l (string_to_string_node_label,0);
+					i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
+					i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
+					break;
+				case 'i':
+					--l;
+					if (int_array_to_node_label==NULL)
+						int_array_to_node_label=enter_label ("int_array_to_node",IMPORT_LABEL);
+					i_move_pi_r (B_STACK_POINTER,REGISTER_A0);
+					i_jsr_l (int_array_to_node_label,0);
+					i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
+					i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
+					break;
+				case 'r':
+					--l;
+					if (real_array_to_node_label==NULL)
+						real_array_to_node_label=enter_label ("real_array_to_node",IMPORT_LABEL);
+					i_move_pi_r (B_STACK_POINTER,REGISTER_A0);
+					i_jsr_l (real_array_to_node_label,0);
 					i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
 					i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
 					break;
@@ -3995,6 +4016,9 @@ void code_ccall (char *c_function_name,char *s,int length)
 				case 'S':
 				case 'V':
 					break;
+				case 'A':
+					++l;
+					break;
 				default:
 					error_s (ccall_error_string,c_function_name);
 			}
@@ -4017,6 +4041,21 @@ void code_ccall (char *c_function_name,char *s,int length)
 
 				i_move_r_r (REGISTER_D0,REGISTER_A0);
 				i_jsr_l (string_to_string_node_label,0);
+
+				begin_new_basic_block();
+				init_a_stack (1);
+				break;
+			case 'A':
+				i_move_r_r (REGISTER_D0,REGISTER_A0);
+				if (s[min_index+2]=='i'){
+					if (int_array_to_node_label==NULL)
+						int_array_to_node_label=enter_label ("int_array_to_node",IMPORT_LABEL);
+					i_jsr_l (int_array_to_node_label,0);
+				} else if (s[min_index+2]=='r'){
+					if (real_array_to_node_label==NULL)
+						real_array_to_node_label=enter_label ("real_array_to_node",IMPORT_LABEL);
+					i_jsr_l (real_array_to_node_label,0);
+				}
 
 				begin_new_basic_block();
 				init_a_stack (1);
