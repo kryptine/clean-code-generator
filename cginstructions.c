@@ -3828,10 +3828,9 @@ void code_ccall (char *c_function_name,char *s,int length)
 						break;
 					case 'R':
 						b_o-=8;
-						if (c_fp_parameter_n<8){
-							i_fmove_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_fp_parameter_n);
-							++c_fp_parameter_n;
-						} else {
+						if (--c_parameter_n<4)
+							i_fmove_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_parameter_n);
+						else {
 							i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,REGISTER_A0);
 							i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
 							c_offset+=8;
