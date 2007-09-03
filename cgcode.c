@@ -3555,21 +3555,28 @@ void code_get_desc_arity (int a_offset)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7;
 	
 	graph_1=s_get_a (a_offset);
-#ifndef M68000
+#ifdef NEW_DESCRIPTORS
+	graph_2=g_load_id (0,graph_1);
+	graph_3=g_load_des_id (2-2,graph_2);
+	graph_4=g_add (graph_3,graph_2);
+	graph_7=g_load_des_id (6+DESCRIPTOR_ARITY_OFFSET,graph_4);	
+#else
+# ifndef M68000
 	graph_2=g_load_id (0,graph_1);
 	graph_3=g_load_i (-2);
-#else
+# else
 	graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
 	graph_3=g_g_register (GLOBAL_DATA_REGISTER);
-#endif
+# endif
 	graph_4=g_add (graph_3,graph_2);
-#ifdef GEN_MAC_OBJ
+# ifdef GEN_MAC_OBJ
 	graph_5=g_load_des_id (0,graph_4);
-#else
+# else
 	graph_5=g_load_des_id (2,graph_4);
-#endif
+# endif
 	graph_6=g_sub (graph_5,graph_4);
 	graph_7=g_load_des_id (DESCRIPTOR_ARITY_OFFSET,graph_6);
+#endif
 	s_push_b (graph_7);
 }
 
