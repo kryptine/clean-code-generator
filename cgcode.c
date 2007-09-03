@@ -3580,6 +3580,15 @@ void code_get_desc_arity (int a_offset)
 	s_push_b (graph_7);
 }
 
+void code_get_desc0_number (void)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+
+	graph_1=s_pop_b();
+	graph_2=g_load_id (-2-2*STACK_ELEMENT_SIZE,graph_1);
+	s_push_b (graph_2);
+}
+
 void code_get_node_arity (int a_offset)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
@@ -3954,10 +3963,77 @@ void code_jmp (char label_name[])
 	}
 }
 
+void code_jmp_upd (char label_name[])
+{
+	LABEL *label;
+	int a_stack_size,b_stack_size,n_a_and_f_registers;
+	ULONG *vector;
+
+	label=enter_label (label_name,0);
+	
+	if (demand_flag){
+		a_stack_size=demanded_a_stack_size;
+		b_stack_size=demanded_b_stack_size;
+		vector=demanded_vector;
+		
+		end_basic_block_with_registers (a_stack_size,b_stack_size,vector);
+	} else
+		error ("Directive .d missing before jmp_upd instruction");
+
+	n_a_and_f_registers=0;
+	
+	if (mc68881_flag){
+		int parameter_n;
+
+		for (parameter_n=0; parameter_n<b_stack_size; ++parameter_n)
+			if (test_bit (vector,parameter_n))
+				if (n_a_and_f_registers<N_FLOAT_PARAMETER_REGISTERS){
+					++n_a_and_f_registers;
+#ifndef G_A64
+					++parameter_n;
+#endif
+				} else
+					break;
+	}
+
+	n_a_and_f_registers+=
+		(a_stack_size<=N_ADDRESS_PARAMETER_REGISTERS) ? (a_stack_size<<4) : (N_ADDRESS_PARAMETER_REGISTERS<<4);
+
+	i_lea_l_i_r (label,0,REGISTER_A2);
+	
+	{
+		char jmpupd_label_name[32];
+		LABEL *jmpupd_label;
+
+		sprintf (jmpupd_label_name,"jmpupd_%d",a_stack_size);
+
+		jmpupd_label=enter_label (jmpupd_label_name,IMPORT_LABEL);
+
+		i_jmp_l (jmpupd_label,n_a_and_f_registers);
+	}
+
+	profile_flag=PROFILE_NORMAL;
+	demand_flag=0;
+	
+	reachable=0;
+	
+	begin_new_basic_block();
+}
+
 void code_jmp_ap (int n_apply_args)
 {
 	code_d (1+n_apply_args,0,e_vector);
 	code_jmp_ap_ (n_apply_args);
+}
+
+void code_jmp_ap_upd (int n_apply_args)
+{
+	char apupd_label_name[32];
+
+	code_d (1+n_apply_args,0,e_vector);
+
+	sprintf (apupd_label_name,"apupd_%d",n_apply_args);
+	code_jmp (apupd_label_name);
 }
 
 void code_label (char *label_name);
@@ -8839,6 +8915,69 @@ void code_desc (char label_name[],char node_entry_label_name[],char *code_label_
 #ifdef NEW_DESCRIPTORS
 	code_new_descriptor (arity,lazy_record_flag);
 #endif
+
+	w_descriptor_string (descriptor_name,descriptor_name_length,string_code_label_id,string_label);
+}
+
+void code_desc0 (char label_name[],int desc0_number,char descriptor_name[],int descriptor_name_length)
+{
+	LABEL *string_label,*label;
+	int string_code_label_id;
+
+#if defined (NO_FUNCTION_NAMES)
+	descriptor_name_length=0;
+#endif
+
+	string_code_label_id=next_label_id++;
+	string_label=new_local_label (0
+#ifdef G_POWER
+									| DATA_LABEL
+#endif
+	);
+
+	label=enter_label (label_name,LOCAL_LABEL | DATA_LABEL);
+
+	if (label->label_id>=0)
+		error_s ("Label %d defined twice\n",label_name);
+	label->label_id=next_label_id++;
+
+	label->label_descriptor=string_label;
+
+#ifdef FUNCTION_LEVEL_LINKING
+	as_new_data_module();
+	if (assembly_flag)
+		w_as_new_data_module();
+#endif
+
+#ifdef G_A64
+	store_word64_in_data_section (desc0_number);
+#else
+	store_long_word_in_data_section (desc0_number);
+#endif
+	if (assembly_flag)
+#ifdef G_A64
+		w_as_word64_in_data_section ((int_64)desc0_number);
+#else
+		w_as_long_in_data_section (desc0_number);
+#endif
+
+	if (!parallel_flag){
+		store_descriptor_in_data_section (label);
+		if (assembly_flag)
+			w_as_descriptor_in_data_section (label->label_name);
+	}
+
+	define_data_label (label);
+	if (assembly_flag)
+		w_as_define_label (label);
+
+	store_2_words_in_data_section (0,0);
+	if (assembly_flag){
+		w_as_word_in_data_section (0);
+		w_as_word_in_data_section (0);
+	}
+
+	code_new_descriptor (0,0);
 
 	w_descriptor_string (descriptor_name,descriptor_name_length,string_code_label_id,string_label);
 }
