@@ -4850,6 +4850,36 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 #endif
 }
 
+void code_load_i (CleanInt offset)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+	
+	graph_1=s_pop_b ();
+	graph_2=g_load_id (offset,graph_1);
+	
+	s_push_b (graph_2);
+}
+
+void code_load_si16 (CleanInt offset)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+	
+	graph_1=s_pop_b ();
+	graph_2=g_load_des_id (offset,graph_1);
+
+	s_push_b (graph_2);
+}
+
+void code_load_ui8 (CleanInt offset)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+	
+	graph_1=s_pop_b ();
+	graph_2=g_load_b_id (offset,graph_1);
+
+	s_push_b (graph_2);
+}
+
 void code_new_int_reducer (char label_name[],int a_offset)
 {
 	LABEL *reducer_label;
