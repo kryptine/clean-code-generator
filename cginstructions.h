@@ -35,7 +35,7 @@ extern INSTRUCTION_GRAPH g_load_x (INSTRUCTION_GRAPH graph_1,int offset,int shif
 extern INSTRUCTION_GRAPH g_load_b_id (int offset,INSTRUCTION_GRAPH graph_1);
 extern INSTRUCTION_GRAPH g_load_des_i (LABEL *descriptor_label,int arity);
 extern INSTRUCTION_GRAPH g_load_des_id (int offset,INSTRUCTION_GRAPH graph_1);
-#ifdef g_load_s_x
+#ifdef G_AI64
 extern INSTRUCTION_GRAPH g_load_s_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2);
 #endif
 extern INSTRUCTION_GRAPH g_movem (int offset,INSTRUCTION_GRAPH graph_1,int n);
