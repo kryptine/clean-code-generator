@@ -651,6 +651,33 @@ static void parse_label_without_conversion (char *label_string)
 	skip_spaces_and_tabs();
 }
 
+static int try_parse_record_field_types (char *label_string)
+{
+	int length;
+	
+	length=0;
+	if (is_alpha_num_character (last_char) || last_char==',' || last_char=='(' || last_char==')')
+		do {
+			append_char (last_char);
+			last_char=getc (abc_file);
+		} while (is_alpha_num_character (last_char) || last_char==',' || last_char=='(' || last_char==')');
+
+	label_string[length]='\0';
+	
+	if (length==0)
+		return 0;
+	if (length==MAX_STRING_LENGTH)
+		warning_i ("Label too long, extra characters ignored at line %d\n",line_number);
+	return 1;
+}
+
+static void parse_record_field_types (char *label_string)
+{
+	if (!try_parse_record_field_types (label_string))
+		abc_parser_error_i ("Record field types expected at line %d",line_number);
+	skip_spaces_and_tabs();
+}
+
 static int parse_string (char *string,int *string_length_p)
 {
 	int length;
@@ -1495,6 +1522,20 @@ static int parse_directive_desc (InstructionP instruction)
 	return 1;
 }
 
+static int parse_directive_desc0 (InstructionP instruction)
+{
+	STRING a1,s;
+	int l;
+	LONG n;
+
+	parse_label (a1);
+
+	if (!parse_unsigned_integer (&n) || !parse_descriptor_string (s,&l))
+		return 0;
+	instruction->instruction_code_function (a1,(int)n,s,l);
+	return 1;
+}
+
 static int parse_directive_descn (InstructionP instruction)
 {
 	STRING a1,a2,s;
@@ -1528,7 +1569,7 @@ static int parse_directive_record (InstructionP instruction)
 	int l;
 	
 	parse_label (a1);
-	parse_label (a2);
+	parse_record_field_types (a2);
 	if (!parse_unsigned_integer (&n1) || !parse_unsigned_integer (&n2) || !parse_descriptor_string (s,&l))
 		return 0;
 
@@ -1952,6 +1993,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("getWL",			parse_instruction_n,		code_dummy );
 	put_instruction_name ("get_desc_arity",	parse_instruction_n,		code_get_desc_arity );
 	put_instruction_name ("get_desc_flags_b",	parse_instruction,		code_get_desc_flags_b );	
+	put_instruction_name ("get_desc0_number",	parse_instruction,		code_get_desc0_number );
 	put_instruction_name ("get_node_arity",	parse_instruction_n,		code_get_node_arity );
 	put_instruction_name ("gtC",			parse_instruction,			code_gtC );
 	put_instruction_name ("gtI",			parse_instruction,			code_gtI );
@@ -1973,6 +2015,8 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("ItoR",			parse_instruction,			code_ItoR );
 	put_instruction_name ("jmp",			parse_instruction_a,		code_jmp );
 	put_instruction_name ("jmp_ap",			parse_instruction_n,		code_jmp_ap );
+	put_instruction_name ("jmp_ap_upd",		parse_instruction_n,		code_jmp_ap_upd );
+	put_instruction_name ("jmp_upd",		parse_instruction_a,		code_jmp_upd );
 	put_instruction_name ("jmp_eval",		parse_instruction,			code_jmp_eval );
 	put_instruction_name ("jmp_eval_upd",	parse_instruction,			code_jmp_eval_upd );
 	put_instruction_name ("jmp_false",		parse_instruction_a,		code_jmp_false );
@@ -1981,6 +2025,9 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("jsr_ap",			parse_instruction_n,			code_jsr_ap );
 	put_instruction_name ("jsr_eval",		parse_instruction_n,		code_jsr_eval );
 	put_instruction_name ("lnR",			parse_instruction,			code_lnR );
+	put_instruction_name ("load_i",			parse_instruction_i,		code_load_i );
+	put_instruction_name ("load_si16",		parse_instruction_i,		code_load_si16 );
+	put_instruction_name ("load_ui8",		parse_instruction_i,		code_load_ui8 );
 	put_instruction_name ("log10R",			parse_instruction,			code_log10R );
 	put_instruction_name ("ltC",			parse_instruction,			code_ltC );
 	put_instruction_name ("ltI",			parse_instruction,			code_ltI );
@@ -2130,6 +2177,7 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name (".d",				parse_directive_n_n_t,		code_d );
 	put_instruction_name (".depend",		parse_directive_depend,		code_depend );
 	put_instruction_name (".desc",			parse_directive_desc,		code_desc );
+	put_instruction_name (".desc0",			parse_directive_desc0,		code_desc0 );
 	put_instruction_name (".descn",			parse_directive_descn,		code_descn );
 	put_instruction_name (".descexp",		parse_directive_desc,		code_descexp );
 #ifdef NEW_DESCRIPTORS
