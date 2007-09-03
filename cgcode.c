@@ -25,6 +25,10 @@
 # define NO_STRING_ADDRESS_IN_DESCRIPTOR
 #endif
 
+#if defined (I486) && !defined (G_AI64)
+# define SIN_COS_CSE
+#endif
+
 #if defined (G_POWER) || defined (I486)
 #	define PROFILE
 # if defined (G_POWER)
@@ -1841,10 +1845,89 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 	}
 }
 
+#ifdef SIN_COS_CSE
+#define SIN_COS_CSE_CACHE_SIZE 16 /* power of 2 */
+
+static INSTRUCTION_GRAPH cos_cache[SIN_COS_CSE_CACHE_SIZE],sin_cache[SIN_COS_CSE_CACHE_SIZE];
+static int n_cos_cache,n_sin_cache;
+static struct basic_block *block_in_cos_cache,*block_in_sin_cache;
+
+static INSTRUCTION_GRAPH search_sin_or_cos (INSTRUCTION_GRAPH graph,INSTRUCTION_GRAPH cache[SIN_COS_CSE_CACHE_SIZE],int n_cache)
+{
+	int n;
+	
+	n=n_cache;
+	if (n<=SIN_COS_CSE_CACHE_SIZE){
+		while (--n>=0)
+			if (cache[n]->instruction_parameters[0].p==graph)
+				return cache[n];
+	} else {
+		int e;
+		
+		e = n & (SIN_COS_CSE_CACHE_SIZE-1);
+
+		n = e;
+		while (--n>=0)
+			if (cache[n]->instruction_parameters[0].p==graph)
+				return cache[n];
+		
+		n = SIN_COS_CSE_CACHE_SIZE;
+		while (--n>=e)
+			if (cache[n]->instruction_parameters[0].p==graph)
+				return cache[n];
+	}
+	
+	return NULL;
+}
+#endif
+
 void code_cosR (VOID)
 {
 #if defined (I486) && !defined (G_AI64)
+# ifdef SIN_COS_CSE
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
+	
+	graph_2=s_get_b (1);
+	graph_1=s_get_b (0);
+	graph_3=g_fjoin (graph_1,graph_2);
+
+	graph_4=NULL;
+	if (block_in_sin_cache==last_block)
+		graph_4 = search_sin_or_cos (graph_3,sin_cache,n_sin_cache);
+
+	if (graph_4==NULL || graph_4->instruction_code!=GFSIN){
+		graph_4=g_instruction_2 (GFCOS,graph_3,NULL); // extra argument because it may become a GFRESULT1 node
+		graph_4->inode_arity=1;
+
+		if (block_in_cos_cache==last_block){
+			cos_cache [n_cos_cache & (SIN_COS_CSE_CACHE_SIZE-1)] = graph_4;
+			++n_cos_cache;
+		} else {
+			block_in_cos_cache=last_block;
+			cos_cache [0] = graph_4;
+			n_cos_cache=1;
+		}
+	} else {
+		INSTRUCTION_GRAPH sincos_graph,graph_7;
+
+		sincos_graph=g_instruction_1 (GFSINCOS,graph_3);
+		graph_7=graph_4;
+
+		graph_4=g_instruction_2 (GFRESULT1,sincos_graph,graph_7);
+
+		graph_7->instruction_code=GFRESULT0;
+		graph_7->inode_arity=2;
+		graph_7->instruction_parameters[0].p=sincos_graph;
+		graph_7->instruction_parameters[1].p=graph_4;
+	}
+
+	g_fhighlow (graph_5,graph_6,graph_4);
+
+	s_put_b (1,graph_6);
+	s_put_b (0,graph_5);
+# else
 	code_monadic_real_operator (GFCOS);
+# endif
 #else
 #	ifdef M68000
 	if (!mc68881_flag){
@@ -7487,7 +7570,50 @@ void code_sliceS (int source_offset,int destination_offset)
 void code_sinR (VOID)
 {
 #if defined (I486) && !defined (G_AI64)
+# ifdef SIN_COS_CSE
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
+	
+	graph_2=s_get_b (1);
+	graph_1=s_get_b (0);
+	graph_3=g_fjoin (graph_1,graph_2);
+
+	graph_4=NULL;
+	if (block_in_cos_cache==last_block)
+		graph_4 = search_sin_or_cos (graph_3,cos_cache,n_cos_cache);
+
+	if (graph_4==NULL || graph_4->instruction_code!=GFCOS){
+		graph_4=g_instruction_2 (GFSIN,graph_3,NULL); // extra argument because it may become a GFRESULT0 node
+		graph_4->inode_arity=1;
+
+		if (block_in_sin_cache==last_block){
+			sin_cache [n_sin_cache & (SIN_COS_CSE_CACHE_SIZE-1)] = graph_4;
+			++n_sin_cache;
+		} else {
+			block_in_sin_cache=last_block;
+			sin_cache [0] = graph_4;
+			n_sin_cache=1;
+		}
+	} else {
+		INSTRUCTION_GRAPH sincos_graph,graph_7;
+
+		sincos_graph=g_instruction_1 (GFSINCOS,graph_3);
+		graph_7=graph_4;
+
+		graph_4=g_instruction_2 (GFRESULT0,sincos_graph,graph_7);
+
+		graph_7->instruction_code=GFRESULT1;
+		graph_7->inode_arity=2;
+		graph_7->instruction_parameters[0].p=sincos_graph;
+		graph_7->instruction_parameters[1].p=graph_4;
+	}
+
+	g_fhighlow (graph_5,graph_6,graph_4);
+
+	s_put_b (1,graph_6);
+	s_put_b (0,graph_5);
+# else
 	code_monadic_real_operator (GFSIN);
+# endif
 #else
 # ifdef M68000
 	if (!mc68881_flag){
@@ -9736,6 +9862,11 @@ void initialize_coding (VOID)
 	n_lsl_3_cache=0;
 	block_in_lsl_2_cache=NULL;
 	block_in_lsl_3_cache=NULL;
+#endif
+
+#ifdef SIN_COS_CSE
+	block_in_cos_cache=NULL;
+	block_in_sin_cache=NULL;
 #endif
 
 	module_label=NULL;
