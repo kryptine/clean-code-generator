@@ -4028,12 +4028,20 @@ void code_jmp_ap (int n_apply_args)
 
 void code_jmp_ap_upd (int n_apply_args)
 {
+#if defined (I486) && !defined (G_AI64)
 	char apupd_label_name[32];
 
 	code_d (1+n_apply_args,0,e_vector);
 
 	sprintf (apupd_label_name,"apupd_%d",n_apply_args);
 	code_jmp (apupd_label_name);
+#else
+	code_jsr_ap (n_apply_args);
+	code_fill_a (0,1);
+	s_remove_a();
+	code_d (1,0,e_vector);
+	code_rtn();
+#endif
 }
 
 void code_label (char *label_name);
