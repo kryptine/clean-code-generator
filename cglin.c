@@ -3743,6 +3743,20 @@ static void linearize_dyadic_non_commutative_operator (int i_instruction_code,IN
 		in_alterable_data_register (&ad_2);
 	else
 		in_alterable_address_register (&ad_2);
+
+#ifdef G_A64
+	if (ad_1.ad_mode==P_IMMEDIATE && ((int)ad_1.ad_offset)!=ad_1.ad_offset){
+		int dreg;
+		
+		dreg=get_dregister();
+		i_move_i_r (ad_1.ad_offset,dreg);
+		ad_1.ad_mode=P_REGISTER;
+		ad_1.ad_register=dreg;
+		ad_1.ad_count_p=&ad_1.ad_count;
+		ad_1.ad_count=1;
+	}
+#endif
+
 	instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
 	--*ad_2.ad_count_p;
 
