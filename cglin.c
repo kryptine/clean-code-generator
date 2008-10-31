@@ -3405,6 +3405,31 @@ static int compare_node (INSTRUCTION_GRAPH graph,int i_test_1,int i_test_2)
 	mode_1=ad_1.ad_mode;
 	mode_2=ad_2.ad_mode;
 
+#ifdef G_A64
+	if (mode_1==P_IMMEDIATE && ((int)ad_1.ad_offset)!=ad_1.ad_offset){
+		int dreg;
+		
+		dreg=get_dregister();
+		i_move_i_r (ad_1.ad_offset,dreg);
+		mode_1=P_REGISTER;
+		ad_1.ad_mode=mode_1;
+		ad_1.ad_register=dreg;
+		ad_1.ad_count_p=&ad_1.ad_count;
+		ad_1.ad_count=1;
+	}
+	if (mode_2==P_IMMEDIATE && ((int)ad_2.ad_offset)!=ad_2.ad_offset){
+		int dreg;
+		
+		dreg=get_dregister();
+		i_move_i_r (ad_2.ad_offset,dreg);
+		mode_2=P_REGISTER;
+		ad_2.ad_mode=mode_2;
+		ad_2.ad_register=dreg;
+		ad_2.ad_count_p=&ad_2.ad_count;
+		ad_2.ad_count=1;
+	}
+#endif
+
 	if (mode_1==P_IMMEDIATE && ! (mode_2==P_IMMEDIATE || mode_2==P_DESCRIPTOR_NUMBER)){
 		LONG i;
 #ifdef M68000
