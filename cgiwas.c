@@ -1831,6 +1831,12 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 	}
 }
 
+static void w_as_sar_31_r (int reg_1)
+{
+	w_as_opcode ("sar");
+	w_as_immediate_register_newline (31,reg_1);
+}
+
 static void w_as_div_instruction (struct instruction *instruction,int unsigned_div)
 {
 	int d_reg;
@@ -1855,13 +1861,11 @@ static void w_as_div_instruction (struct instruction *instruction,int unsigned_d
 			w_as_movl_register_register_newline (d_reg,REGISTER_O0);
 
 			if (log2i==1){
-				w_as_opcode ("sar");
-				w_as_immediate_register_newline (31,REGISTER_O0);
+				w_as_sar_31_r (REGISTER_O0);
 
 				w_as_opcode_register_register_newline ("sub",REGISTER_O0,d_reg);
 			} else {
-				w_as_opcode ("sar");
-				w_as_immediate_register_newline (31,d_reg);
+				w_as_sar_31_r (d_reg);
 
 				w_as_opcode ("and");
 				w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
@@ -2034,13 +2038,11 @@ static void w_as_rem_instruction (struct instruction *instruction,int unsigned_r
 			w_as_opcode ("and");
 			w_as_immediate_register_newline (1,d_reg);
 
-			w_as_opcode ("sar");
-			w_as_immediate_register_newline (31,REGISTER_O0);
+			w_as_sar_31_r (REGISTER_O0);
 
 			w_as_opcode_register_register_newline ("xor",REGISTER_O0,d_reg);
 		} else {
-			w_as_opcode ("sar");
-			w_as_immediate_register_newline (31,REGISTER_O0);
+			w_as_sar_31_r (REGISTER_O0);
 
 			w_as_opcode ("and");
 			w_as_immediate_register_newline ((1<<log2i)-1,REGISTER_O0);
@@ -2350,6 +2352,409 @@ static void w_as_divdu_instruction (struct instruction *instruction)
 			w_as_opcode_register_newline ("div",reg_1);
 			w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_2);
 			w_as_opcode_register_register_newline ("xchg",reg_3,REGISTER_D0);
+		}
+	}
+}
+
+static void w_as_or_r_r (int reg_1,int reg_2)
+{
+	w_as_opcode_register_register_newline (intel_asm ? "or" : "orl",reg_1,reg_2);
+}
+
+static void w_as_xor_r_r (int reg_1,int reg_2)
+{
+	w_as_opcode_register_register_newline (intel_asm ? "xor" : "xorl",reg_1,reg_2);
+}
+
+static void w_as_floordiv_mod (int reg_1,int compute_mod)
+{
+	/* reg_1 not EAX or EDX */
+	w_as_instruction_without_parameters ("cdq");
+	w_as_opcode_register_newline (intel_asm ? "idiv" : "idivl",reg_1);
+
+	if (!compute_mod){
+		w_as_sar_31_r (reg_1);
+
+		w_as_opcode_register_register_newline (intel_asm ? "add" : "addl",reg_1,REGISTER_A1);
+
+		w_as_xor_r_r (reg_1,REGISTER_A1);
+
+		w_as_sar_31_r (REGISTER_A1);
+
+		w_as_opcode_register_register_newline (intel_asm ? "add" : "addl",REGISTER_A1,REGISTER_D0);	
+	} else {
+		w_as_movl_register_register_newline (reg_1,REGISTER_D0);
+
+		w_as_sar_31_r (reg_1);
+
+		w_as_opcode_register_register_newline (intel_asm ? "add" : "addl",REGISTER_A1,reg_1);
+
+		w_as_xor_r_r (REGISTER_D0,reg_1);
+
+		w_as_sar_31_r (reg_1);
+
+		w_as_opcode_register_register_newline (intel_asm ? "and" : "andl",reg_1,REGISTER_D0);
+		
+		w_as_opcode_register_register_newline (intel_asm ? "add" : "addl",REGISTER_A1,REGISTER_D0);
+	}
+}
+
+static void w_as_mul_shift_magic (int s)
+{
+	w_as_opcode (intel_asm ? "mul" : "mull");
+	w_as_register (REGISTER_A1);
+	w_as_newline();
+
+	if (s>0){
+		w_as_opcode ("shr");
+		w_as_immediate_register_newline (s,REGISTER_A1);
+	}
+}
+
+static void w_as_floordiv_ni (int reg_1,int reg_2,int reg_3,int i)
+{
+	struct ms ms;
+
+	ms=magic (i);
+
+	if (reg_2==REGISTER_D0){
+		if (reg_1==REGISTER_A1){
+			reg_3=reg_1;
+			reg_3=REGISTER_A1;
+		}
+		w_as_movl_register_register_newline (REGISTER_D0,reg_1);
+
+		w_as_opcode ("sub");
+		w_as_immediate_register_newline (1,REGISTER_D0);
+
+		w_as_or_r_r (REGISTER_D0,reg_1);
+
+		if (reg_3!=REGISTER_A1)
+			w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+
+		w_as_sar_31_r (reg_1);
+		w_as_opcode_movl();
+		w_as_immediate_register_newline (ms.m,REGISTER_A1);
+
+		w_as_xor_r_r (reg_1,REGISTER_D0);
+
+		w_as_mul_shift_magic (ms.s);
+
+		w_as_opcode_register_newline ("not",reg_1);
+		w_as_movl_register_register_newline (reg_1,REGISTER_D0);
+		w_as_xor_r_r (REGISTER_A1,REGISTER_D0);
+
+		if (reg_3!=REGISTER_A1)
+			w_as_movl_register_register_newline (reg_3,REGISTER_A1);
+	} else if (reg_2==REGISTER_A1){
+		if (reg_3==REGISTER_D0){
+			reg_3=reg_1;
+			reg_1=REGISTER_D0;
+		}
+		w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+
+		w_as_opcode ("sub");
+		w_as_immediate_register_newline (1,REGISTER_A1);
+
+		w_as_or_r_r (REGISTER_A1,reg_3);
+
+		if (reg_1!=REGISTER_D0)
+			w_as_movl_register_register_newline (REGISTER_D0,reg_1);
+
+		w_as_sar_31_r (reg_3);
+		w_as_opcode_movl();
+		w_as_immediate_register_newline (ms.m,REGISTER_D0);
+
+		w_as_xor_r_r (reg_3,REGISTER_A1);
+		
+		w_as_mul_shift_magic (ms.s);
+
+		w_as_opcode_register_newline ("not",reg_3);
+		if (reg_1!=REGISTER_D0)
+			w_as_movl_register_register_newline (reg_1,REGISTER_D0);
+
+		w_as_xor_r_r (reg_3,REGISTER_A1);
+	} else {
+		if (reg_3==REGISTER_D0){
+			reg_3=reg_1;
+			reg_1=REGISTER_D0;
+		} else if (reg_1==REGISTER_A1){
+			reg_3=reg_1;
+			reg_3=REGISTER_A1;
+		}
+		/* reg_3!=REGISTER_D0 && reg_1!=REGISTER_A1 */
+		if (reg_1==REGISTER_D0){
+			w_as_opcode_movl();
+			w_as_immediate_register_newline (-1,REGISTER_D0);
+
+			w_as_opcode_register_register_newline ("add",reg_2,REGISTER_D0);
+
+			w_as_or_r_r (REGISTER_D0,reg_2);
+
+			if (reg_3!=REGISTER_A1)
+				w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+
+			w_as_sar_31_r (reg_2);
+
+			w_as_opcode_movl();
+			w_as_immediate_register_newline (ms.m,REGISTER_A1);
+
+			w_as_xor_r_r (reg_2,REGISTER_D0);
+
+			w_as_mul_shift_magic (ms.s);
+			w_as_opcode_register_newline ("not",reg_2);
+			w_as_xor_r_r (REGISTER_A1,reg_2);
+
+			if (reg_3!=REGISTER_A1)
+				w_as_movl_register_register_newline (reg_3,REGISTER_A1);
+		} else if (reg_3==REGISTER_A1){
+			w_as_opcode_movl();
+			w_as_immediate_register_newline (-1,REGISTER_A1);
+
+			w_as_opcode_register_register_newline ("add",reg_2,REGISTER_A1);
+
+			w_as_or_r_r (REGISTER_A1,reg_2);
+
+			w_as_movl_register_register_newline (REGISTER_D0,reg_1);
+
+			w_as_sar_31_r (reg_2);
+
+			w_as_opcode_movl();
+			w_as_immediate_register_newline (ms.m,REGISTER_D0);
+
+			w_as_xor_r_r (reg_2,REGISTER_A1);
+
+			w_as_mul_shift_magic (ms.s);
+			w_as_opcode_register_newline ("not",reg_2);
+
+			w_as_movl_register_register_newline (reg_1,REGISTER_D0);
+
+			w_as_xor_r_r (REGISTER_A1,reg_2);
+		} else {
+			w_as_movl_register_register_newline (REGISTER_D0,reg_1);
+			w_as_opcode_movl();
+			w_as_immediate_register_newline (-1,REGISTER_D0);
+		
+			w_as_opcode_register_register_newline ("add",reg_2,REGISTER_D0);
+
+			w_as_or_r_r (REGISTER_D0,reg_2);
+
+			w_as_sar_31_r (reg_2);
+
+			w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+
+			w_as_opcode_movl();
+			w_as_immediate_register_newline (ms.m,REGISTER_A1);
+
+			w_as_xor_r_r (reg_2,REGISTER_D0);
+
+			w_as_mul_shift_magic (ms.s);
+			w_as_opcode_register_newline ("not",reg_2);
+
+			w_as_movl_register_register_newline (reg_1,REGISTER_D0);
+
+			w_as_xor_r_r (REGISTER_A1,reg_2);
+
+			w_as_movl_register_register_newline (reg_3,REGISTER_A1);
+		}
+	}
+}
+
+static void w_as_floordiv_i (int reg_1,int reg_2,int reg_3,int i)
+{
+	struct ms ms;
+
+	if (i<0){
+		w_as_floordiv_ni (reg_1,reg_2,reg_3,-i);
+		return;
+	}
+
+	ms=magic (i);
+
+	if (reg_2==REGISTER_D0){
+		if (reg_1==REGISTER_A1){
+			reg_3=reg_1;
+			reg_3=REGISTER_A1;
+		}
+		w_as_movl_register_register_newline (REGISTER_D0,reg_1);
+		if (reg_3!=REGISTER_A1)
+			w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+
+		w_as_sar_31_r (reg_1);
+		w_as_opcode_movl();
+		w_as_immediate_register_newline (ms.m,REGISTER_A1);
+
+		w_as_xor_r_r (reg_1,REGISTER_D0);
+
+		w_as_mul_shift_magic (ms.s);
+
+		w_as_movl_register_register_newline (reg_1,REGISTER_D0);
+		w_as_xor_r_r (REGISTER_A1,REGISTER_D0);
+
+		if (reg_3!=REGISTER_A1)
+			w_as_movl_register_register_newline (reg_3,REGISTER_A1);
+	} else if (reg_2==REGISTER_A1){
+		if (reg_3==REGISTER_D0){
+			reg_3=reg_1;
+			reg_1=REGISTER_D0;
+		}
+		w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+		if (reg_1!=REGISTER_D0)
+			w_as_movl_register_register_newline (REGISTER_D0,reg_1);
+
+		w_as_sar_31_r (reg_3);
+		w_as_opcode_movl();
+		w_as_immediate_register_newline (ms.m,REGISTER_D0);
+
+		w_as_xor_r_r (reg_3,REGISTER_A1);
+		
+		w_as_mul_shift_magic (ms.s);
+
+		if (reg_1!=REGISTER_D0)
+			w_as_movl_register_register_newline (reg_1,REGISTER_D0);
+
+		w_as_xor_r_r (reg_3,REGISTER_A1);
+	} else {
+		if (reg_3==REGISTER_D0){
+			reg_3=reg_1;
+			reg_1=REGISTER_D0;
+		} else if (reg_1==REGISTER_A1){
+			reg_3=reg_1;
+			reg_3=REGISTER_A1;
+		}
+		/* reg_3!=REGISTER_D0 && reg_1!=REGISTER_A1 */
+		if (reg_1==REGISTER_D0){
+			w_as_movl_register_register_newline (reg_2,REGISTER_D0);
+			w_as_sar_31_r (reg_2);
+
+			if (reg_3!=REGISTER_A1)
+				w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+
+			w_as_xor_r_r (reg_2,REGISTER_D0);
+
+			w_as_opcode_movl();
+			w_as_immediate_register_newline (ms.m,REGISTER_A1);
+			w_as_mul_shift_magic (ms.s);
+			w_as_xor_r_r (REGISTER_A1,reg_2);
+
+			if (reg_3!=REGISTER_A1)
+				w_as_movl_register_register_newline (reg_3,REGISTER_A1);
+		} else if (reg_3==REGISTER_A1){
+			w_as_movl_register_register_newline (reg_2,REGISTER_A1);
+			w_as_sar_31_r (reg_2);
+
+			w_as_movl_register_register_newline (REGISTER_D0,reg_1);
+
+			w_as_xor_r_r (reg_2,REGISTER_A1);
+
+			w_as_opcode_movl();
+			w_as_immediate_register_newline (ms.m,REGISTER_D0);
+			w_as_mul_shift_magic (ms.s);
+
+			w_as_movl_register_register_newline (reg_1,REGISTER_D0);
+
+			w_as_xor_r_r (REGISTER_A1,reg_2);
+		} else {
+			w_as_movl_register_register_newline (REGISTER_D0,reg_1);
+			w_as_movl_register_register_newline (reg_2,REGISTER_D0);
+			w_as_sar_31_r (reg_2);
+
+			w_as_xor_r_r (reg_2,REGISTER_D0);
+
+			w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+
+			w_as_opcode_movl();
+			w_as_immediate_register_newline (ms.m,REGISTER_A1);
+			w_as_mul_shift_magic (ms.s);
+
+			w_as_movl_register_register_newline (reg_1,REGISTER_D0);
+
+			w_as_xor_r_r (REGISTER_A1,reg_2);
+
+			w_as_movl_register_register_newline (reg_3,REGISTER_A1);
+		}
+	}
+}
+
+static void w_as_floordiv_mod_instruction (struct instruction *instruction,int compute_mod)
+{
+	int reg_1,reg_2,reg_3;
+
+	reg_1=instruction->instruction_parameters[0].parameter_data.reg.r;
+	reg_2=instruction->instruction_parameters[1].parameter_data.reg.r;
+	reg_3=instruction->instruction_parameters[2].parameter_data.reg.r;
+
+	if (instruction->instruction_arity==4){
+		w_as_floordiv_i (reg_1,reg_2,reg_3,instruction->instruction_parameters[3].parameter_data.imm);
+		return;
+	}
+
+	/* reg_2 = floor (reg_2/reg_1) or mod reg_2 reg_1 */
+
+	if (reg_2==REGISTER_D0){
+		if (reg_3==REGISTER_A1){
+			w_as_floordiv_mod (reg_1,compute_mod);
+		} else if (reg_1==REGISTER_A1){
+			w_as_movl_register_register_newline (reg_1,reg_3);
+			w_as_floordiv_mod (reg_3,compute_mod);
+		} else {
+			w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+			w_as_floordiv_mod (reg_1,compute_mod);
+			w_as_movl_register_register_newline (reg_3,REGISTER_A1);
+		}
+	} else if (reg_3==REGISTER_A1){
+		if (reg_3==REGISTER_D0){
+			w_as_movl_register_register_newline (reg_2/*A1*/,reg_3/*D0*/);
+			w_as_floordiv_mod (reg_1,compute_mod);
+			w_as_movl_register_register_newline (REGISTER_D0,reg_2/*A1*/);
+		} else if (reg_1==REGISTER_D0){
+			w_as_2movl_registers (reg_2/*A1*/,reg_1/*D0*/,reg_3);
+			w_as_floordiv_mod (reg_3,compute_mod);
+			w_as_movl_register_register_newline (REGISTER_D0,reg_2/*A1*/);
+		} else {
+			w_as_2movl_registers (reg_2/*A1*/,REGISTER_D0,reg_3);
+			w_as_floordiv_mod (reg_1,compute_mod);
+			w_as_movl_register_register_newline (reg_3,reg_1);
+			w_as_2movl_registers (reg_1,REGISTER_D0,reg_2/*A1*/);
+		}
+	} else {
+		if (reg_3==REGISTER_D0){
+			if (reg_1==REGISTER_A1){
+				w_as_2movl_registers (reg_1/*A1*/,reg_2,reg_3/*D0*/);
+				w_as_floordiv_mod (reg_2,compute_mod);
+				w_as_movl_register_register_newline (reg_3/*D0*/,reg_2);
+			} else {
+				w_as_2movl_registers (REGISTER_A1,reg_2,reg_3/*D0*/);
+				w_as_floordiv_mod (reg_1,compute_mod);
+				w_as_2movl_registers (reg_3/*D0*/,reg_2,REGISTER_A1);
+			}
+		} else if (reg_3==REGISTER_A1){
+			if (reg_1==REGISTER_D0){
+				w_as_opcode_register_register_newline ("xchg",reg_1/*D0*/,reg_2);
+				w_as_floordiv_mod (reg_2,compute_mod);
+				w_as_movl_register_register_newline (REGISTER_D0,reg_2);
+			} else {
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_2);
+				w_as_floordiv_mod (reg_1,compute_mod);
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_2);
+			}
+		} else {
+			if (reg_1==REGISTER_D0){
+				w_as_3movl_registers (REGISTER_A1,reg_2,reg_1/*D0*/,reg_3);
+				w_as_floordiv_mod (reg_3,compute_mod);
+				w_as_2movl_registers (REGISTER_D0,reg_2,REGISTER_A1);
+			} else if (reg_1==REGISTER_A1){
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_2);
+				w_as_movl_register_register_newline (reg_1/*A1*/,reg_3);
+				w_as_floordiv_mod (reg_3,compute_mod);
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_2);				
+			} else {
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_2);
+				w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+				w_as_floordiv_mod (reg_1,compute_mod);
+				w_as_movl_register_register_newline (reg_3,REGISTER_A1);
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_2);				
+			}
 		}
 	}
 }
@@ -3604,6 +4009,12 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case IDIVDU:
 				w_as_divdu_instruction (instruction);
+				break;
+			case IFLOORDIV:
+				w_as_floordiv_mod_instruction (instruction,0);
+				break;
+			case IMOD:
+				w_as_floordiv_mod_instruction (instruction,1);
 				break;
 			case IFMOVE:
 				instruction=w_as_fmove_instruction (instruction);

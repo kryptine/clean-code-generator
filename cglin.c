@@ -2545,6 +2545,27 @@ static void instruction_ad_r_r (int instruction_code,ADDRESS *ad_p,int register_
 												parameter_data.i=register_2);
 }
 
+#ifdef I486
+static void instruction_r_r_r_i (int instruction_code,int register_1,int register_2,int register_3,int i)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction (instruction_code,4,4*sizeof (struct parameter));
+	
+	S2 (instruction->instruction_parameters[0],	parameter_type=P_REGISTER,
+												parameter_data.i=register_1);
+	
+	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
+												parameter_data.i=register_2);
+	
+	S2 (instruction->instruction_parameters[2],	parameter_type=P_REGISTER,
+												parameter_data.i=register_3);
+
+	S2 (instruction->instruction_parameters[3],	parameter_type=P_IMMEDIATE,
+												parameter_data.imm=i);
+}
+#endif
+
 static void instruction_r (int instruction_code,int register_1)
 {
 	struct instruction *instruction;
