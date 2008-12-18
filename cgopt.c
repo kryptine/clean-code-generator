@@ -416,7 +416,7 @@ static int get_argument_size (int instruction_code)
 {
 	switch (instruction_code){
 		case IADD:		case IAND:		case IASR:		case ICMP:		case IDIV:
-		case IEOR:		case ILSL:		case ILSR:		case IMOD:		case IMOVE:
+		case IEOR:		case ILSL:		case ILSR:		case IREM:		case IMOVE:
 		case IMUL:		case IOR:		case ISUB:		case ITST:
 IF_G_RISC (case IADDI: case ILSLI:)
 IF_G_SPARC (case IADDO: case ISUBO: )
@@ -681,7 +681,7 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 					instruction->instruction_icode!=ILSL_S &&
 					instruction->instruction_icode!=ILSR_S &&
 #endif
-					instruction->instruction_icode!=IMOD)
+					instruction->instruction_icode!=IREM)
 #ifdef M68000
 						if (instruction->instruction_icode==IBMOVE)
 							break;
@@ -739,7 +739,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 #  ifdef M68000
 					instruction->instruction_icode!=IMOVEM &&
 #  endif
-					instruction->instruction_icode!=IMOD)
+					instruction->instruction_icode!=IREM)
 #  ifdef M68000
 						if (instruction->instruction_icode==IBMOVE)
 							break;
@@ -918,7 +918,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					instruction->instruction_icode!=IASR_S &&
 					instruction->instruction_icode!=ILSL_S &&
 					instruction->instruction_icode!=ILSR_S &&
-					instruction->instruction_icode!=IMOD)
+					instruction->instruction_icode!=IREM)
 					internal_error_in_function ("optimize_stack_access");
 				/* only first argument of mod might be register indirect */
 				/* no break ! */
@@ -983,7 +983,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 			
 		switch (instruction->instruction_arity){
 			default:
-				if (instruction->instruction_icode!=IMOD)
+				if (instruction->instruction_icode!=IREM)
 					internal_error_in_function ("optimize_stack_access");
 					/* only first argument of movem or mod might be register indirect */
 					/* no break ! */
@@ -1565,7 +1565,7 @@ IF_G_POWER ( case IUMULH: )
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
-			case IDIV:	case IMOD:	case IDIVU:	case IREMU:	case IMULUD:
+			case IDIV:	case IREM:	case IDIVU:	case IREMU:	case IMULUD:
 				define_scratch_register();
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
@@ -1640,7 +1640,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				define_parameter (&instruction->instruction_parameters[0]);
 				break;
 #ifndef I486_USE_SCRATCH_REGISTER
-			case IMOD:
+			case IREM:
 # if defined (I486) || defined (G_POWER)
 				use_parameter (&instruction->instruction_parameters[1]);
 #  ifdef I486
@@ -3870,7 +3870,7 @@ IF_G_POWER ( case IUMULH: )
 				instruction_use_2 (instruction,USE_DEF);
 				allocate_scratch_register=1;
 				break;
-			case IDIV:	case IMOD:	case IDIVU:	case IREMU:
+			case IDIV:	case IREM:	case IDIVU:	case IREMU:
 				use_scratch_register();
 				instruction_use_2 (instruction,USE_DEF);
 				allocate_scratch_register=1;
@@ -3987,7 +3987,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				break;
 #endif
 #ifndef I486_USE_SCRATCH_REGISTER
-			case IMOD:
+			case IREM:
 # if defined (I486) || defined (G_POWER)
 #  ifdef I486
 			case IREMU:
