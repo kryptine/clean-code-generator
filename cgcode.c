@@ -332,7 +332,7 @@ static LABEL	*add_real,*sub_real,*mul_real,*div_real,*eq_real,*gt_real,*lt_real;
 
 static LABEL	*i_to_r_real,*r_to_i_real,*sqrt_real,*exp_real,*ln_real,*log10_real,
 				*cos_real,*sin_real,*tan_real,*acos_real,*asin_real,*atan_real,*pow_real,
-				*entier_real_label;
+				*entier_real_label,*truncate_real_label,*ceiling_real_label;
 
 LABEL 			*copy_graph_label,*CHANNEL_label,*create_channel_label,*currentP_label,*newP_label,
 				*randomP_label,*suspend_label;
@@ -1309,6 +1309,26 @@ void code_cmpS (int a_offset_1,int a_offset_2)
 	init_b_stack (1,i_vector);
 }
 
+void code_ceilingR (VOID)
+{
+	if (ceiling_real_label==NULL)
+		ceiling_real_label=enter_label ("ceiling_real",IMPORT_LABEL);
+
+#ifdef G_A64
+	s_push_b (s_get_b (0));
+	s_put_b (1,NULL);
+	insert_basic_block (JSR_BLOCK,0,1+1,r_vector,ceiling_real_label);
+#else
+	s_push_b (s_get_b (0));
+	s_put_b (1,s_get_b (2));
+	s_put_b (2,NULL);
+
+	insert_basic_block (JSR_BLOCK,0,2+1,r_vector,ceiling_real_label);
+#endif
+
+	init_b_stack (1,i_vector);
+}
+
 void code_CtoAC (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
@@ -2146,25 +2166,18 @@ void code_entierR (VOID)
 	if (entier_real_label==NULL)
 		entier_real_label=enter_label ("entier_real",IMPORT_LABEL);
 
-#ifdef M68000
-	if (!mc68881_flag)
-		code_monadic_sane_operator (entier_real_label);
-	else {
-#endif
 #ifdef G_A64
-		s_push_b (s_get_b (0));
-		s_put_b (1,NULL);
-		insert_basic_block (JSR_BLOCK,0,1+1,r_vector,entier_real_label);
+	s_push_b (s_get_b (0));
+	s_put_b (1,NULL);
+	insert_basic_block (JSR_BLOCK,0,1+1,r_vector,entier_real_label);
 #else
-		s_push_b (s_get_b (0));
-		s_put_b (1,s_get_b (2));
-		s_put_b (2,NULL);
-	
-		insert_basic_block (JSR_BLOCK,0,2+1,r_vector,entier_real_label);
+	s_push_b (s_get_b (0));
+	s_put_b (1,s_get_b (2));
+	s_put_b (2,NULL);
+
+	insert_basic_block (JSR_BLOCK,0,2+1,r_vector,entier_real_label);
 #endif
-#ifdef M68000
-	}
-#endif
+
 	init_b_stack (1,i_vector);
 }
 
@@ -8045,6 +8058,26 @@ void code_testcaf (char *label_name)
 	s_push_b (graph_2);	
 }
 
+void code_truncateR (VOID)
+{
+	if (truncate_real_label==NULL)
+		truncate_real_label=enter_label ("truncate_real",IMPORT_LABEL);
+
+#ifdef G_A64
+	s_push_b (s_get_b (0));
+	s_put_b (1,NULL);
+	insert_basic_block (JSR_BLOCK,0,1+1,r_vector,truncate_real_label);
+#else
+	s_push_b (s_get_b (0));
+	s_put_b (1,s_get_b (2));
+	s_put_b (2,NULL);
+
+	insert_basic_block (JSR_BLOCK,0,2+1,r_vector,truncate_real_label);
+#endif
+
+	init_b_stack (1,i_vector);
+}
+
 void code_update_a (int a_offset_1,int a_offset_2)
 {
 	if (a_offset_1!=a_offset_2){
@@ -10076,7 +10109,8 @@ void initialize_coding (VOID)
 	cmp_string_label=eqD_label=NULL;
 	slice_string_label=D_to_S_label=NULL;
 	print_label=print_sc_label=print_symbol_label=print_symbol_sc_label=NULL;
-	update_string_label=equal_string_label=entier_real_label=cycle_in_spine_label=NULL;
+	update_string_label=equal_string_label=cycle_in_spine_label=NULL;
+	entier_real_label=truncate_real_label=ceiling_real_label=NULL;
 	yet_args_needed_label=string_to_string_node_label=NULL;
 	int_array_to_node_label=real_array_to_node_label=NULL;
 	repl_args_b_label=push_arg_b_label=del_args_label=printD_label=reserve_label=NULL;

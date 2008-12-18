@@ -1926,6 +1926,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("ccall",			parse_instruction_l_s,		code_ccall );
 	put_instruction_name ("centry",			parse_instruction_l_a_s,	code_centry );
 	put_instruction_name ("cmpS",			parse_instruction_n_n,		code_cmpS );
+	put_instruction_name ("ceilingR",		parse_instruction,			code_ceilingR );
 	put_instruction_name ("CtoAC",			parse_instruction,			code_CtoAC );
 	put_instruction_name ("copy_graph",		parse_instruction_n,		code_copy_graph );
 	put_instruction_name ("cosR",			parse_instruction,			code_cosR );
@@ -2164,6 +2165,7 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("suspend",		parse_instruction,			code_suspend );
 	put_instruction_name ("tanR",			parse_instruction,			code_tanR );
 	put_instruction_name ("testcaf",		parse_instruction_a,		code_testcaf );
+	put_instruction_name ("truncateR",		parse_instruction,			code_truncateR );
 	put_instruction_name ("update_a",		parse_instruction_n_n,		code_update_a );
 	put_instruction_name ("updatepop_a",	parse_instruction_n_n,		code_updatepop_a );
 	put_instruction_name ("update_b",		parse_instruction_n_n,		code_update_b );
