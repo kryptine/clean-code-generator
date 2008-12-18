@@ -261,7 +261,7 @@ int no_time_profiling;
 #define g_fsub(g1,g2) g_instruction_2(GFSUB,(g1),(g2))
 #define g_lsl(g1,g2) g_instruction_2(GLSL,(g1),(g2))
 #define g_lsr(g1,g2) g_instruction_2(GLSR,(g1),(g2))
-#define g_mod(g1,g2) g_instruction_2(GMOD,(g1),(g2))
+#define g_rem(g1,g2) g_instruction_2(GREM,(g1),(g2))
 #ifdef I486
 # define g_remu(g1,g2) g_instruction_2(GREMU,(g1),(g2))
 #endif
@@ -4638,10 +4638,10 @@ void code_remI (VOID)
 	if (!mc68000_flag){
 #endif
 		INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
-	
+
 		graph_1=s_pop_b();
 		graph_2=s_get_b (0);
-		graph_3=g_mod (graph_2,graph_1);
+		graph_3=g_rem (graph_2,graph_1);
 		s_put_b (0,graph_3);
 #ifdef sparc
 		if (dot_rem_label==NULL)

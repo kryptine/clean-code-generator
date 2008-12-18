@@ -2413,7 +2413,7 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 #endif
 			calculate_dyadic_non_commutative_data_operator (graph);
 			return;
-		case GMOD:
+		case GREM:
 #ifdef I486
 		case GREMU:
 #endif
@@ -2743,7 +2743,7 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GFSUB:
 		case GLSL:
 		case GLSR:
-		case GMOD:
+		case GREM:
 #ifdef I486
 		case GREMU:
 #endif
@@ -2955,7 +2955,7 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GFSUB:
 		case GLSL:
 		case GLSR:
-		case GMOD:
+		case GREM:
 #ifdef I486
 		case GREMU:
 #endif
