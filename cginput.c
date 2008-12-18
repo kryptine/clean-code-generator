@@ -1990,6 +1990,9 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("fillR_b",		parse_instruction_n_n,		code_fillR_b );
 	put_instruction_name ("fill_a",			parse_instruction_n_n,		code_fill_a );
 	put_instruction_name ("fill_r",			parse_instruction_a_n_n_n_n_n, code_fill_r );
+#ifdef I486
+	put_instruction_name ("floordivI",		parse_instruction,			code_floordivI );
+#endif
 	put_instruction_name ("getWL",			parse_instruction_n,		code_dummy );
 	put_instruction_name ("get_desc_arity",	parse_instruction_n,		code_get_desc_arity );
 	put_instruction_name ("get_desc_flags_b",	parse_instruction,		code_get_desc_flags_b );	
@@ -2034,8 +2037,8 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("ltR",			parse_instruction,			code_ltR );
 #ifdef I486
 	put_instruction_name ("ltU",			parse_instruction,			code_ltU );
+	put_instruction_name ("modI",			parse_instruction,			code_modI );
 #endif
-	put_instruction_name ("modI",			parse_instruction,			code_remI );
 	put_instruction_name ("mulI",			parse_instruction,			code_mulI );
 	put_instruction_name ("mulR",			parse_instruction,			code_mulR );
 #if defined (I486) || defined (G_POWER)

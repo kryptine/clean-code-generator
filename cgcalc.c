@@ -2411,6 +2411,10 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 #if defined (I486) || defined (G_POWER)
 		case GDIVU:
 #endif
+#ifdef I486
+		case GFLOORDIV:
+		case GMOD:
+#endif
 			calculate_dyadic_non_commutative_data_operator (graph);
 			return;
 		case GREM:
@@ -2730,6 +2734,10 @@ void count_graph (INSTRUCTION_GRAPH graph)
 #if defined (I486) || defined (G_POWER)
 		case GDIVU:
 #endif
+#ifdef I486
+		case GFLOORDIV:
+		case GMOD:
+#endif
 		case GFADD:
 		case GFCMP_EQ:
 		case GFCMP_GT:
@@ -2941,6 +2949,10 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GDIV:
 #if defined (I486) || defined (G_POWER)
 		case GDIVU:
+#endif
+#ifdef I486
+		case GFLOORDIV:
+		case GMOD:
 #endif
 		case GFADD:
 		case GFCMP_EQ:
@@ -3169,6 +3181,10 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GDIV:
 #if defined (I486) || defined (G_POWER)
 		case GDIVU:
+#endif
+#ifdef I486
+		case GFLOORDIV:
+		case GMOD:
 #endif
 		case GFADD:
 		case GFCMP_EQ:

@@ -3991,6 +3991,80 @@ static void linearize_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH gra
 #endif
 
 #ifdef I486
+static void linearize_floordiv_mod_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+	ADDRESS ad_1,ad_2;
+	int reg_1,tmp_reg;
+	
+	graph_1=graph->instruction_parameters[0].p;
+	graph_2=graph->instruction_parameters[1].p;
+	
+	if (graph->order_left){
+		linearize_graph (graph_1,&ad_1);
+		linearize_graph (graph_2,&ad_2);
+	} else {
+		linearize_graph (graph_2,&ad_2);
+		linearize_graph (graph_1,&ad_1);
+	}
+
+	{
+	int i;
+
+	if (ad_1.ad_mode==P_IMMEDIATE && i_instruction_code==IFLOORDIV &&
+		(i=ad_1.ad_offset, (i>1 || (i<-1 && i!=0x80000000))))
+	{
+		int tmp_reg2;
+
+		if (try_allocate_register_number (REGISTER_D0)){
+			tmp_reg2=REGISTER_D0;
+			in_alterable_data_register (&ad_2);		
+		} else {
+			in_alterable_data_register (&ad_2);
+			tmp_reg2=get_dregister();
+		}
+		if (try_allocate_register_number (REGISTER_A1))
+			tmp_reg=REGISTER_A1;
+		else
+			tmp_reg=get_dregister();
+		instruction_r_r_r_i (i_instruction_code,tmp_reg2,ad_2.ad_register,tmp_reg,i);
+		free_register (tmp_reg2);
+	} else {
+		in_preferred_alterable_register (&ad_2,REGISTER_D0);
+		in_alterable_data_register (&ad_1);
+
+		if (try_allocate_register_number (REGISTER_A1))
+			tmp_reg=REGISTER_A1;
+		else
+			tmp_reg=get_dregister();
+		instruction_ad_r_r (i_instruction_code,&ad_1,ad_2.ad_register,tmp_reg);
+	}
+	}
+
+	free_register (tmp_reg);
+
+	--*ad_2.ad_count_p;
+	reg_1=ad_2.ad_register;
+	
+	if (graph->instruction_d_min_a_cost>0){
+		int areg;
+		
+		areg=get_aregister();
+		i_move_r_r (reg_1,areg);
+		free_dregister (reg_1);
+		reg_1=areg;
+	}
+
+	ad_p->ad_mode=P_REGISTER;
+	ad_p->ad_register=reg_1;
+	
+	ad_p->ad_count_p=&graph->node_count;
+	if (*ad_p->ad_count_p>1)
+		register_node (graph,reg_1);
+}
+#endif
+
+#ifdef I486
 static int linearize_first_graph_first (INSTRUCTION_GRAPH a_graph_1,INSTRUCTION_GRAPH a_graph_2)
 {
 	int i1,i2,u1,u2;
@@ -8835,6 +8909,14 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			linearize_rem_operator (IREM,graph,ad_p);
 			return;
 #endif
+#ifdef I486
+		case GFLOORDIV:
+			linearize_floordiv_mod_operator (IFLOORDIV,graph,ad_p);
+			return;
+		case GMOD:
+			linearize_floordiv_mod_operator (IMOD,graph,ad_p);
+			return;
+#endif
 		case GCMP_EQ:
 			linearize_compare_operator (CEQ,CEQ,graph,ad_p);
 			return;
@@ -9313,20 +9395,80 @@ void initialize_linearization (VOID)
 
 #if 0
 static char *i_instruction_names[] = {
-	"ADD",		"AND",		"ASR",		"BEQ",		"BGE",		"BGT",		"BHS",
-	"BLE",		"BLT",		"BMI",		"BMOVE",	"BNE",		"CMP",		"CMPW",
-	"DIV",		"EOR",		"EXG",		"EXT",		"FACOS",	"FADD",		"FASIN",
-	"FATAN",	"FBEQ",		"FBGE",		"FBGT",		"FBLE",		"FBLT",		"FBNE",
-	"FCMP",		"FCOS",		"FDIV",		"FEXP",		"FLN",		"FLOG10",	"FMUL",
-	"FREM",		"FSEQ",		"FSGE",		"FSGT",		"FSIN",		"FSLE",		"FSLT",
-	"FSNE",		"FSQRT",	"FSUB",		"FTAN",		"FTST",		"FMOVE",	"FMOVEL",
-	"JMP",		"JSR",		"LEA",		"LSL",		"LSR",		"MOD",		"MOVE",
-	"MOVEB",	"MOVEM",	"MOVEW",	"MUL",		"OR",		"RTS",		"SEQ",
-	"SGE",		"SGT",		"SLE",		"SLT",		"SNE",		"SUB",		"TST",
-	"TSTB",		"WORD"
+	"ADD",		"AND",		"ASR",		"BEQ",		"BGE",		"BGEU",		"BGT",
+	"BGTU",		"BLE",		"BLEU",		"BLT",		"BLTU",		"BNE",		"BNO",
+	"BO",		"CMP",		"DIV",		"EOR",		"EXG",		"EXT",		"FADD",
+#if ! (defined (I486) && !defined (G_A64))
+	"FBEQ",		"FBGE",		"FBGT",		"FBLE",		"FBLT",		"FBNE",
+#endif
+	"FABS",
+	"FCMP",		"FCOS",		"FDIV",		"FMUL",		"FNEG",		"FREM",		"FSEQ",
+	"FSGE",		"FSGT",		"FSIN",		"FSLE",		"FSLT",		"FSNE",		"FSUB",
+	"FTAN",		"FTST",		"FMOVE",	"FMOVEL",	"JMP",		"JSR",		"LEA",
+	"LSL",		"LSR",		"MOD",		"MOVE",		"MOVEB",	"MOVEDB",	"MUL",
+	"NEG",		"OR",		"RTS",		"SCHEDULE",	"SEQ",		"SGE",		"SGEU",
+	"SGT",		"SGTU",		"SLE",		"SLEU",		"SLT",		"SLTU",		"SNE",
+	"SNO",		"SO",		"SUB",		"TST",		"WORD"
+#if !defined (G_POWER)
+	,"FSQRT"
+#endif
+#ifdef M68000
+	,"CMPW"
+	,"FACOS",	"FASIN",	"FATAN",	"FEXP",		"FLN",		"FLOG10",
+	"BMI",		"BMOVE",	"MOVEM",	"TSTB"
+#endif
+#if defined (M68000) || defined (G_POWER)
+	,"EXTB"
+#endif
+#ifndef M68000
+	,"BTST"
+#endif
+#ifdef sparc
+	,"FMOVEHI",	"FMOVELO"
+#endif
+#ifdef G_POWER
+	,"BNEP","MTCTR"
+#endif
+#if defined (G_POWER) || defined (sparc)
+	,"ADDI",	"LSLI"
+	,"ADDO",	"SUBO"
+#endif
+#ifdef I486
+	,"ASR_S","LSL_S","LSR_S"
+#endif
+#if defined (I486) && !defined (G_A64)
+	,"FCEQ",	"FCGE", "FCGT", "FCLE", "FCLT", "FCNE"
+	,"FSINCOS"
+#endif
+#ifdef G_POWER
+	,"CMPLW"
+	,"MULO"
+#endif
+#if defined (G_POWER) || defined (I486)
+	,"JMPP"	,"RTSP", "NOT"
+#endif
+#if defined (I486) && defined (FP_STACK_OPTIMIZATIONS)
+	,"FEXG"
+#endif
+#if defined (I486)
+	,"ADC" ,"RTSI", "DIVI", "REMI", "REMU", "MULUD", "DIVDU", "SBB"
+	,"FLOADS", "FMOVES"
+#endif
+#if defined (I486) || defined (G_POWER)
+	,"DIVU"
+#endif
+#ifdef G_POWER
+	,"UMULH"
+#endif
+#ifdef G_AI64
+	,"LOADSQB", "MOVEQB",	"FCVT2S"
+#endif
+#if 1
+	,"CMPXCHG", "XADD"
+#endif
 };
 
-static void show_parameter (register struct parameter *parameter)
+static void show_parameter (struct parameter *parameter)
 {
 	switch (parameter->parameter_type){
 		case P_REGISTER:
@@ -9385,13 +9527,16 @@ static void show_parameter (register struct parameter *parameter)
 	}
 }
 
-void show_instructions (register struct instruction *instructions)
+void show_instructions (struct instruction *instructions)
 {
 	while (instructions!=NULL){
-		register struct parameter *parameter;
-		register int n_parameters;
-		
-		printf ("%s ",i_instruction_names[instructions->instruction_icode]);
+		struct parameter *parameter;
+		int n_parameters;
+
+		if (instructions->instruction_icode<sizeof (i_instruction_names)/sizeof(char*))
+			printf ("%s ",i_instruction_names[instructions->instruction_icode]);
+		else
+			printf ("?%d ",instructions->instruction_icode);
 		
 		n_parameters=instructions->instruction_arity;
 		parameter=instructions->instruction_parameters;

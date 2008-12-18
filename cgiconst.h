@@ -66,7 +66,8 @@ enum {
 	,IFEXG
 #endif
 #if defined (I486)
-	,IADC ,IRTSI, IDIVI, IREMI, IREMU, IMULUD, IDIVDU, ISBB
+	,IADC ,ISBB, IRTSI
+	,IDIVI, IREMI, IREMU, IFLOORDIV, IMOD, IMULUD, IDIVDU
 	,IFLOADS, IFMOVES
 #endif
 #if defined (I486) || defined (G_POWER)

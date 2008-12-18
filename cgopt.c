@@ -422,6 +422,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 IF_G_SPARC (case IADDO: case ISUBO: )
 #ifdef I486
 		case IDIVI:		case IREMI:		case IREMU:		case IMULUD:	case IDIVDU:
+		case IFLOORDIV:	case IMOD:
 #endif
 #if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
 		case IDIVU:
@@ -680,6 +681,8 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 					instruction->instruction_icode!=IASR_S &&
 					instruction->instruction_icode!=ILSL_S &&
 					instruction->instruction_icode!=ILSR_S &&
+					instruction->instruction_icode!=IFLOORDIV &&
+					instruction->instruction_icode!=IMOD &&
 #endif
 					instruction->instruction_icode!=IREM)
 #ifdef M68000
@@ -918,6 +921,8 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					instruction->instruction_icode!=IASR_S &&
 					instruction->instruction_icode!=ILSL_S &&
 					instruction->instruction_icode!=ILSR_S &&
+					instruction->instruction_icode!=IFLOORDIV &&
+					instruction->instruction_icode!=IMOD &&
 					instruction->instruction_icode!=IREM)
 					internal_error_in_function ("optimize_stack_access");
 				/* only first argument of mod might be register indirect */
@@ -1687,6 +1692,16 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				use_parameter (&instruction->instruction_parameters[2]);
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
+				break;
+#endif
+#ifdef I486
+			case IFLOORDIV: case IMOD:
+				define_parameter (&instruction->instruction_parameters[2]);
+				use_parameter (&instruction->instruction_parameters[1]);
+				if (instruction->instruction_arity==4)
+					define_parameter (&instruction->instruction_parameters[0]);					
+				else
+					use_parameter (&instruction->instruction_parameters[0]);
 				break;
 #endif
 #if 0
@@ -4031,6 +4046,20 @@ IF_G_RISC (case IADDI: case ILSLI:)
 # ifdef I486_USE_SCRATCH_REGISTER
 				allocate_scratch_register=1;
 # endif
+				break;
+#endif
+#ifdef I486
+			case IFLOORDIV:	case IMOD:
+				if (instruction->instruction_arity==4)
+					use_3_same_type_registers
+						(&instruction->instruction_parameters[0].parameter_data.reg,DEF,
+						 &instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,
+						 &instruction->instruction_parameters[2].parameter_data.reg,DEF,D_REGISTER);
+				else
+					use_3_same_type_registers
+						(&instruction->instruction_parameters[0].parameter_data.reg,USE,
+						 &instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,
+						 &instruction->instruction_parameters[2].parameter_data.reg,DEF,D_REGISTER);
 				break;
 #endif
 #if 0

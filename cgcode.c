@@ -254,7 +254,9 @@ int no_time_profiling;
 #define g_fdiv(g1,g2) g_instruction_2(GFDIV,(g1),(g2))
 
 #define g_fitor(g1) g_instruction_1(GFITOR,(g1))
-
+#ifdef I486
+# define g_floordiv(g1,g2) g_instruction_2(GFLOORDIV,(g1),(g2))
+#endif
 #define g_fmul(g1,g2) g_instruction_2(GFMUL,(g1),(g2))
 #define g_frem(g1,g2) g_instruction_2(GFREM,(g1),(g2))
 #define g_frtoi(g1) g_instruction_1(GFRTOI,(g1))
@@ -263,6 +265,7 @@ int no_time_profiling;
 #define g_lsr(g1,g2) g_instruction_2(GLSR,(g1),(g2))
 #define g_rem(g1,g2) g_instruction_2(GREM,(g1),(g2))
 #ifdef I486
+# define g_mod(g1,g2) g_instruction_2(GMOD,(g1),(g2))
 # define g_remu(g1,g2) g_instruction_2(GREMU,(g1),(g2))
 #endif
 #define g_mul(g1,g2) g_instruction_2(GMUL,(g1),(g2))
@@ -3550,6 +3553,70 @@ void code_fillcaf (char *label_name,int a_stack_size,int b_stack_size)
 	}
 }
 
+#ifdef I486
+void code_floordivI (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+
+	graph_1=s_pop_b();
+	graph_2=s_get_b (0);
+
+	if (graph_2->instruction_code==GLOAD_I){
+		int n;
+
+		n=graph_2->instruction_parameters[0].i;
+		if (n>0 && (n & (n-1))==0){
+			int n_bits;
+
+			n_bits=0;
+			while (n>2){
+				n_bits+=2;
+				n>>=2;
+			}
+			n_bits+=n-1;
+
+			if (n_bits==0)
+				graph_3=graph_1;
+			else
+				graph_3=g_asr (g_load_i (n_bits),graph_1);
+			s_put_b (0,graph_3);
+
+			return;
+		} else if (n<0 && ((-n) & ((-n)-1))==0){
+			INSTRUCTION_GRAPH graph_4;
+			unsigned int i;
+			int n_bits;
+		
+			i=-n;
+			n_bits=0;
+			while (i>2){
+				n_bits+=2;
+				i>>=2;
+			}
+			n_bits+=i-1;
+
+			if (n_bits==0)
+				graph_3=g_neg (graph_1);
+			else {
+				graph_4 = g_neg (g_and (g_load_i ((-n)-1),graph_1));
+				if (n_bits>1) /* not for -2 */
+					graph_4 = g_asr (g_load_i (n_bits),graph_4);
+				graph_3 = g_sub (g_asr (g_load_i (n_bits),graph_1),graph_4);
+			}
+
+			s_put_b (0,graph_3);
+
+			return;
+		} else
+			/* prevent sharing to optimise divide by constant */
+			graph_2=g_load_i (n);
+	}
+
+	graph_3=g_floordiv (graph_2,graph_1);
+	s_put_b (0,graph_3);
+}
+#endif
+
 void code_get_desc_arity (int a_offset)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7;
@@ -4628,6 +4695,98 @@ void code_ltU (VOID)
 	graph_2=s_get_b (0);
 	graph_3=g_cmp_ltu (graph_2,graph_1);
 	
+	s_put_b (0,graph_3);
+}
+
+void code_modI (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+
+	graph_1=s_pop_b();
+	graph_2=s_get_b (0);
+
+	if (graph_2->instruction_code==GLOAD_I){
+		int n;
+
+		n=graph_2->instruction_parameters[0].i;
+		if (n>0){
+			int n2;
+			
+			n2=n & (n-1);
+			if (n2==0)
+				graph_3=g_and (g_load_i (n-1),graph_1);
+			else {
+				INSTRUCTION_GRAPH graph_4;
+				
+				graph_4=g_floordiv (g_load_i (n),graph_1);
+
+				if ((n2 & (n2-1))==0){
+					int bit_1,bit_2;
+
+					bit_1=0;
+					while ((n & 1)==0){
+						++bit_1;
+						n=n>>1;
+					}
+					n=n>>1;
+					bit_2=1;
+					while ((n & 1)==0){
+						++bit_2;
+						n=n>>1;
+					}
+					
+					if (bit_1>0)
+						graph_4=g_lsl (g_load_i (bit_1),graph_4);
+					graph_3=g_sub (graph_4,graph_1);
+					graph_4=g_lsl (g_load_i (bit_2),graph_4);
+					graph_3=g_sub (graph_4,graph_3);
+				} else
+					graph_3=g_sub (g_mul (graph_2,graph_4),graph_1);
+			}
+			s_put_b (0,graph_3);
+			return;
+		} else if (n<0){
+			int n2;
+
+			n2=(-n) & ((-n)-1);
+			if (n2==0)
+				graph_3=g_neg (g_and (g_load_i ((-n)-1),g_neg (graph_1)));
+			else {
+				INSTRUCTION_GRAPH graph_4;
+
+				graph_4=g_floordiv (g_load_i (n),graph_1);
+				
+				n = -n;
+				
+				if ((n2 & (n2-1))==0){
+					int bit_1,bit_2;
+
+					bit_1=0;
+					while ((n & 1)==0){
+						++bit_1;
+						n=n>>1;
+					}
+					n=n>>1;
+					bit_2=1;
+					while ((n & 1)==0){
+						++bit_2;
+						n=n>>1;
+					}
+					
+					if (bit_1>0)
+						graph_4=g_lsl (g_load_i (bit_1),graph_4);
+					graph_3=g_add (graph_4,graph_1);
+					graph_4=g_lsl (g_load_i (bit_2),graph_4);
+					graph_3=g_add (graph_4,graph_3);					
+				} else
+					graph_3=g_add (g_mul (g_load_i (n),graph_4),graph_1);
+			}
+			s_put_b (0,graph_3);
+			return;
+		}
+	}
+
+	graph_3=g_mod (graph_2,graph_1);
 	s_put_b (0,graph_3);
 }
 #endif

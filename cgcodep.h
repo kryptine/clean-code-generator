@@ -117,6 +117,9 @@ void code_fillI_b (int b_offset,int a_offset);
 void code_fillR  (double value,int a_offset);
 void code_fillR_b (int b_offset,int a_offset);
 void code_fill_a (int from_offset,int to_offset);
+#ifdef I486
+void code_floordivI (VOID);
+#endif
 void code_get_desc_arity (int a_offset);
 void code_get_node_arity (int a_offset);
 void code_get_desc0_number (void);
@@ -156,6 +159,7 @@ void code_ltI (VOID);
 void code_ltR (VOID);
 #ifdef I486
 void code_ltU (VOID);
+void code_modI (VOID);
 #endif
 void code_remI (VOID);
 #ifdef I486
