@@ -3894,10 +3894,10 @@ static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH
 			int i;
 			
 			i=ad_1.ad_offset;
-			if (i_instruction_code==IMOD && i<0 && i!=0x80000000)
+			if (i_instruction_code==IREM && i<0 && i!=0x80000000)
 				i=-i;
 			
-			if ((i & (i-1))==0 && (i_instruction_code==IMOD ? i>1 : i>0))
+			if ((i & (i-1))==0 && (i_instruction_code==IREM ? i>1 : i>0))
 				instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
 			else if (i>1 || (i<-1 && i!=0x80000000)){
 				int tmp_reg;
@@ -3939,7 +3939,7 @@ static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH
 		register_node (graph,reg_1);
 }
 #else
-static void linearize_mod_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
+static void linearize_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	register INSTRUCTION_GRAPH graph_1,graph_2;
 	ADDRESS ad_1,ad_2;
@@ -3969,7 +3969,7 @@ static void linearize_mod_operator (int i_instruction_code,INSTRUCTION_GRAPH gra
 		reg_1=ad_1.ad_register;
 	} else
 		reg_1=get_dregister();
-	instruction_ad_r_r (IMOD,&ad_1,reg_1,ad_2.ad_register);
+	instruction_ad_r_r (IREM,&ad_1,reg_1,ad_2.ad_register);
 	free_dregister (ad_2.ad_register);
 	
 	if (graph->instruction_d_min_a_cost>0){
@@ -8817,7 +8817,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			linearize_div_rem_operator (IDIV,graph,ad_p);
 			return;
 		case GMOD:
-			linearize_div_rem_operator (IMOD,graph,ad_p);
+			linearize_div_rem_operator (IREM,graph,ad_p);
 			return;
 		case GDIVU:
 			linearize_div_rem_operator (IDIVU,graph,ad_p);
@@ -8832,7 +8832,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			linearize_dyadic_non_commutative_data_operator (IDIV,graph,ad_p);
 			return;
 		case GMOD:
-			linearize_mod_operator (IMOD,graph,ad_p);
+			linearize_rem_operator (IREM,graph,ad_p);
 			return;
 #endif
 		case GCMP_EQ:
