@@ -8816,7 +8816,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GDIV:
 			linearize_div_rem_operator (IDIV,graph,ad_p);
 			return;
-		case GMOD:
+		case GREM:
 			linearize_div_rem_operator (IREM,graph,ad_p);
 			return;
 		case GDIVU:
@@ -8831,7 +8831,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GDIV:
 			linearize_dyadic_non_commutative_data_operator (IDIV,graph,ad_p);
 			return;
-		case GMOD:
+		case GREM:
 			linearize_rem_operator (IREM,graph,ad_p);
 			return;
 #endif
