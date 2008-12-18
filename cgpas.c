@@ -2857,7 +2857,7 @@ static void write_instructions (struct instruction *instructions)
 			case IDIVU:
 				as_divu_instruction (instruction);
 				break;
-			case IMOD:
+			case IREM:
 				as_rem_instruction (instruction);
 				break;
 			case IAND:

@@ -2113,7 +2113,7 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IDIV:
 				w_as_mul_or_div_instruction (instruction,".div");
 				break;
-			case IMOD:
+			case IREM:
 				w_as_mod_instruction (instruction);
 				break;
 			case IAND:

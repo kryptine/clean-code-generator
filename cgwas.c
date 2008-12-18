@@ -1137,7 +1137,7 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IEXG:
 				w_as_dyadic_instruction (instruction,"exg");
 				break;
-			case IMOD:
+			case IREM:
 				w_as_mod_instruction (instruction);
 				break;
 			case IMOVEM:

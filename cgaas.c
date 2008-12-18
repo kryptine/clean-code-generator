@@ -4246,7 +4246,7 @@ static void as_instructions (struct instruction *instruction)
 			case IDIVI:
 				as_div_rem_i_instruction (instruction,0);
 				break;
-			case IMOD:
+			case IREM:
 				as_rem_instruction (instruction);
 				break;
 			case IREMI:

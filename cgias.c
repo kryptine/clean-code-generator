@@ -2070,9 +2070,9 @@ static void as_parameter (int code1,int code2,struct parameter *parameter)
 }
 
 /*
-	From The PowerPC Compiler WriterÕs Guide,
+	From The PowerPC Compiler Writer's Guide,
 	Warren, Henry S., Jr., IBM Research Report RC 18601 [1992]. Changing Division by a
-	Constant to Multiplication in TwoÕs Complement Arithmetic, (December 21),
+	Constant to Multiplication in Two's Complement Arithmetic, (December 21),
 	Granlund, Torbjorn and Montgomery, Peter L. [1994]. SIGPLAN Notices, 29 (June), 61.
 */
 
@@ -4433,7 +4433,7 @@ static void as_instructions (struct instruction *instruction)
 			case IDIVU:
 				as_div_instruction (instruction,1);
 				break;
-			case IMOD:
+			case IREM:
 				as_rem_instruction (instruction,0);
 				break;
 			case IREMI:

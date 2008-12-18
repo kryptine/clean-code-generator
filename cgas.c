@@ -3440,7 +3440,7 @@ static void write_instructions (struct instruction *instructions)
 			case IDIV:
 				as_div_instruction (instruction);
 				break;
-			case IMOD:
+			case IREM:
 				as_mod_instruction (instruction);
 				break;
 			case IBMOVE:

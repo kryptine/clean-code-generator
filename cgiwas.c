@@ -3513,7 +3513,7 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IDIVU:
 				w_as_div_instruction (instruction,1);
 				break;
-			case IMOD:
+			case IREM:
 				w_as_rem_instruction (instruction,0);
 				break;
 			case IREMI:

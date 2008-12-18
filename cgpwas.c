@@ -3225,7 +3225,7 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IDIVU:
 				w_as_divu_instruction (instruction);
 				break;
-			case IMOD:
+			case IREM:
 				w_as_rem_instruction (instruction);
 				break;
 			case IAND:
