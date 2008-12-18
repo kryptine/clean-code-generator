@@ -3183,7 +3183,7 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GFSUB:
 		case GLSL:
 		case GLSR:
-		case GMOD:
+		case GREM:
 #ifdef I486
 		case GREMU:
 #endif
