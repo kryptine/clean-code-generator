@@ -31,6 +31,7 @@ extern INSTRUCTION_GRAPH g_fload (int offset,int stack);
 extern INSTRUCTION_GRAPH g_instruction_1 (int instruction_code,INSTRUCTION_GRAPH graph_1);
 extern INSTRUCTION_GRAPH g_instruction_2 (int instruction_code,INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2);
 extern INSTRUCTION_GRAPH g_new_node (int,int,int);
+extern INSTRUCTION_GRAPH g_create_unboxed_int_array (int n_elements);
 
 #ifdef G_A64
 # define g_fromf(g1) g_instruction_1(GFROMF,(g1))

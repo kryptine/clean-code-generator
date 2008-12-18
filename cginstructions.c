@@ -9,6 +9,7 @@
 #if defined (LINUX) && defined (G_AI64)
 # include <stdint.h>
 #endif
+#include <stdlib.h>
 
 #include "cgport.h"
 
@@ -1814,6 +1815,906 @@ void code_push_r_arg_u (int a_offset,int a_size,int b_size,int a_arg_offset,int 
 		--b_arg_size;
 		s_push_b (graph_p[a_size+b_arg_offset-1+b_arg_size]);
 	}
+}
+
+/* convert string to integer */
+
+#ifdef _WIN64
+# define A64
+#endif
+#if defined (__GNUC__) && defined (__SIZEOF_POINTER__)
+# if __SIZEOF_POINTER__==8
+#  define A64
+# endif
+#endif
+
+#ifdef _MSC_VER
+# define U_LONG_LONG unsigned __int64
+#else
+# define U_LONG_LONG unsigned long long
+#endif
+
+#ifdef A64
+# define IF_INT_64_OR_32(if64,if32) if64
+# define N_bits_in_int 64
+# define Max_bit_n_in_int 63
+# define N_digits_in_part 27
+# define N_digits_in_part_m1 26
+# define I5PD 7450580596923828125
+# define I2T5PD 14901161193847656250
+# define I1E18 1000000000000000000
+# define IM1E18 (-1000000000000000000)
+#else
+# define IF_INT_64_OR_32(if64,if32) if32
+# define N_bits_in_int 32
+# define Max_bit_n_in_int 31
+# define N_digits_in_part 13
+# define N_digits_in_part_m1 12
+# define I5PD 1220703125
+# define I2T5PD 2441406250
+#endif
+#define I1E9 1000000000
+
+#ifdef A64
+# ifdef __GNUC__
+# define UW unsigned long long
+# define W long long
+# else
+# define UW unsigned __int64
+# define W __int64
+# endif
+#else
+# define UW unsigned int
+# define W int
+#endif
+
+#ifdef _WIN64
+UW _umul128 (UW multiplier, UW multiplicand, UW* highproduct);
+# pragma intrinsic (_umul128)
+#endif
+
+#ifdef A64
+# ifdef __GNUC__
+#  define umul_hl(h,l,a,b) \
+	__asm__ ("mulq %3"		  \
+			: "=a" ((UW)(l)), \
+			  "=d" ((UW)(h))  \
+			: "%0" ((UW)(a)), \
+			  "rm" ((UW)(b)))
+# else
+#  define umul_hl(h,l,a,b) l=_umul128 (a,b,&h)
+# endif
+#endif
+
+struct integer {
+	W   s;
+	UW *a;
+};
+
+static UW convertchars (int i,int end_i,char s[])
+{
+	UW n;
+	
+	n=0;
+	while (i<end_i){
+		n=n*10+(s[i]-48);
+		i=i+1;
+	}
+	return n;
+}
+
+static UW convert9c (int i,char s[])
+{
+	UW n;
+
+ 	n=s[i]-48;
+	n=n*10+(s[i+1]-48);
+	n=n*10+(s[i+2]-48);
+	n=n*10+(s[i+3]-48);
+	n=n*10+(s[i+4]-48);
+	n=n*10+(s[i+5]-48);
+	n=n*10+(s[i+6]-48);
+	n=n*10+(s[i+7]-48);
+	n=n*10+(s[i+8]-48);
+
+	return n;
+}
+
+#ifdef A64
+UW
+#else
+static U_LONG_LONG
+#endif
+	convert10to13c (int n_chars,char s[])
+{
+ 	int i;
+ 	UW nl,nh;
+#ifndef A64
+	U_LONG_LONG hl;
+#endif
+
+ 	i = n_chars-9;
+	nl = convert9c (i,s);
+	nh = convertchars (0,i,s);
+#ifdef A64
+	return nh*I1E9+nl;
+#else
+	hl = ((U_LONG_LONG)nh)*((U_LONG_LONG)I1E9);
+
+	return hl+nl;
+#endif
+}
+
+#ifndef A64
+static U_LONG_LONG convert13c_32 (int i,char s[])
+{
+	UW nl,nh;
+	U_LONG_LONG hl;
+	
+	nl=convert9c (i+4,s);
+
+	nh=s[i]-48;
+	nh=nh*10+(s[i+1]-48);
+	nh=nh*10+(s[i+2]-48);
+	nh=nh*10+(s[i+3]-48);
+
+	hl = ((U_LONG_LONG)nh)*((U_LONG_LONG)I1E9);
+	return hl+nl;
+}
+#endif
+
+#ifdef A64
+static UW convert18c_64 (int i,char s[])
+{
+	UW t48,n;
+
+	t48 = 0x3000000030;
+	n=(((UW)s[i]<<32)+s[i+9])-t48;
+	n=n*10+((((UW)s[i+1]<<32)+s[i+10])-t48);
+	n=n*10+((((UW)s[i+2]<<32)+s[i+11])-t48);
+	n=n*10+((((UW)s[i+3]<<32)+s[i+12])-t48);
+	n=n*10+((((UW)s[i+4]<<32)+s[i+13])-t48);
+	n=n*10+((((UW)s[i+5]<<32)+s[i+14])-t48);
+	n=n*10+((((UW)s[i+6]<<32)+s[i+15])-t48);
+	n=n*10+((((UW)s[i+7]<<32)+s[i+16])-t48);
+	n=n*10+((((UW)s[i+8]<<32)+s[i+17])-t48);
+	return (n>>32) * I1E9 + (n & 0xffffffff);
+}
+
+static UW convert19to27c_64 (int n_chars,char *s,UW *h_p)
+{
+	int i;
+	UW nh,nl,h,l;
+
+	i = n_chars-18;
+	nl = convert18c_64 (i,s);
+	nh = convertchars (0,i,s);
+
+	umul_hl (h,l,nh,I1E18);
+	l = l+nl;
+	*h_p = h+(l<nl);
+	return l;
+}
+
+static UW convert27c_64 (int i,char s[],UW *h_p)
+{
+	UW nh,nl,h,l;
+	
+	nl=convert18c_64 (i+9,s);
+   	nh=convert9c (i,s);
+
+	umul_hl (h,l,nh,I1E18);
+	l = l+nl;
+	*h_p = h+(l<nl);
+	return l;
+}
+#endif
+
+static int convert_first_chars (int n_chars_in_first_part,char s[],int i_a_f,UW a[])
+{
+	if (n_chars_in_first_part==0)
+		return i_a_f;
+
+	if (n_chars_in_first_part<IF_INT_64_OR_32 (19,10)){
+		UW n;
+		
+		n = convertchars (0,n_chars_in_first_part,s);
+		a[i_a_f]=n;
+		return i_a_f+1;
+	} else {
+		UW h,l;
+#ifdef A64
+		l = convert19to27c_64 (n_chars_in_first_part,s,&h);
+#else
+		U_LONG_LONG hl;
+
+		hl = convert10to13c (n_chars_in_first_part,s);
+		h=(UW)(hl>>N_bits_in_int);
+		l=(UW)hl;
+#endif
+		a[i_a_f]=l;
+		if (h==0)
+			return i_a_f+1;
+		else {
+			a[i_a_f+1]=h;
+			return i_a_f+2;
+		}
+	}
+}
+
+static int mul_5pd_add (int i,int i_a,UW a[])
+{
+	UW n;
+	
+	n=0;
+
+	while (i!=i_a){
+		UW ai;
+#ifdef A64
+		UW h,l;
+#else
+		U_LONG_LONG hl;
+#endif	
+		ai=a[i];
+#ifdef A64
+		umul_hl (h,l,ai,I5PD);
+		l=l+n;
+		h=h+(l<n);
+		a[i]=l;
+		n=h;
+#else
+		hl=((U_LONG_LONG)ai)*((U_LONG_LONG)I5PD);
+		hl=hl+n;
+		a[i]=(unsigned int)hl;
+		n=(unsigned int)(hl>>32);
+#endif
+		++i;
+	}
+
+	if (n!=0){
+		a[i]=n;
+		return i+1;
+	} else
+		return i;
+}
+
+static int addi (UW n,int i_a_f,int i_a_e,UW a[])
+{
+	UW s;
+	
+	if (i_a_f==i_a_e){
+		a[i_a_f]=n;
+		return i_a_f+1;
+	}
+	s=a[i_a_f]+n;
+	a[i_a_f]=s;
+	if (s<n){ /* carry */
+		int i;
+		
+		i=i_a_f+1;
+		while (i<i_a_e){
+			UW ai;
+
+			ai=a[i]+1;
+			a[i]=ai;
+			if (ai!=0)
+				return i_a_e;
+			i=i+1;
+		}
+		a[i]=1;
+		return i_a_e+1;
+	}
+	return i_a_e;
+}
+
+static int shift_left (int i,UW n,int shift,int i_a,UW a[])
+{
+	while (i<i_a){
+		UW ai,new_n;
+		
+		ai=a[i];
+		new_n = ai>>(N_bits_in_int-shift);
+		ai = (ai<<shift)+n;
+		a[i]=ai;
+		i=i+1;
+		n = new_n;
+	}
+
+	if (n==0)
+		return i_a;
+	else
+		a[i_a]=n;
+		return i_a+1;
+}
+
+static void stoi_next_parts (int i_s,char s[],int size_s,int i_a_f,int i_a_e,int shift,UW r,UW a[],int size_a)
+{
+	while (i_s<size_s){
+#ifdef A64
+		UW h,l,yh,yl;
+#else
+		U_LONG_LONG hl,yhl;
+#endif
+
+#ifdef A64
+		l = convert27c_64 (i_s,s,&h);
+		umul_hl (yh,yl,r,I5PD);
+#else
+		hl = convert13c_32 (i_s,s);
+		yhl = ((U_LONG_LONG)r)*((U_LONG_LONG)I5PD);
+#endif
+		if (shift<IF_INT_64_OR_32 (37,19)){
+			UW x,new_r,n;
+#ifdef A64
+			UW rh,rl;
+			
+			x = l & 0x7ffffff;
+			l = (l>>N_digits_in_part)+(h<<37);
+
+			rl = yl+l;
+			rh = yh+(rl<yl);
+			new_r = x | ((rl & ((((UW)1)<<shift)-1))<<N_digits_in_part);
+			n = (rl>>shift)+(rh<<(N_bits_in_int-shift));
+#else
+			UW l;
+			U_LONG_LONG rhl;
+
+			x = (UW)hl & 0x1fff;
+			l = (UW)(hl>>N_digits_in_part);
+			rhl = yhl+l;
+			new_r = x | ((((UW)rhl) & ((((UW)1)<<shift)-1))<<N_digits_in_part);
+			n = (UW)(rhl>>shift);
+#endif
+
+			i_a_e = mul_5pd_add (i_a_f,i_a_e,a);
+			i_a_e = addi (n,i_a_f,i_a_e,a);
+			shift += N_digits_in_part;
+			r = new_r;
+		} else if (shift==IF_INT_64_OR_32 (37,19)){
+#ifdef A64
+			yh =(yh<<N_digits_in_part) + (yl>>IF_INT_64_OR_32 (37,19));
+			yl = yl<<N_digits_in_part;
+			l=l+yl;
+			h=h+yh+(l<yl);
+#else
+			yhl = yhl<<N_digits_in_part;
+			hl = yhl + hl;
+#endif
+			i_a_e = mul_5pd_add (i_a_f,i_a_e,a);
+			i_a_e = addi (IF_INT_64_OR_32 (h,(UW)(hl>>32)),i_a_f,i_a_e,a);
+
+			if (i_a_f<=0)
+				printf ("error in stoi_next_parts\n");
+
+			i_a_f = i_a_f-1;
+			a[i_a_f]=IF_INT_64_OR_32 (l,(UW)hl);
+
+			shift = 0;
+			r = 0;
+		} else {
+			UW new_r;
+			int n,ys;
+
+			n = shift-IF_INT_64_OR_32 (37,19);
+			new_r = (IF_INT_64_OR_32 (l,(UW)hl)) & ((((UW)1)<<n)-1);
+#ifdef A64
+			l =(l>>n) + (h<<(N_bits_in_int-n));
+			h = h>>n;
+#else
+			hl = hl>>n;
+#endif
+			ys = N_digits_in_part-n;
+#ifdef A64
+			yh =(yh<<ys) + (yl>>(N_bits_in_int-ys));
+			yl = yl<<ys;
+			l=l+yl;
+			h=h+yh+(l<yl);
+#else
+			yhl = yhl << ys;
+			hl = yhl+hl;
+#endif
+			i_a_e = mul_5pd_add (i_a_f,i_a_e,a);
+			i_a_e = addi (IF_INT_64_OR_32 (h,(UW)(hl>>32)),i_a_f,i_a_e,a);
+
+			if (i_a_f<=0)
+				printf ("error in stoi_next_parts\n");
+			i_a_f = i_a_f-1;
+			a[i_a_f]=IF_INT_64_OR_32 (l,(UW)hl);
+
+			shift = n;
+			r = new_r;
+		}
+		i_s += N_digits_in_part;
+	}
+
+	if (i_s==size_s && i_a_f==0 && i_a_e<=size_a){
+		if (shift!=0)
+			i_a_e=shift_left (0,r,shift,i_a_e,a);
+		return;
+	} else
+		printf ("error in stoi_next_parts\n");
+}
+
+static struct integer string_to_integer (W sign,char *s,int size_s)
+{
+	if (s[0]=='-'){
+		sign=-1;
+		--size_s;
+		++s;
+	}
+
+	if (size_s<=N_digits_in_part){
+		if (size_s<IF_INT_64_OR_32 (19,10)){
+			struct integer i;
+
+			i.s=(convertchars (0,size_s,s) ^ sign)-sign;
+			i.a=NULL;
+			
+			return i;
+		} else {
+			UW h,l;
+
+#ifdef A64
+			l = convert19to27c_64 (size_s,s,&h);
+#else
+			U_LONG_LONG hl;
+
+			hl = convert10to13c (size_s,s);
+			h=(UW)(hl>>N_bits_in_int);
+			l=(UW)hl;
+#endif
+
+			if (h==0){
+				struct integer i;
+
+				if ((UW)l < (UW)(((UW)1<<(UW)Max_bit_n_in_int)-sign)){
+					i.s=(l ^ sign)-sign;
+					i.a=NULL;
+				
+					return i;
+				} else {
+					UW *a;
+
+					a=calloc (2,sizeof (UW));
+					if (a==NULL)
+						error ("Out of memory\n");
+
+					a[0]=1;
+					a[1]=l;
+					
+					i.s=sign;
+					i.a=a+1;
+
+					return i;
+				}
+			} else {
+				struct integer i;
+				UW *a;
+
+				a=calloc (3,sizeof (UW));
+				if (a==NULL)
+					error ("Out of memory\n");
+				
+				a[0]=2;
+				a[1]=l;
+				a[2]=h;
+				
+				i.s=sign;
+				i.a=a+1;
+
+				return i;
+			}
+		}
+	} else {
+		int n_chars,n_parts,n_chars_in_parts,n_chars_in_first_part,n_shifts,size_a,i_a_f,i_a_e,i;
+		UW *a;
+
+		n_chars = size_s;
+		n_parts = n_chars/N_digits_in_part;
+		n_chars_in_parts = n_parts * N_digits_in_part;
+		n_chars_in_first_part = n_chars-n_chars_in_parts;
+		n_shifts = n_chars_in_parts>>IF_INT_64_OR_32(6,5);
+		size_a = n_parts + 3 + n_shifts;
+
+		a = calloc (size_a+1,sizeof(UW));
+		if (a==NULL)
+			printf ("Out of memory\n");
+		++a;
+
+		i_a_f = n_shifts;
+		i_a_e = convert_first_chars (n_chars_in_first_part,s,i_a_f,a);
+
+		stoi_next_parts (n_chars_in_first_part,s,size_s,i_a_f,i_a_e,0,0,a,size_a);
+
+		i=size_a-1;
+		while (i!=0 && a[i]==0)
+			--i;
+
+		if (i==0 && (UW)a[0] < (UW)(((UW)1<<(UW)Max_bit_n_in_int)-sign)){
+			struct integer si;
+
+			si.a=NULL;
+			si.s=(a[0] ^ sign)-sign;
+			
+			free (a-1);
+			
+			return si;
+		} else if (i+1==size_a){
+			struct integer si;
+
+			si.a=a;
+			si.s=sign;
+			a[-1]=i+1;
+			
+			return si;
+		} else {
+			struct integer si;
+
+			a=1+(UW*)realloc (a-1,sizeof (UW)*(i+1+1));
+			if (a==0)
+				printf ("realloc failed\n");			
+
+			a[-1]=i+1;
+
+			si.a=a;
+			si.s=sign;
+
+			return si;
+		}
+	}
+}
+
+#define g_cmp_eq(g1,g2) g_instruction_2(GCMP_EQ,(g1),(g2))
+
+void code_jmp_not_eqZ (char *integer_string,int integer_string_length,char label_name[])
+{
+	struct integer integer;
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
+
+	integer=string_to_integer (0,integer_string,integer_string_length);
+
+	if (integer.a==NULL){
+		graph_1=s_get_b (0);
+		graph_2=g_load_i (integer.s);
+		graph_3=g_cmp_eq (graph_2,graph_1);
+		s_push_b (graph_3);
+		code_jmp_false (label_name);
+
+		graph_1=s_get_a (0);
+		graph_2=g_load_id (STACK_ELEMENT_SIZE,graph_1);
+		graph_3=g_load_i (0);
+		graph_4=g_cmp_eq (graph_3,graph_2);
+		s_push_b (graph_4);
+		code_jmp_false (label_name);
+	} else {
+		int i,integer_size;
+
+		integer_size=integer.a[-1];
+		
+		graph_1=s_get_a (0);
+		graph_2=g_load_id (STACK_ELEMENT_SIZE,graph_1);
+		graph_3=g_load_i (integer_size);
+		graph_4=g_cmp_eq (graph_3,graph_2);
+		s_push_b (graph_4);
+		code_jmp_false (label_name);	
+
+		for (i=0; i<integer_size; ++i){
+			graph_1=s_get_a (0);
+			graph_2=g_load_id ((i+2)<<STACK_ELEMENT_LOG_SIZE,graph_1);
+			graph_3=g_load_i (integer.a[i]);
+			graph_4=g_cmp_eq (graph_3,graph_2);
+			s_push_b (graph_4);
+			code_jmp_false (label_name);	
+		}
+
+		graph_1=s_get_b (0);
+		graph_2=g_load_i (integer.s);
+		graph_3=g_cmp_eq (graph_2,graph_1);
+		s_push_b (graph_3);
+		code_jmp_false (label_name);		
+	}
+}
+
+void code_pushZ (char *integer_string,int integer_string_length)
+{
+	struct integer integer;
+	INSTRUCTION_GRAPH graph_1,graph_2;
+
+	integer=string_to_integer (0,integer_string,integer_string_length);
+	
+	graph_1=g_load_i (integer.s);
+	if (integer.a==NULL)
+		graph_2=g_create_unboxed_int_array (0);
+	else {
+		int i,n_elements;
+
+		n_elements=integer.a[-1];
+		graph_2=g_create_unboxed_int_array (n_elements);
+		for (i=0; i<n_elements; ++i)
+			graph_2->instruction_parameters[3+i].p=g_load_i (integer.a[i]);
+	}
+
+	s_push_b (graph_1);
+	s_push_a (graph_2);
+}
+
+static struct integer shift_right (struct integer n,unsigned int n_bits)
+{
+	UW *a;
+	
+	a=n.a;
+	if (a==NULL)
+		n.s = n.s>>n_bits;
+	else {
+		UW previous_e;
+		int i,n_n_elements;
+
+		n_n_elements=a[-1];
+
+		previous_e=0;
+		for (i=n_n_elements-1; i>=0; --i){
+			UW e;
+
+			e = a[i];
+			a[i] = (e>>n_bits) + (previous_e<<(N_bits_in_int-n_bits));
+			previous_e = e;
+		}
+
+		if (a[n_n_elements-1]==0){
+			--n_n_elements;
+			a[-1]=n_n_elements;
+		}
+		
+		if (n_n_elements==1 && (W)a[0]>=0){
+			n.s=a[0];
+			n.a=NULL;
+		}
+	}
+
+	return n;
+}
+
+static int divisible_by_5 (struct integer n)
+{
+	UW s;
+	
+	if (n.a==NULL)
+		s=n.s;
+	else {
+		UW *a;
+		int i,n_elements;
+		
+		a=n.a;
+		n_elements=a[-1];
+
+		s=0;
+		for (i=0; ; ){
+			int end_i;
+			
+			end_i=i+10000;
+			if (end_i>n_elements)
+				end_i=n_elements;
+			
+			while (i<end_i){
+				UW e;
+				
+				e=a[i];
+				s+=IF_INT_64_OR_32 ((e & 0xffffffffu)+(e>>32u),(e & 0xffffu)+(e>>16u));
+				++i;
+			}
+
+			if (i>=n_elements)
+				break;
+
+			s = s % 5;
+		}
+	}
+	
+	return s % 5==0;
+}
+
+static struct integer exact_div_5 (struct integer n)
+{
+	if (n.a==NULL)
+		n.s=n.s / 5;
+	else {
+		int i,n_elements;
+		UW borrow,*a;
+		
+		a=n.a;
+		n_elements=a[-1];
+	
+		borrow=0;
+		for (i=0; i<n_elements; ++i){
+			UW ai,e,ed5,h;
+			
+			ai=a[i];
+
+			e=ai-borrow;
+			borrow = e>ai;
+
+			ed5=e * IF_INT_64_OR_32 (0xcccccccccccccccd,0xcccccccd);
+
+			h = (ed5 + (ed5<<2u)) < ed5;
+			borrow += h;
+			borrow += ed5>>IF_INT_64_OR_32 (62u,30u);
+
+			a[i]=ed5;
+		}
+
+		if (a[n_elements-1]==0){
+			--n_elements;
+			a[-1]=n_elements;
+		}
+		
+		if (n_elements==1 && (W)a[0]>=0){
+			n.s=a[0];
+			n.a=NULL;
+		}		
+	}
+	
+	return n;
+}
+
+void code_pushZR (int sign,char *integer_string,int integer_string_length,int exponent)
+{
+	struct integer numerator,denominator;
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
+	char *numerator_string;
+	int denominator_string_length;
+
+	while (integer_string[0]=='0' && integer_string_length>1){
+		++integer_string;
+		--integer_string_length;
+	}
+
+	while (exponent<0 && integer_string_length>1 && integer_string[integer_string_length-1]=='0'){
+		--integer_string_length;
+		++exponent;
+	}
+
+	if (integer_string_length==1 && integer_string[0]=='0')
+		exponent=0;	
+	
+	if (exponent>0){
+		int i,new_string_length;
+
+		new_string_length=integer_string_length+exponent;
+		numerator_string=memory_allocate (new_string_length+1);
+		
+		for (i=0; i<integer_string_length; ++i)
+			numerator_string[i]=integer_string[i];
+		for ( ; i<new_string_length; ++i)
+			numerator_string[i]='0';
+		numerator_string[i]='\0';
+		
+		integer_string=numerator_string;
+		integer_string_length=new_string_length;
+	} else
+		numerator_string=NULL;
+
+	numerator=string_to_integer (sign,integer_string,integer_string_length);
+
+	if (numerator_string!=NULL){
+		memory_free (numerator_string);
+		numerator_string=NULL;
+	}
+
+	if (exponent<0){
+		char *denominator_string;
+		int i,exponent2,exponent5;
+
+		denominator_string_length=1-exponent;
+		denominator_string=memory_allocate (denominator_string_length+1);
+
+		denominator_string[0]='1';
+		for (i=1; i<denominator_string_length; ++i)
+			denominator_string[i]='0';
+		denominator_string[i]='\0';
+
+		denominator=string_to_integer (0,denominator_string,denominator_string_length);
+
+		memory_free (denominator_string);
+
+		exponent2=-exponent;
+		exponent5=exponent2;
+
+		if (exponent2>=N_bits_in_int && numerator.a!=NULL){
+			int n_n_elements,n_d_elements;
+			UW *n_a,*d_a;
+
+			n_a=numerator.a;
+			n_n_elements=n_a[-1];
+
+			d_a=denominator.a;
+			n_d_elements=d_a[-1];
+
+			while (exponent2>=N_bits_in_int && n_a[0]==0){
+				--n_n_elements;
+				++n_a;
+
+				--n_d_elements;
+				++d_a;
+				
+				exponent2-=N_bits_in_int;
+			}
+
+			if (n_n_elements==1 && (W)n_a[0]>=0){
+				numerator.s=n_a[0];
+				numerator.a=NULL;
+			} else {
+				numerator.a=n_a;
+				n_a[-1]=n_n_elements;
+			}
+
+			/* >= 32 bits, because >= 5^32 */
+			denominator.a=d_a;
+			d_a[-1]=n_d_elements;
+		}
+
+		if (exponent2>0){
+			UW n0;
+
+			if (numerator.a==NULL)
+				n0=numerator.s;
+			else
+				n0=numerator.a[0];
+
+			if ((n0 & 1)==0){
+				unsigned int n_0_bits,max_bits;
+
+				n0=n0>>1;
+				n_0_bits=1;
+				while (n_0_bits<exponent2 && (n0 & 1)==0){
+					n0=n0>>1;
+					++n_0_bits;
+				}
+				
+				exponent2-=n_0_bits;
+
+				numerator = shift_right (numerator,n_0_bits);
+				denominator = shift_right (denominator,n_0_bits);
+			}
+		}
+		
+		while (exponent5>0 && divisible_by_5 (numerator)){
+			numerator = exact_div_5 (numerator);
+			denominator = exact_div_5 (denominator);
+			--exponent5;
+		}
+	} else {
+		denominator.s=1;
+		denominator.a=NULL;
+	}
+
+	graph_1=g_load_i (numerator.s);
+	if (numerator.a==NULL)
+		graph_2=g_create_unboxed_int_array (0);
+	else {
+		int i,n_elements;
+
+		n_elements=numerator.a[-1];
+		graph_2=g_create_unboxed_int_array (n_elements);
+		for (i=0; i<n_elements; ++i)
+			graph_2->instruction_parameters[3+i].p=g_load_i (numerator.a[i]);
+	}
+
+	graph_3=g_load_i (denominator.s);
+	if (denominator.a==NULL)
+		graph_4=g_create_unboxed_int_array (0);
+	else {
+		int i,n_elements;
+
+		n_elements=denominator.a[-1];
+		graph_4=g_create_unboxed_int_array (n_elements);
+		for (i=0; i<n_elements; ++i)
+			graph_4->instruction_parameters[3+i].p=g_load_i (denominator.a[i]);
+	}
+
+	s_push_b (graph_3);
+	s_push_a (graph_4);
+	s_push_b (graph_1);
+	s_push_a (graph_2);
 }
 
 extern int profile_flag;

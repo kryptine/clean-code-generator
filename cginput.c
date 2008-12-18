@@ -307,6 +307,169 @@ static int parse_hexadecimal_number (int *n_p)
 	}
 }
 
+static char *resize_string (char *string,int length,int max_length)
+{
+	if (length==MAX_STRING_LENGTH){
+		char *new_string;
+		int i;
+		
+		new_string=malloc (max_length);
+		if (new_string==NULL)
+			error ("Out of memory");
+		
+		for (i=0; i<length; ++i)
+			new_string[i]=string[i];
+
+		return new_string;
+	} else {
+		string=realloc (string,max_length);
+		if (string==NULL)	
+			error ("Out of memory");
+		
+		return string;
+	}	
+}
+
+static char *parse_big_integer (char *string,int *string_length_p)
+{
+	int length,max_length;
+
+	length=0;
+	max_length=MAX_STRING_LENGTH;
+
+	if (last_char=='+'){
+		last_char=getc (abc_file);
+	} else if (last_char=='-'){
+		string[length++]=last_char;
+		last_char=getc (abc_file);
+	}
+
+	if (!is_digit_character (last_char))
+		abc_parser_error_i ("Integer expected at line %d\n",line_number);
+
+	do {
+		if (length<max_length)
+			string[length++]=last_char;
+		else {
+			max_length=max_length<<1;
+			string=resize_string (string,length,max_length);
+			string[length++]=last_char;
+		}
+		last_char=getc (abc_file);
+	} while (is_digit_character (last_char));
+
+	if (length>=max_length){
+		++max_length;
+		string=resize_string (string,length,max_length);
+	}
+
+	string[length]='\0';
+	*string_length_p=length;
+
+	skip_spaces_and_tabs();
+
+	return string;
+}
+
+static char *parse_rational (int *sign_p,char *string,int *string_length_p,int *exponent_p)
+{
+	int n_chars_after_dot,length,max_length,exponent;
+
+	length=0;
+	max_length=MAX_STRING_LENGTH;
+
+	if (last_char=='-'){
+		*sign_p = -1;
+		last_char=getc (abc_file);
+	} else {
+		*sign_p = 0;
+		if (last_char=='+')
+			last_char=getc (abc_file);
+	}
+
+	if (!is_digit_character (last_char))
+		abc_parser_error_i ("Rational expected at line %d\n",line_number);
+
+	do {
+		if (length<max_length)
+			string[length++]=last_char;
+		else {
+			max_length=max_length<<1;
+			string=resize_string (string,length,max_length);
+			string[length++]=last_char;
+		}
+		last_char=getc (abc_file);
+	} while (is_digit_character (last_char));
+
+	if (last_char=='.'){
+		int length_before_dot;
+		
+		last_char=getc (abc_file);
+		
+		if (!is_digit_character (last_char))
+			abc_parser_error_i ("Digit expected in rational at line %d\n",line_number);
+		
+		length_before_dot=length;
+		
+		do {
+			if (length<max_length)
+				string[length++]=last_char;
+			else {
+				max_length=max_length<<1;
+				string=resize_string (string,length,max_length);
+				string[length++]=last_char;
+			}
+			last_char=getc (abc_file);
+		} while (is_digit_character (last_char));
+		
+		n_chars_after_dot=length-length_before_dot;
+	} else {
+		n_chars_after_dot=0;
+		if (last_char!='e' && last_char!='E')
+			abc_parser_error_i ("'.', 'e' or 'E' expected in rational at line %d\n",line_number);
+	}
+
+	if (length>=max_length){
+		++max_length;
+		string=resize_string (string,length,max_length);
+	}
+
+	string[length]='\0';
+	*string_length_p=length;
+
+	if (last_char=='e' || last_char=='E'){
+		int exponent_sign;
+		
+		last_char=getc (abc_file);
+		if (last_char=='-'){
+			exponent_sign = -1;
+			last_char=getc (abc_file);
+		} else {
+			exponent_sign = 0;
+			if (last_char=='+')	
+				last_char=getc (abc_file);
+		}
+		
+		if (!is_digit_character (last_char))
+			abc_parser_error_i ("Digit expected in rational at line %d\n",line_number);
+		
+		exponent=0;
+		do {
+			exponent=exponent*10+(last_char-'0');
+			last_char=getc (abc_file);
+		} while (is_digit_character (last_char));
+		
+		exponent = (exponent ^ exponent_sign) - exponent_sign;
+	} else
+		exponent = 0;
+
+	*exponent_p = exponent - n_chars_after_dot;
+
+	skip_spaces_and_tabs();
+
+	return string;
+}
+
 static int parse_0_or_1 (int *integer_p)
 {
 #if COMPATIBLE_DESC
@@ -712,29 +875,6 @@ static int parse_string (char *string,int *string_length_p)
 	return 1;
 }
 
-static char *resize_string (char *string,int length,int max_length)
-{
-	if (length==MAX_STRING_LENGTH){
-		char *new_string;
-		int i;
-		
-		new_string=malloc (max_length);
-		if (new_string==NULL)
-			error ("Out of memory");
-		
-		for (i=0; i<length; ++i)
-			new_string[i]=string[i];
-
-		return new_string;
-	} else {
-		string=realloc (string,max_length);
-		if (string==NULL)	
-			error ("Out of memory");
-		
-		return string;
-	}	
-}
-
 static char *parse_string2 (char *string,int *string_length_p)
 {
 	int length,max_length;
@@ -957,6 +1097,55 @@ static int parse_instruction_s2 (InstructionP instruction)
 	
 	if (string!=s)
 		free (string);
+
+	return 1;
+}
+
+static int parse_instruction_z (InstructionP instruction)
+{
+	STRING s;
+	int length;
+	char *integer_string;
+
+	integer_string=parse_big_integer (s,&length);
+
+	instruction->instruction_code_function (integer_string,length);
+	
+	if (integer_string!=s)
+		free (integer_string);
+
+	return 1;
+}
+
+static int parse_instruction_zr (InstructionP instruction)
+{
+	STRING s;
+	int length,sign,exponent;
+	char *integer_string;
+
+	integer_string=parse_rational (&sign,s,&length,&exponent);
+
+	instruction->instruction_code_function (sign,integer_string,length,exponent);
+	
+	if (integer_string!=s)
+		free (integer_string);
+
+	return 1;
+}
+
+static int parse_instruction_z_a (InstructionP instruction)
+{
+	STRING s,a;
+	int length;
+	char *integer_string;
+	
+	integer_string=parse_big_integer (s,&length);
+	parse_label (a);
+
+	instruction->instruction_code_function (integer_string,length,a);
+	
+	if (integer_string!=s)
+		free (integer_string);
 
 	return 1;
 }
@@ -2024,6 +2213,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("jmp_eval",		parse_instruction,			code_jmp_eval );
 	put_instruction_name ("jmp_eval_upd",	parse_instruction,			code_jmp_eval_upd );
 	put_instruction_name ("jmp_false",		parse_instruction_a,		code_jmp_false );
+	put_instruction_name ("jmp_not_eqZ",	parse_instruction_z_a,		code_jmp_not_eqZ );
 	put_instruction_name ("jmp_true",		parse_instruction_a,		code_jmp_true );
 	put_instruction_name ("jsr",			parse_instruction_a,		code_jsr );
 	put_instruction_name ("jsr_ap",			parse_instruction_n,			code_jsr_ap );
@@ -2117,6 +2307,8 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("push_r_arg_t",	parse_instruction,			code_push_r_arg_t );
 	put_instruction_name ("push_r_arg_u",	parse_instruction_n_n_n_n_n_n_n, code_push_r_arg_u );
 	put_instruction_name ("push_wl_args",	parse_instruction_n_n_n,	code_push_args );
+	put_instruction_name ("pushZ",			parse_instruction_z,		code_pushZ );
+	put_instruction_name ("pushZR",			parse_instruction_zr,		code_pushZR );
 	put_instruction_name ("putWL",			parse_instruction_n,		code_dummy );
 	put_instruction_name ("randomP",		parse_instruction,			code_randomP );
 	put_instruction_name ("release",		parse_instruction,			code_release );

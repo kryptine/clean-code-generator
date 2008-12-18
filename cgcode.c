@@ -252,7 +252,6 @@ int no_time_profiling;
 #define g_fcmp_gt(g1,g2) g_instruction_2(GFCMP_GT,(g1),(g2))
 #define g_fcmp_lt(g1,g2) g_instruction_2(GFCMP_LT,(g1),(g2))
 #define g_fdiv(g1,g2) g_instruction_2(GFDIV,(g1),(g2))
-
 #define g_fitor(g1) g_instruction_1(GFITOR,(g1))
 #ifdef I486
 # define g_floordiv(g1,g2) g_instruction_2(GFLOORDIV,(g1),(g2))
@@ -289,7 +288,7 @@ int no_time_profiling;
 #endif
 
 LABEL *INT_label,*BOOL_label,*CHAR_label,*REAL_label;
-LABEL *_STRING__label;
+LABEL *_STRING__label,*_ARRAY__label;
 
 static LABEL *FILE_label;
 
@@ -1401,19 +1400,54 @@ static void code_create_arrayC (VOID)
 	init_a_stack (1);
 }
 
+INSTRUCTION_GRAPH g_create_unboxed_int_array (int n_elements)
+{
+	INSTRUCTION_GRAPH graph_1;
+	int n;
+
+	graph_1=g_create_m (n_elements+3);
+	
+	if (_ARRAY__label==NULL)
+		_ARRAY__label=enter_label ("__ARRAY__",IMPORT_LABEL | DATA_LABEL);
+
+	graph_1->instruction_parameters[0].p=g_load_des_i (_ARRAY__label,0);;
+	graph_1->instruction_parameters[1].p=g_load_i (n_elements);
+	graph_1->instruction_parameters[2].p=int_descriptor_graph();
+
+	for (n=0; n<n_elements; ++n)
+		graph_1->instruction_parameters[3+n].p=NULL;
+	
+	return graph_1;
+}
+
 #define LESS_UNSIGNED(a,b) ((unsigned long)(a)<(unsigned long)(b))
 
 static void code_create_arrayI (VOID)
 {
-	if (create_arrayI_label==NULL)
-		create_arrayI_label=enter_label ("create_arrayI",IMPORT_LABEL);
-	
-	s_push_b (s_get_b (0));
-	s_put_b (1,s_get_b (2));
-	s_put_b (2,NULL);
-	insert_basic_block (JSR_BLOCK,0,2+1,i_i_vector,create_arrayI_label);
-	
-	init_a_stack (1);
+	INSTRUCTION_GRAPH graph_1;
+
+	graph_1=s_get_b (0);
+
+	if (graph_1->instruction_code==GLOAD_I && graph_1->instruction_parameters[0].i==0){
+		INSTRUCTION_GRAPH graph_2;
+
+		s_pop_b();
+		s_pop_b();
+
+		graph_2 = g_create_unboxed_int_array (0);
+					
+		s_push_a (graph_2);
+	} else {
+		if (create_arrayI_label==NULL)
+			create_arrayI_label=enter_label ("create_arrayI",IMPORT_LABEL);
+		
+		s_push_b (graph_1);
+		s_put_b (1,s_get_b (2));
+		s_put_b (2,NULL);
+		insert_basic_block (JSR_BLOCK,0,2+1,i_i_vector,create_arrayI_label);
+		
+		init_a_stack (1);
+	}
 }
 
 #ifdef G_AI64
@@ -1704,43 +1738,29 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 			break;		
 		case 'I':
 			if (element_descriptor[1]=='N' && element_descriptor[2]=='T' && element_descriptor[3]=='\0'){
-#ifdef ARRAY_OPTIMIZATIONS
 				INSTRUCTION_GRAPH graph_1;
 				
 				graph_1=s_get_b (0);
-				if (graph_1->instruction_code==GLOAD_I && LESS_UNSIGNED (graph_1->instruction_parameters[0].i,4)){
+
+				if (graph_1->instruction_code==GLOAD_I && LESS_UNSIGNED (graph_1->instruction_parameters[0].i,33)){
 					INSTRUCTION_GRAPH graph_2;
-					int size,n;
-					LABEL *__ARRAY___label;
 					
 					s_pop_b();
 					
-					size=graph_1->instruction_parameters[0].i;
-
-					graph_2=g_create_m (size+3);
-					
-					__ARRAY___label=enter_label ("__ARRAY__",IMPORT_LABEL | DATA_LABEL);
-					graph_2->instruction_parameters[0].p=g_load_des_i (__ARRAY___label,0);;
-					graph_2->instruction_parameters[1].p=g_load_i (size);
-					graph_2->instruction_parameters[2].p=int_descriptor_graph();
-
-					for (n=0; n<size; ++n)
-						graph_2->instruction_parameters[3+n].p=NULL;
+					graph_2 = g_create_unboxed_int_array (graph_1->instruction_parameters[0].i);
 					
 					s_push_a (graph_2);
-					return;
+				} else {
+					if (create_arrayI__label==NULL)
+						create_arrayI__label=enter_label ("_create_arrayI",IMPORT_LABEL);
+		
+					s_push_b (graph_1);
+					s_put_b (1,NULL);
+					insert_basic_block (JSR_BLOCK,0,1+1,i_vector,create_arrayI__label);
+		
+					init_a_stack (1);
 				}
-#endif
-
-				if (create_arrayI__label==NULL)
-					create_arrayI__label=enter_label ("_create_arrayI",IMPORT_LABEL);
-	
-				s_push_b (s_get_b (0));
-				s_put_b (1,NULL);
-				insert_basic_block (JSR_BLOCK,0,1+1,i_vector,create_arrayI__label);
-	
-				init_a_stack (1);
-				return;	
+				return;
 			}
 			break;
 		case 'P':
@@ -10103,7 +10123,7 @@ void initialize_coding (VOID)
 	local_labels=NULL;
 	last_instruction=NULL;
 
-	INT_label=BOOL_label=CHAR_label=REAL_label=FILE_label=_STRING__label=NULL;
+	INT_label=BOOL_label=CHAR_label=REAL_label=FILE_label=_STRING__label=_ARRAY__label=NULL;
 
 	halt_label=cat_string_label=NULL;
 	cmp_string_label=eqD_label=NULL;
