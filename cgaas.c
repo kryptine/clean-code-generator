@@ -5887,7 +5887,7 @@ static void relocate_short_branches_and_move_code (void)
 			if (BUFFER_SIZE-destination_buffer_offset < n)
 				n = BUFFER_SIZE-destination_buffer_offset;
 
-			memcpy (&destination_object_buffer->data[destination_buffer_offset],&source_object_buffer->data[source_buffer_offset],n);
+			memmove (&destination_object_buffer->data[destination_buffer_offset],&source_object_buffer->data[source_buffer_offset],n);
 			destination_buffer_offset+=n;
 			source_buffer_offset+=n;
 			source_offset+=n;
@@ -6109,7 +6109,7 @@ static void relocate_short_branches_and_move_code (void)
 		if (BUFFER_SIZE-destination_buffer_offset < n)
 			n = BUFFER_SIZE-destination_buffer_offset;
 
-		memcpy (&destination_object_buffer->data[destination_buffer_offset],&source_object_buffer->data[source_buffer_offset],n);
+		memmove (&destination_object_buffer->data[destination_buffer_offset],&source_object_buffer->data[source_buffer_offset],n);
 		destination_buffer_offset+=n;
 		source_buffer_offset+=n;
 		source_offset+=n;
