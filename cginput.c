@@ -1869,7 +1869,7 @@ static int parse_instruction_in_or_out (InstructionP instruction)
 	
 	p=parameters;
 	while ((last_char & ~0x20)=='A' || (last_char & ~0x20)=='B'){
-		long n;
+		LONG n;
 		
 		*p++=last_char;
 		last_char=getc (abc_file);
