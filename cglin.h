@@ -82,6 +82,9 @@ void i_fmove_id_fr (int offset,int register_2,int register_1);
 	void i_fmove_pd_fr (int register_1,int register_2);
 	void i_fmove_pi_fr (int register_1,int register_2);
 	void i_move_id_pd (int offset,int register_1,int register_2);
+#ifdef I486
+void i_fmoves_fr_id (int register_1,int offset,int register_2);
+#endif
 #endif
 void i_move_id_id (int offset_1,int register_1,int offset_2,int register_2);
 void i_move_id_r (int offset,int register_1,int register_2);
