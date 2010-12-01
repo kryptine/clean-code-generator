@@ -636,7 +636,7 @@ static void i_fmovel_fr_r (int register_1,int register_2)
 }
 
 #ifdef I486
-static void i_fmoves_fr_id (int register_1,int offset,int register_2)
+void i_fmoves_fr_id (int register_1,int offset,int register_2)
 {
 	struct instruction *instruction;
 	
