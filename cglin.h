@@ -68,6 +68,9 @@ void i_beq_l (LABEL *label);
 	void i_btst_i_r (LONG i,int register_1);
 #endif
 void i_ext_r (int register_1);
+#ifdef G_AI64
+void i_fcvt2s_id_fr (int offset,int register_1,int register_2);
+#endif
 void i_fmove_fr_fr (int register_1,int register_2);
 void i_fmove_fr_id (int register_1,int offset,int register_2);
 #ifdef M68000

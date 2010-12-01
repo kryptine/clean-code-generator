@@ -417,6 +417,19 @@ void i_fcvt2s_fr_fr (int register_1,int register_2)
 	set_float_register_parameter (instruction->instruction_parameters[0],register_1);
 	set_float_register_parameter (instruction->instruction_parameters[1],register_2);
 }
+
+void i_fcvt2s_id_fr (int offset,int register_1,int register_2)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction2 (IFCVT2S);
+
+	instruction->instruction_parameters[0].parameter_type=P_INDIRECT;
+	instruction->instruction_parameters[0].parameter_offset=offset;
+	instruction->instruction_parameters[0].parameter_data.i=register_1;
+	
+	set_float_register_parameter (instruction->instruction_parameters[1],register_2);
+}
 #endif
 
 #ifdef FP_STACK_OPTIMIZATIONS

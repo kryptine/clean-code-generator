@@ -3486,7 +3486,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 				if (!float_parameters)
 					++n_clean_b_register_parameters;
 				continue;
-# if (defined (I486) && !defined (G_AI64)) || defined (G_POWER)
+# if defined (I486) || defined (G_POWER)
 			case 'r':
 # endif
 			case 'R':
@@ -4483,6 +4483,19 @@ void code_ccall (char *c_function_name,char *s,int length)
 							c_offset+=STACK_ELEMENT_SIZE;
 						}
 						break;
+					case 'r':
+						b_o-=8;
+						if (c_fp_parameter_n<8){
+							i_fcvt2s_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_fp_parameter_n);
+							++c_fp_parameter_n;
+						} else {
+							/* xmm8 is a 64 bit linux ABI scratch register */
+							i_fcvt2s_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,8);
+							i_fmoves_fr_id (8,-8,B_STACK_POINTER);
+							i_sub_i_r (8,B_STACK_POINTER);
+							c_offset+=8;
+						}
+						break;
 					case 'R':
 						b_o-=8;
 						if (c_fp_parameter_n<8){
@@ -4728,6 +4741,18 @@ void code_ccall (char *c_function_name,char *s,int length)
 								i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
 							}
 							c_offset+=STACK_ELEMENT_SIZE;
+						}
+						break;
+					case 'r':
+						b_o-=8;
+						if (--c_parameter_n<4)
+							i_fcvt2s_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_parameter_n);
+						else {
+							/* xmm4 is a 64 bit windows ABI scratch register */
+							i_fcvt2s_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,4);
+							i_fmoves_fr_id (4,-8,B_STACK_POINTER);
+							i_sub_i_r (8,B_STACK_POINTER);
+							c_offset+=8;
 						}
 						break;
 					case 'R':
