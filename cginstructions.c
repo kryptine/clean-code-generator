@@ -465,7 +465,6 @@ INSTRUCTION_GRAPH g_fp_arg (INSTRUCTION_GRAPH graph_1)
 		
 		graph_1->instruction_code=GFROMF;
 		graph_1->instruction_parameters[0].p=fload_graph;
-		/* graph_1->instruction_parameters[3].p=fload_graph; */
 
 		return fload_graph;
 	}
@@ -616,7 +615,7 @@ INSTRUCTION_GRAPH g_fjoin (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2)
 
 INSTRUCTION_GRAPH g_fload (int offset,int stack)
 {
-	register INSTRUCTION_GRAPH instruction;
+	INSTRUCTION_GRAPH instruction;
 	
 	instruction=g_new_node (GFLOAD,0,2*sizeof (union instruction_parameter));
 	
@@ -3426,8 +3425,10 @@ void code_ccall (char *c_function_name,char *s,int length)
 #else
 		error ("ABC instruction 'ccall' not implemented");
 #endif
-#if defined (G_POWER) || defined (G_A64)
+#if defined (G_POWER) || (defined (G_A64) && defined (LINUX_ELF))
 		int c_fp_parameter_n;
+		
+		c_fp_parameter_n=0;
 #endif
 
 	function_address_parameter=0;
@@ -3492,6 +3493,9 @@ void code_ccall (char *c_function_name,char *s,int length)
 			case 'R':
 				float_parameters=1;
 				b_offset+=8;
+# if defined (G_A64) && defined (LINUX_ELF)
+				++c_fp_parameter_n;
+# endif
 				continue;
 			case 'S':
 			case 's':
@@ -4260,7 +4264,6 @@ void code_ccall (char *c_function_name,char *s,int length)
 # else /* for I486 && G_AI64 */
 		a_o=-b_result_offset-a_result_offset;
 		b_o=0;
-		c_fp_parameter_n=0;
 
 		if (a_result_offset+b_result_offset>b_offset){
 			i_sub_i_r (a_result_offset+b_result_offset-b_offset,B_STACK_POINTER);
@@ -4269,7 +4272,8 @@ void code_ccall (char *c_function_name,char *s,int length)
 
 #  ifdef LINUX_ELF /* for I486 && G_AI64 && LINUX_ELF */
 		{
-		int c_offset_before_pushing_arguments,function_address_reg,c_parameter_n,n_c_parameters,a_stack_pointer,heap_pointer;
+		int c_offset_before_pushing_arguments,function_address_reg,c_parameter_n,n_c_parameters,n_c_fp_register_parameters;
+		int a_stack_pointer,heap_pointer;
 		unsigned int used_clean_b_parameter_registers;
 		static int c_parameter_registers[6] = { HEAP_POINTER, A_STACK_POINTER, REGISTER_A1, REGISTER_A0, REGISTER_A2, REGISTER_A3 };
 
@@ -4278,9 +4282,10 @@ void code_ccall (char *c_function_name,char *s,int length)
 		n_c_parameters=((a_offset+b_offset+a_result_offset+b_result_offset)>>3)+n_clean_b_register_parameters;
 		used_clean_b_parameter_registers = ((1<<n_clean_b_register_parameters)-1)<<n_extra_clean_b_register_parameters;
 		c_parameter_n=n_c_parameters;
+		n_c_fp_register_parameters = c_fp_parameter_n<=8 ? c_fp_parameter_n : 8;
 
 		i_move_r_r (B_STACK_POINTER,REGISTER_RBP);
-		if (c_parameter_n>6 && (c_parameter_n & 1)!=0){
+		if ((c_parameter_n-n_c_fp_register_parameters)>6 && ((c_parameter_n-n_c_fp_register_parameters) & 1)!=0){
 			i_sub_i_r (8,B_STACK_POINTER);
 			i_or_i_r (8,B_STACK_POINTER);		
 		} else {
@@ -4295,12 +4300,16 @@ void code_ccall (char *c_function_name,char *s,int length)
 			
 			sl=s[l];
 			if (sl!='V'){
-				if (--c_parameter_n<6){
+				int c_int_parameter_n;
+				
+				--c_parameter_n;
+				c_int_parameter_n = c_parameter_n - n_c_fp_register_parameters;
+				if (c_int_parameter_n<6){
 					int c_parameter_reg;					
 					
-					c_parameter_reg=c_parameter_registers[c_parameter_n];
-					if (c_parameter_n<2){
-						if (c_parameter_n==0){
+					c_parameter_reg=c_parameter_registers[c_int_parameter_n];
+					if (c_int_parameter_n<2){
+						if (c_int_parameter_n==0){
 							if ((used_clean_b_parameter_registers & (1<<6))==0){
 								heap_pointer=REGISTER_D6;
 								used_clean_b_parameter_registers |= 1<<6;
@@ -4392,13 +4401,18 @@ void code_ccall (char *c_function_name,char *s,int length)
 				switch (sl){
 					case 'I':
 					case 'p':
-						if (--c_parameter_n<6){
+					{
+						int c_int_parameter_n;
+				
+						--c_parameter_n;
+						c_int_parameter_n = c_parameter_n - n_c_fp_register_parameters;
+						if (c_int_parameter_n<6){
 							int c_parameter_reg;					
 					
-							c_parameter_reg=c_parameter_registers[c_parameter_n];
+							c_parameter_reg=c_parameter_registers[c_int_parameter_n];
 							if (l<=last_register_parameter_index){
-								if (c_parameter_n<2){
-									if (c_parameter_n==0){
+								if (c_int_parameter_n<2){
+									if (c_int_parameter_n==0){
 										if (n_extra_clean_b_register_parameters+reg_n==6){
 											i_exg_r_r (HEAP_POINTER,REGISTER_D6);
 											heap_pointer=REGISTER_D6;
@@ -4444,8 +4458,8 @@ void code_ccall (char *c_function_name,char *s,int length)
 								used_clean_b_parameter_registers &= ~ (1<<(n_extra_clean_b_register_parameters+reg_n));
 								++reg_n;
 							} else {
-								if (c_parameter_n<2){
-									if (c_parameter_n==0){
+								if (c_int_parameter_n<2){
+									if (c_int_parameter_n==0){
 										if ((used_clean_b_parameter_registers & (1<<6))==0){
 											heap_pointer=REGISTER_D6;
 											used_clean_b_parameter_registers |= 1<<6;
@@ -4483,11 +4497,13 @@ void code_ccall (char *c_function_name,char *s,int length)
 							c_offset+=STACK_ELEMENT_SIZE;
 						}
 						break;
+					}
 					case 'r':
+						--c_parameter_n;
 						b_o-=8;
-						if (c_fp_parameter_n<8){
+						if (--c_fp_parameter_n<8){
 							i_fcvt2s_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_fp_parameter_n);
-							++c_fp_parameter_n;
+							--n_c_fp_register_parameters;
 						} else {
 							/* xmm8 is a 64 bit linux ABI scratch register */
 							i_fcvt2s_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,8);
@@ -4497,14 +4513,15 @@ void code_ccall (char *c_function_name,char *s,int length)
 						}
 						break;
 					case 'R':
+						--c_parameter_n;
 						b_o-=8;
-						if (c_fp_parameter_n<8){
+						if (--c_fp_parameter_n<8){
 							i_fmove_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_RBP,c_fp_parameter_n);
-							++c_fp_parameter_n;
+							--n_c_fp_register_parameters;
 						} else {
 							int temp_register;
-	
-							if (c_parameter_n>2 || n_c_parameters<=2)
+
+							if ((c_parameter_n-n_c_fp_register_parameters)>2 || n_c_parameters<=2)
 								temp_register=REGISTER_A1;
 							else if ((used_clean_b_parameter_registers & 1)==0)
 								temp_register=REGISTER_D0;
@@ -4524,16 +4541,19 @@ void code_ccall (char *c_function_name,char *s,int length)
 					case 's':
 					case 'A':
 					{
-						int offset;
-						
+						int offset,c_int_parameter_n;
+				
  						offset = sl=='S' ? STACK_ELEMENT_SIZE : sl=='s' ? 2*STACK_ELEMENT_SIZE : 3*STACK_ELEMENT_SIZE;
-						if (--c_parameter_n<6){
+
+						--c_parameter_n;
+						c_int_parameter_n = c_parameter_n - n_c_fp_register_parameters;
+						if (c_int_parameter_n<6){
 							int c_parameter_reg;
 					
-							c_parameter_reg=c_parameter_registers[c_parameter_n];
+							c_parameter_reg=c_parameter_registers[c_int_parameter_n];
 							
-							if (c_parameter_n<2){
-								if (c_parameter_n==0){
+							if (c_int_parameter_n<2){
+								if (c_int_parameter_n==0){
 									if ((used_clean_b_parameter_registers & (1<<6))==0){
 										heap_pointer=REGISTER_D6;
 										used_clean_b_parameter_registers |= 1<<6;
@@ -5009,7 +5029,7 @@ extern LABEL *cycle_in_spine_label,*reserve_label;
 void code_jsr_from_c_to_clean (char *label_name);
 #endif
 
-static void save_registers_before_c_call (void)
+static void save_registers_before_clean_call (void)
 {
 #if defined (I486)
 # ifdef G_AI64
@@ -5074,7 +5094,7 @@ static void save_registers_before_c_call (void)
 #endif
 }
 
-static void restore_registers_after_c_call (void)
+static void restore_registers_after_clean_call (void)
 {
 #if defined (I486)
 # ifdef G_AI64
@@ -5341,7 +5361,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		}
 	}
 
-	save_registers_before_c_call();
+	save_registers_before_clean_call();
 
 #if defined (G_AI64)
 	if (n_string_or_array_parameters!=0){
@@ -5722,7 +5742,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		code_o (0,float_c_function_result<<1,r_vector);
 #endif
 
-	restore_registers_after_c_call();
+	restore_registers_after_clean_call();
 
 	{
 		int b_offset,a_stack_size,b_stack_size;
