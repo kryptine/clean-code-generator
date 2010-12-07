@@ -5038,9 +5038,15 @@ static void save_registers_before_clean_call (void)
 	i_sub_i_r (144,B_STACK_POINTER);
 
 	i_move_r_id (-6/*RSI*/,136,B_STACK_POINTER);
+#  ifdef LINUX_ELF
+	i_move_r_r (-6/*RSI*/,3/*R11*/);
+#  endif
 	i_move_l_r (saved_a_stack_p_label,-6/*RSI*/);
 
 	i_move_r_id (-7/*RDI*/,128,B_STACK_POINTER);
+#  ifdef LINUX_ELF
+	i_move_r_r (-7/*RDI*/,2/*R10*/);
+#  endif
 	i_lea_l_i_r (saved_heap_p_label,0,-7/*RDI*/);
 	i_move_r_id ( 7/*R15*/,80,B_STACK_POINTER);
 	i_move_id_r (8,-7/*RDI*/,REGISTER_D7);
@@ -5051,12 +5057,15 @@ static void save_registers_before_clean_call (void)
 	i_move_r_id ( 4/*R12*/,104,B_STACK_POINTER);
 	i_move_r_id ( 5/*R13*/,96,B_STACK_POINTER);
 	i_move_r_id ( 6/*R14*/,88,B_STACK_POINTER);
+
+#  ifndef LINUX_ELF
 	{
 		int i;
-		
+		/* to do: save all 128 bits, because calling convention has been changed */
 		for (i=6; i<16; ++i)
 			i_fmove_fr_id (i,(15-i)<<3,B_STACK_POINTER);
 	}
+#  endif
 # else
 	i_sub_i_r (20,B_STACK_POINTER);
 
@@ -5114,12 +5123,14 @@ static void restore_registers_after_clean_call (void)
 	i_move_id_r (104,B_STACK_POINTER, 4/*R12*/);
 	i_move_id_r ( 96,B_STACK_POINTER, 5/*R13*/);
 	i_move_id_r ( 88,B_STACK_POINTER, 6/*R14*/);
+#  ifndef LINUX_ELF
 	{
 		int i;
-		
+		/* to do: save all 128 bits, because calling convention has been changed */		
 		for (i=6; i<16; ++i)
 			i_fmove_id_fr ((15-i)<<3,B_STACK_POINTER,i);
 	}
+#  endif
 	i_add_i_r (144,B_STACK_POINTER);
 # else
 	i_move_r_l (-4/*ESI*/,saved_a_stack_p_label);
@@ -5506,7 +5517,22 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 
 				register_n = (n_integer_and_float_parameters-1)-n;
 				if (s[first_parameter_index+register_n]!='R')
+#  ifdef LINUX_ELF
+				{
+					switch (register_n){
+						case 0: register_n= 2/*R10 was RDI*/; break;
+						case 1: register_n= 3/*R11 was RSI*/; break;
+						case 2: register_n=-2/*RDX*/; break;
+						case 3: register_n=-1/*RCX*/; break;
+						case 4: register_n=-3/*R8*/; break;
+						case 5: register_n=-4/*R9*/; break;
+						default: error ("error in centry");
+					}
+					s_push_b (g_g_register (register_n));
+				}
+#  else
 					s_push_b (g_g_register (REGISTER_A0-register_n));
+#  endif
 				else
 					s_push_b (g_fromf (g_fregister (register_n)));
 			} else
