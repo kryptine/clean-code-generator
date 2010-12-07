@@ -4633,20 +4633,20 @@ void code_ccall (char *c_function_name,char *s,int length)
 			}
 		}
 
-		if (a_stack_pointer==A_STACK_POINTER){
-			a_stack_pointer = heap_pointer!=REGISTER_D5 ? REGISTER_D5 : REGISTER_D6;
-			i_move_r_r (A_STACK_POINTER,a_stack_pointer);
-		}
-		if (heap_pointer==HEAP_POINTER){
-			heap_pointer = a_stack_pointer!=REGISTER_D6 ? REGISTER_D6 : REGISTER_D5;
-			i_move_r_r (HEAP_POINTER,heap_pointer);
-		}
-	
-		if (save_state_in_global_variables){
-			i_move_r_l (-6/*RSI*/,saved_a_stack_p_label);
-			i_lea_l_i_r (saved_heap_p_label,0,-6/*RSI*/);
-			i_move_r_id (-7/*RDI*/,  0,-6/*RSI*/);
-			i_move_r_id (REGISTER_D7,8,-6/*RSI*/);
+		if (!save_state_in_global_variables){
+			if (a_stack_pointer==A_STACK_POINTER){
+				a_stack_pointer = heap_pointer!=REGISTER_D5 ? REGISTER_D5 : REGISTER_D6;
+				i_move_r_r (A_STACK_POINTER,a_stack_pointer);
+			}
+			if (heap_pointer==HEAP_POINTER){
+				heap_pointer = a_stack_pointer!=REGISTER_D6 ? REGISTER_D6 : REGISTER_D5;
+				i_move_r_r (HEAP_POINTER,heap_pointer);
+			}
+		} else {
+			i_move_r_l (a_stack_pointer,saved_a_stack_p_label);
+			i_lea_l_i_r (saved_heap_p_label,0,a_stack_pointer);
+			i_move_r_id (heap_pointer,0,a_stack_pointer);
+			i_move_r_id (REGISTER_D7,8,a_stack_pointer);
 		}
 
 		if (!function_address_parameter)
@@ -4659,8 +4659,10 @@ void code_ccall (char *c_function_name,char *s,int length)
 		else
 			i_lea_id_r (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset),REGISTER_RBP,B_STACK_POINTER);	
 
-		i_move_r_r (a_stack_pointer,A_STACK_POINTER);
-		i_move_r_r (heap_pointer,HEAP_POINTER);		
+		if (!save_state_in_global_variables){
+			i_move_r_r (a_stack_pointer,A_STACK_POINTER);
+			i_move_r_r (heap_pointer,HEAP_POINTER);
+		}
 #  else /* for I486 && G_AI64 && ! LINUX_ELF */
 		{
 		int c_offset_before_pushing_arguments,function_address_reg,c_parameter_n;
