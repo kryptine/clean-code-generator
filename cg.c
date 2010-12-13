@@ -617,6 +617,10 @@ extern int compiler_id;
 extern int intel_asm;
 #endif
 
+#ifdef G_AI64
+extern int sse_128;
+#endif
+
 #ifdef MAIN_CLM
 # if !(defined (__MWERKS__) && defined (__cplusplus))
 #  ifdef CG_PPC_XO
@@ -704,6 +708,10 @@ int main (int argc,char **argv)
 #ifdef I486
 			else if (!strcmp (s,"intelasm"))
 				intel_asm=1;
+#endif
+#ifdef G_AI64
+			else if (!strcmp (s,"sse64"))
+				sse_128=0;
 #endif
 			else if (!strcmp (s,"mc68000")){
 				mc68000_flag=1;

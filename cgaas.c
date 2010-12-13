@@ -57,6 +57,8 @@
 #define U4(s,v1,v2,v3,v4) s->v1;s->v2;s->v3;s->v4
 #define U5(s,v1,v2,v3,v4,v5) s->v1;s->v2;s->v3;s->v4;s->v5
 
+int sse_128=1;
+
 #ifdef FUNCTION_LEVEL_LINKING
 # define TEXT_LABEL_ID (-2)
 # define DATA_LABEL_ID (-3)
@@ -3612,22 +3614,40 @@ static void as_fmove_instruction (struct instruction *instruction)
 		case P_F_REGISTER:
 			switch (instruction->instruction_parameters[0].parameter_type){
 				case P_F_REGISTER:
+					if (sse_128)
+						as_f_r (0x66,0x28,instruction->instruction_parameters[0].parameter_data.reg.r,
+						/* movapd */	  instruction->instruction_parameters[1].parameter_data.reg.r);
+					else
 					as_f_r (0xf2,0x10,instruction->instruction_parameters[0].parameter_data.reg.r,
-									  instruction->instruction_parameters[1].parameter_data.reg.r);
+						/* movsd*/		  instruction->instruction_parameters[1].parameter_data.reg.r);
 					return;
 				case P_INDIRECT:
+					if (sse_128)
+						as_f_id (0xf2,0x10,instruction->instruction_parameters[0].parameter_offset,
+						/* movsd */		   instruction->instruction_parameters[0].parameter_data.reg.r,
+										   instruction->instruction_parameters[1].parameter_data.reg.r);
+					else
 					as_f_id (0x66,0x12,instruction->instruction_parameters[0].parameter_offset,
-									   instruction->instruction_parameters[0].parameter_data.reg.r,
+						/* movlpd */	   instruction->instruction_parameters[0].parameter_data.reg.r,
 									   instruction->instruction_parameters[1].parameter_data.reg.r);
 					return;
 				case P_INDEXED:
+					if (sse_128)
+						as_f_x (0xf2,0x10,instruction->instruction_parameters[0].parameter_offset,
+						/* movsd */		  instruction->instruction_parameters[0].parameter_data.ir,
+										  instruction->instruction_parameters[1].parameter_data.reg.r);
+					else
 					as_f_x (0x66,0x12,instruction->instruction_parameters[0].parameter_offset,
-									  instruction->instruction_parameters[0].parameter_data.ir,
+						/* movlpd */	  instruction->instruction_parameters[0].parameter_data.ir,
 									  instruction->instruction_parameters[1].parameter_data.reg.r);
 					return;
 				case P_F_IMMEDIATE:
+					if (sse_128)
+						as_f_i (0xf2,0x10,instruction->instruction_parameters[0].parameter_data.r,
+						/* movsd */		  instruction->instruction_parameters[1].parameter_data.reg.r);
+					else
 					as_f_i (0x66,0x12,instruction->instruction_parameters[0].parameter_data.r,
-									  instruction->instruction_parameters[1].parameter_data.reg.r);
+						/* movlpd */	  instruction->instruction_parameters[1].parameter_data.reg.r);
 					return;
 			}
 			break;
@@ -3687,7 +3707,7 @@ static void as_fmoves_instruction (struct instruction *instruction)
 			break;
 		case P_INDEXED:
 			if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
-				/* movsd */
+				/* movss */
 				as_f_x (0xf3,0x11,instruction->instruction_parameters[1].parameter_offset,
 								  instruction->instruction_parameters[1].parameter_data.ir,
 								  instruction->instruction_parameters[0].parameter_data.reg.r);
@@ -3734,19 +3754,34 @@ static void as_float_neg_instruction (struct instruction *instruction)
 			
 	switch (instruction->instruction_parameters[0].parameter_type){
 		case P_F_REGISTER:
-			if (instruction->instruction_parameters[0].parameter_data.reg.r!=d_freg)
-				as_f_r (0xf2,0x10,instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
+			if (instruction->instruction_parameters[0].parameter_data.reg.r!=d_freg){
+				if (sse_128)
+					as_f_r (0x66,0x28,instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);	/* movapd */
+				else
+					as_f_r (0xf2,0x10,instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);	/* movsd */
+			}
 			break;
 		case P_INDIRECT:
+			if (sse_128)
+				as_f_id (0xf2,0x10,instruction->instruction_parameters[0].parameter_offset,
+				/* movsd */		   instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
+			else
 			as_f_id (0x66,0x12,instruction->instruction_parameters[0].parameter_offset,
-							   instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
+				/* movlpd */	   instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
 			break;
 		case P_INDEXED:
+			if (sse_128)
+				as_f_x (0xf2,0x10,instruction->instruction_parameters[0].parameter_offset,
+				/* movsd */		  instruction->instruction_parameters[0].parameter_data.ir,d_freg);
+			else
 			as_f_x (0x66,0x12,instruction->instruction_parameters[0].parameter_offset,
-							  instruction->instruction_parameters[0].parameter_data.ir,d_freg);
+				/* movlpd */	  instruction->instruction_parameters[0].parameter_data.ir,d_freg);
 			break;
 		case P_F_IMMEDIATE:
-			as_f_i (0x66,0x12,instruction->instruction_parameters[0].parameter_data.r,d_freg);
+			if (sse_128)
+				as_f_i (0xf2,0x10,instruction->instruction_parameters[0].parameter_data.r,d_freg);	/* movsd */
+			else
+				as_f_i (0x66,0x12,instruction->instruction_parameters[0].parameter_data.r,d_freg);	/* movlpd */
 			break;
 		default:
 			internal_error_in_function ("as_float_neg_instruction");
@@ -3792,19 +3827,34 @@ static void as_float_abs_instruction (struct instruction *instruction)
 			
 	switch (instruction->instruction_parameters[0].parameter_type){
 		case P_F_REGISTER:
-			if (instruction->instruction_parameters[0].parameter_data.reg.r!=d_freg)
-				as_f_r (0xf2,0x10,instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
+			if (instruction->instruction_parameters[0].parameter_data.reg.r!=d_freg){
+				if (sse_128)
+					as_f_r (0x66,0x28,instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);	/* movapd */
+				else
+					as_f_r (0xf2,0x10,instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);	/* movsd */
+			}
 			break;
 		case P_INDIRECT:
+			if (sse_128)
+				as_f_id (0xf2,0x10,instruction->instruction_parameters[0].parameter_offset,
+				/* movsd */		   instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
+			else
 			as_f_id (0x66,0x12,instruction->instruction_parameters[0].parameter_offset,
-							   instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
+				/* movlpd */	   instruction->instruction_parameters[0].parameter_data.reg.r,d_freg);
 			break;
 		case P_INDEXED:
+			if (sse_128)
+				as_f_x (0xf2,0x10,instruction->instruction_parameters[0].parameter_offset,
+				/* movsd */		  instruction->instruction_parameters[0].parameter_data.ir,d_freg);
+			else
 			as_f_x (0x66,0x12,instruction->instruction_parameters[0].parameter_offset,
-							  instruction->instruction_parameters[0].parameter_data.ir,d_freg);
+				/* movlpd */	  instruction->instruction_parameters[0].parameter_data.ir,d_freg);
 			break;
 		case P_F_IMMEDIATE:
-			as_f_i (0x66,0x12,instruction->instruction_parameters[0].parameter_data.r,d_freg);
+			if (sse_128)
+				as_f_i (0xf2,0x10,instruction->instruction_parameters[0].parameter_data.r,d_freg);	/* movsd */
+			else
+				as_f_i (0x66,0x12,instruction->instruction_parameters[0].parameter_data.r,d_freg);	/* movlpd */
 			break;
 		default:
 			internal_error_in_function ("as_float_abs_instruction");

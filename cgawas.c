@@ -29,6 +29,8 @@
 
 int intel_asm=1;
 
+extern int sse_128;
+
 #define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
 
 #define IO_BUF_SIZE 8192
@@ -2638,7 +2640,7 @@ static void w_as_float_neg_instruction (struct instruction *instruction)
 
 			w_as_float_constant (label_number,instruction->instruction_parameters[0].parameter_data.r);
 			
-			w_as_opcode ("movlpd");
+			w_as_opcode (sse_128 ? "movsd" : "movlpd");
 			w_as_fp_register (d_freg);
 			w_as_comma();
 			fprintf (assembly_file,"qword ptr i_%d",label_number);
@@ -2646,7 +2648,7 @@ static void w_as_float_neg_instruction (struct instruction *instruction)
 			break;
 		}
 		case P_INDIRECT:
-			w_as_opcode ("movlpd");
+			w_as_opcode (sse_128 ? "movsd" : "movlpd");
 			w_as_fp_register (d_freg);
 			w_as_comma();
 			fprintf (assembly_file,"qword ptr ");
@@ -2654,7 +2656,7 @@ static void w_as_float_neg_instruction (struct instruction *instruction)
 			w_as_newline();
 			break;
 		case P_INDEXED:
-			w_as_opcode ("movlpd");
+			w_as_opcode (sse_128 ? "movsd" : "movlpd");
 			w_as_fp_register (d_freg);
 			w_as_comma();
 			fprintf (assembly_file,"qword ptr ");
@@ -2663,7 +2665,7 @@ static void w_as_float_neg_instruction (struct instruction *instruction)
 			break;
 		case P_F_REGISTER:
 			if (instruction->instruction_parameters[0].parameter_data.reg.r!=d_freg){
-				w_as_opcode ("movsd");
+				w_as_opcode (sse_128 ? "movapd" : "movsd");
 				w_as_fp_register (d_freg);
 				w_as_comma();
 				w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
@@ -2705,7 +2707,7 @@ static void w_as_float_abs_instruction (struct instruction *instruction)
 
 			w_as_float_constant (label_number,instruction->instruction_parameters[0].parameter_data.r);
 			
-			w_as_opcode ("movlpd");
+			w_as_opcode (sse_128 ? "movsd" : "movlpd");
 			w_as_fp_register (d_freg);
 			w_as_comma();
 			fprintf (assembly_file,"qword ptr i_%d",label_number);
@@ -2713,7 +2715,7 @@ static void w_as_float_abs_instruction (struct instruction *instruction)
 			break;
 		}
 		case P_INDIRECT:
-			w_as_opcode ("movlpd");
+			w_as_opcode (sse_128 ? "movsd" : "movlpd");
 			w_as_fp_register (d_freg);
 			w_as_comma();
 			fprintf (assembly_file,"qword ptr ");
@@ -2721,7 +2723,7 @@ static void w_as_float_abs_instruction (struct instruction *instruction)
 			w_as_newline();
 			break;
 		case P_INDEXED:
-			w_as_opcode ("movlpd");
+			w_as_opcode (sse_128 ? "movsd" : "movlpd");
 			w_as_fp_register (d_freg);
 			w_as_comma();
 			fprintf (assembly_file,"qword ptr ");
@@ -2730,7 +2732,7 @@ static void w_as_float_abs_instruction (struct instruction *instruction)
 			break;
 		case P_F_REGISTER:
 			if (instruction->instruction_parameters[0].parameter_data.reg.r!=d_freg){
-				w_as_opcode ("movsd");
+				w_as_opcode (sse_128 ? "movapd" : "movsd");
 				w_as_fp_register (d_freg);
 				w_as_comma();
 				w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
@@ -2763,13 +2765,13 @@ static void w_as_fmove_instruction (struct instruction *instruction)
 		case P_F_REGISTER:
 			switch (instruction->instruction_parameters[0].parameter_type){
 				case P_F_REGISTER:
-					w_as_opcode ("movsd");
+					w_as_opcode (sse_128 ? "movapd" : "movsd");
 					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_comma();
 					w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
 					break;
 				case P_INDIRECT:
-					w_as_opcode ("movlpd");
+					w_as_opcode (sse_128 ? "movsd" : "movlpd");
 					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_comma();
 					if (intel_asm)
@@ -2778,7 +2780,7 @@ static void w_as_fmove_instruction (struct instruction *instruction)
 								   instruction->instruction_parameters[0].parameter_data.reg.r);
 					break;
 				case P_INDEXED:
-					w_as_opcode ("movlpd");
+					w_as_opcode (sse_128 ? "movsd" : "movlpd");
 					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_comma();
 					if (intel_asm)
@@ -2792,7 +2794,7 @@ static void w_as_fmove_instruction (struct instruction *instruction)
 
 					w_as_float_constant (label_number,instruction->instruction_parameters[0].parameter_data.r);
 			
-					w_as_opcode ("movlpd");
+					w_as_opcode (sse_128 ? "movsd" : "movlpd");
 					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_comma();
 					if (intel_asm)
