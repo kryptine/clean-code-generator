@@ -8988,12 +8988,11 @@ void code_descn (char label_name[],char node_entry_label_name[],int arity,int la
 
 #ifdef GEN_OBJ
 	store_2_words_in_data_section (arity,0<<3);
-# endif
+#endif
 	if (assembly_flag){
 		w_as_word_in_data_section (arity);
 		w_as_word_in_data_section (0<<3);
 	}
-#endif
 
 #ifdef NEW_DESCRIPTORS
 	code_new_descriptor (0/*arity*/,lazy_record_flag);
