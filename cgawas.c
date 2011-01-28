@@ -185,7 +185,7 @@ void w_as_word64_in_data_section (int_64 n)
 #else
 	w_as_to_data_section();
 #endif
-	w_as_opcode (intel_asm ? "dq" : ".long");
+	w_as_opcode (intel_asm ? "dq" : ".quad");
 
 #ifdef LINUX
 	if ((int)n==n)
@@ -217,7 +217,7 @@ void w_as_descriptor_in_data_section (char *label_name)
 {
 	w_as_to_data_section();
 	w_as_align (3);
-	fprintf (assembly_file,intel_asm ? "\tdq\t%s+2\n" : "\t.long\t%s+2\n",label_name);
+	fprintf (assembly_file,intel_asm ? "\tdq\t%s+2\n" : "\t.quad\t%s+2\n",label_name);
 }
 
 #define MAX_BYTES_PER_LINE 16
@@ -342,7 +342,7 @@ void w_as_abc_string_in_data_section (char *string,int length)
 	
 	w_as_to_data_section();
 	
-	w_as_opcode (intel_asm ? "dq" : ".long");
+	w_as_opcode (intel_asm ? "dq" : ".quad");
 	fprintf (assembly_file,"%d\n",length);
 	n=w_as_data (0,string,length);
 	if (length & 7)
@@ -1272,7 +1272,7 @@ static void w_as_loadsqb_instruction (struct instruction *instruction)
 				w_as_opcode ("movsxd");
 				if (intel_asm){
 					w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
-					fprintf (assembly_file,"qword ptr ");
+					fprintf (assembly_file,"dword ptr ");
 				}
 				w_as_indirect (instruction->instruction_parameters[0].parameter_offset,
 							   instruction->instruction_parameters[0].parameter_data.reg.r);
@@ -1281,17 +1281,22 @@ static void w_as_loadsqb_instruction (struct instruction *instruction)
 				w_as_opcode ("movsxd");
 				if (intel_asm){
 					w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
-					fprintf (assembly_file,"qword ptr ");
+					fprintf (assembly_file,"dword ptr ");
 				}
 				w_as_indexed (instruction->instruction_parameters[0].parameter_offset,
 							  instruction->instruction_parameters[0].parameter_data.ir);
 				break;					
 			case P_REGISTER:
 				w_as_opcode ("movsxd");
-				if (intel_asm)
+				if (intel_asm){
 					w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
-				w_as_register (instruction->instruction_parameters[0].parameter_data.reg.r);
-				break;
+					w_as_qbyte_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+				} else {
+					w_as_qbyte_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+					w_as_comma_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+				}
+				w_as_newline();
+				return;
 			default:
 				internal_error_in_function ("w_as_loadsqb_instruction");
 				return;
@@ -2198,7 +2203,7 @@ static void w_as_rem_instruction (struct instruction *instruction)
 
 			w_as_instruction_without_parameters ("cqo");
 
-			w_as_opcode ("idivl");
+			w_as_opcode (intel_asm ? "idiv" : "idivl");
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER
 				&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
 			{
@@ -2227,7 +2232,7 @@ static void w_as_rem_instruction (struct instruction *instruction)
 	
 			w_as_instruction_without_parameters ("cqo");
 	
-			w_as_opcode ("idivl");
+			w_as_opcode (intel_asm ? "idiv" : "idivl");
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
 				int r;
 				
@@ -3344,7 +3349,7 @@ static void w_as_call_and_jump (struct call_and_jump *call_and_jump)
 	w_as_newline();
 }
 
-static void w_as_labels (register struct block_label *labels)
+static void w_as_labels (struct block_label *labels)
 {
 	for (; labels!=NULL; labels=labels->block_label_next)
 		if (labels->block_label_label->label_number==0)
