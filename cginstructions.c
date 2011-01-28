@@ -12,13 +12,6 @@
 #include <stdlib.h>
 
 #include "cgport.h"
-
-#ifdef THINK_C
-# define SMALL_LAZY_DESCRIPTORS 1
-#else
-# define SMALL_LAZY_DESCRIPTORS 0
-#endif
-
 #include "cg.h"
 #include "cgconst.h"
 #include "cgrconst.h"
@@ -6031,19 +6024,8 @@ void code_send_graph (char descriptor_name[],int a_offset_1,int a_offset_2)
 
 	if (send_graph_label==NULL)
 		send_graph_label=enter_label ("send_graph",IMPORT_LABEL);
-		
-#ifdef SMALL_LAZY_DESCRIPTORS
-	{
-		char h_descriptor_name[257];
-			
-		strcpy (h_descriptor_name,descriptor_name);
-		strcat (h_descriptor_name,"#");
 
-		descriptor_label=enter_label (h_descriptor_name,DATA_LABEL);
-	}
-#else
 	descriptor_label=enter_label (descriptor_name,0);
-#endif
 
 	graph_1=g_lea (descriptor_label);
 	graph_2=s_get_a (a_offset_1);

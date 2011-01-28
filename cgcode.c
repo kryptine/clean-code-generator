@@ -118,12 +118,6 @@
 # define SIZE_OF_REAL_IN_STACK_ELEMENTS 2
 #endif
 
-#ifdef THINK_C
-# define SMALL_LAZY_DESCRIPTORS 1
-#else
-# define SMALL_LAZY_DESCRIPTORS 0
-#endif
-
 #ifdef sparc
 # undef ALIGN_REAL_ARRAYS
 # undef NEW_ARRAYS
@@ -760,16 +754,6 @@ void code_build (char descriptor_name[],int arity,char *code_name)
 		if (descriptor_name[0]=='_' && descriptor_name[1]=='_' && descriptor_name[2]=='\0')
 			descriptor_label=NULL;
 		else
-#if SMALL_LAZY_DESCRIPTORS
-			if (parallel_flag){
-				char curried_descriptor_name[257];
-			
-				strcpy (curried_descriptor_name,descriptor_name);
-				strcat (curried_descriptor_name,"#");
-			
-				descriptor_label=enter_label (curried_descriptor_name,DATA_LABEL);	
-			} else
-#endif
 			descriptor_label=enter_label (descriptor_name,DATA_LABEL);
 
 		if (arity<-2)
@@ -2722,16 +2706,6 @@ void code_fill (char descriptor_name[],int arity,char *code_name,int a_offset)
 		if (descriptor_name[0]=='_' && descriptor_name[1]=='_' && descriptor_name[2]=='\0')
 			descriptor_label=NULL;
 		else
-#if SMALL_LAZY_DESCRIPTORS
-			if (parallel_flag){
-				char curried_descriptor_name[257];
-			
-				strcpy (curried_descriptor_name,descriptor_name);
-				strcat (curried_descriptor_name,"#");
-			
-				descriptor_label=enter_label (curried_descriptor_name,DATA_LABEL);	
-			} else
-#endif
 			descriptor_label=enter_label (descriptor_name,DATA_LABEL);
 
 		if (arity<-2)
@@ -2790,16 +2764,6 @@ void code_fillcp (char descriptor_name[],int arity,char *code_name,int a_offset,
 		if (descriptor_name[0]=='_' && descriptor_name[1]=='_' && descriptor_name[2]=='\0')
 			descriptor_label=NULL;
 		else
-#if SMALL_LAZY_DESCRIPTORS
-			if (parallel_flag){
-				char curried_descriptor_name[257];
-			
-				strcpy (curried_descriptor_name,descriptor_name);
-				strcat (curried_descriptor_name,"#");
-			
-				descriptor_label=enter_label (curried_descriptor_name,DATA_LABEL);	
-			} else
-#endif
 			descriptor_label=enter_label (descriptor_name,DATA_LABEL);
 
 		if (arity<-2)
@@ -5064,16 +5028,6 @@ void code_n (int number_of_arguments,char *descriptor_name,char *ea_label_name)
 	if (descriptor_name[0]=='_' && descriptor_name[1]=='_' && descriptor_name[2]=='\0')
 		label=NULL;
 	else
-#if SMALL_LAZY_DESCRIPTORS
-		if (parallel_flag){
-			char curried_descriptor_name[257];
-		
-			strcpy (curried_descriptor_name,descriptor_name);
-			strcat (curried_descriptor_name,"#");
-		
-			label=enter_label (curried_descriptor_name,DATA_LABEL);	
-		} else
-#endif
 		label=enter_label (descriptor_name,DATA_LABEL);
 
 	last_block->block_n_node_arguments=number_of_arguments;
@@ -8905,16 +8859,7 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 {
 	LABEL *label;
 	int n;
-#if SMALL_LAZY_DESCRIPTORS
-	char curried_label_name[257];
 
-	if (parallel_flag){
-		strcpy (curried_label_name,label_name);
-		strcat (curried_label_name,"#");
-		
-		label=enter_label (curried_label_name,LOCAL_LABEL | DATA_LABEL);
-	} else
-#endif
 	label=enter_label (label_name,LOCAL_LABEL | DATA_LABEL | export_flag);
 
 	if (label->label_id>=0)
@@ -8977,62 +8922,6 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 
 		store_word_in_data_section (0x4eed); /* JMP x(A5) */
 		store_label_offset_in_data_section (node_entry_label->label_id);
-
-# if SMALL_LAZY_DESCRIPTORS
-		{
-		LABEL *new_label;
-		int flags;
-
-		new_label=enter_label (label_name,LOCAL_LABEL | DATA_LABEL);
-		if (new_label->label_id>=0)
-			error_s ("label %d defined twice\n",curried_label_name);
-		new_label->label_id=next_label_id++;
-		new_label->label_descriptor=string_label;
-
-		if (new_label->label_flags & EXPORT_LABEL)
-			label->label_flags |= EXPORT_LABEL;
-
-		if (label->label_flags & EXPORT_LABEL)
-			define_external_label (label->label_id,LDATA,label->label_name);
-		else
-			define_local_label (label->label_id,LDATA);
-
-		if (assembly_flag)
-			w_as_define_label (label);
-
-		store_word_in_data_section (-4);
-		if (assembly_flag)
-			w_as_word_in_data_section (-4);
-
-		if (code_label_name!=NULL && arity==1){
-#  ifdef GEN_MAC_OBJ
-			store_label_offset_in_data_section (code_label->label_id);
-#  else
-#   ifdef GEN_OBJ
-			store_label_in_data_section (code_label);
-#   endif
-#  endif
-			if (assembly_flag)
-				w_as_label_in_data_section (code_label_name);
-		} else {
-			store_word_in_data_section (0);
-			if (assembly_flag)
-				w_as_word_in_data_section (0);
-
-			/*
-			store_label_offset_in_data_section (string_code_label_id);
-			if (assembly_flag)
-				w_as_internal_label_value (string_code_label_id);
-			*/
-		}
-
-		start_new_module (2);
-		if (assembly_flag)
-			w_as_new_module (0);
-
-		label=new_label;
-		}
-# endif
 	}
 #endif
 
