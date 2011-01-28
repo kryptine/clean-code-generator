@@ -8846,14 +8846,18 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 #ifdef NEW_DESCRIPTORS
 static void code_new_descriptor (int arity,int lazy_record_flag)
 {
+# ifdef GEN_OBJ
 	store_2_words_in_data_section (lazy_record_flag,arity);
+# endif
 	if (assembly_flag){
 		w_as_word_in_data_section (lazy_record_flag);
 		w_as_word_in_data_section (arity);
 	}
 
 	if (module_info_flag && module_label){
+# ifdef GEN_OBJ
 		store_label_in_data_section (module_label);
+# endif
 		if (assembly_flag)
 			w_as_label_in_data_section (module_label->label_name);
 	}
@@ -8930,10 +8934,12 @@ void code_desc0 (char label_name[],int desc0_number,char descriptor_name[],int d
 		w_as_new_data_module();
 #endif
 
-#ifdef G_A64
+#ifdef GEN_OBJ
+# ifdef G_A64
 	store_word64_in_data_section (desc0_number);
-#else
+# else
 	store_long_word_in_data_section (desc0_number);
+# endif
 #endif
 	if (assembly_flag)
 #ifdef G_A64
@@ -8943,16 +8949,21 @@ void code_desc0 (char label_name[],int desc0_number,char descriptor_name[],int d
 #endif
 
 	if (!parallel_flag){
+#ifdef GEN_OBJ
 		store_descriptor_in_data_section (label);
+#endif
 		if (assembly_flag)
 			w_as_descriptor_in_data_section (label->label_name);
 	}
-
+#ifdef GEN_OBJ
 	define_data_label (label);
+#endif
 	if (assembly_flag)
 		w_as_define_label (label);
 
+#ifdef GEN_OBJ
 	store_2_words_in_data_section (0,0);
+#endif
 	if (assembly_flag){
 		w_as_word_in_data_section (0);
 		w_as_word_in_data_section (0);
