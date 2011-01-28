@@ -37,9 +37,6 @@
 #  endif
 # endif
 #endif
-#if defined (M68000) && !defined (SUN)
-# define GEN_MAC_OBJ
-#endif
 #define GEN_OBJ
 
 #define LTEXT 0
@@ -1119,33 +1116,18 @@ LABEL *w_code_string (char *string,int length)
 #endif
 	);
 
-#ifdef GEN_MAC_OBJ
-	start_new_module (0);
-	if (assembly_flag)
-		w_as_new_module (0);
-#endif
 #ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
 #endif
 
-#ifdef GEN_MAC_OBJ
-	define_local_label (string_label->label_id,LTEXT);
-	store_c_string_in_code_section (string,length);
-#else
-# ifdef GEN_OBJ
+#ifdef GEN_OBJ
 	define_data_label (string_label);
 	store_c_string_in_data_section (string,length);
-# endif
-#endif
-	
+#endif	
 	if (assembly_flag)
-#ifdef GEN_MAC_OBJ
-		w_as_c_string_in_code_section (string,length,string_label->label_number);
-#else
 		w_as_labeled_c_string_in_data_section (string,length,string_label->label_number);
-#endif
 	
 	return string_label;
 }
@@ -1163,44 +1145,24 @@ LABEL *w_code_descriptor_length_and_string (char *string,int length)
 #endif
 	);
 
-#ifdef GEN_MAC_OBJ
-	start_new_module (4);
-	if (assembly_flag)
-		w_as_new_module (4);
-#endif
 #ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
 #endif
 
-#ifdef GEN_MAC_OBJ
-	define_local_label (string_label->label_id,LTEXT);
-	if (_STRING__label->label_id<0)
-		_STRING__label->label_id=next_label_id++;
-	store_descriptor_in_code_section (_STRING__label->label_id);
-	store_abc_string_in_code_section (string,length);
-
-	if (assembly_flag){
-		w_as_define_local_label_in_code_section (string_label->label_number);
-		w_as_descriptor_in_code_section (_STRING__label->label_name);
-		w_as_abc_string_in_code_section (string,length);
-	}
-#else
-# ifdef GEN_OBJ
+#ifdef GEN_OBJ
 	define_data_label (string_label);
 	if (_STRING__label->label_id<0)
 		_STRING__label->label_id=next_label_id++;
 	store_descriptor_in_data_section (_STRING__label);
 	store_abc_string_in_data_section (string,length);
-# endif
-
+#endif
 	if (assembly_flag){
 		w_as_define_data_label (string_label->label_number);
 		w_as_descriptor_in_data_section (_STRING__label->label_name);
 		w_as_abc_string_in_data_section (string,length);
 	}
-#endif
 	
 	return string_label;
 }
@@ -1215,54 +1177,31 @@ LABEL *w_code_length_and_string (char *string,int length)
 #endif
 	);
 
-#ifdef GEN_MAC_OBJ
-	start_new_module (0);
-	if (assembly_flag)
-		w_as_new_module (0);
-#endif
 #ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
 #endif
 
-#ifdef GEN_MAC_OBJ
-	define_local_label (string_label->label_id,LTEXT);
-	store_abc_string_in_code_section (string,length);
-
-	if (assembly_flag){
-		w_as_define_local_label_in_code_section (string_label->label_number);
-		w_as_abc_string_in_code_section (string,length);
-	}
-#else
-# ifdef GEN_OBJ
+#ifdef GEN_OBJ
 	define_data_label (string_label);
 	store_abc_string_in_data_section (string,length);
-# endif
-
+#endif
 	if (assembly_flag){
 		w_as_define_data_label (string_label->label_number);
 		w_as_abc_string_in_data_section (string,length);
 	}
-#endif	
+
 	return string_label;
 }
 
 void w_descriptor_string (char *string,int length,int string_code_label_id,LABEL *string_label)
 {
-#ifdef GEN_MAC_OBJ
-	store_descriptor_string_in_code_section (string,length,string_code_label_id,string_label);
-
-	if (assembly_flag)
-		w_as_descriptor_string_in_code_section (string,length,string_code_label_id,string_label);
-#else
-# ifdef GEN_OBJ
+#ifdef GEN_OBJ
 	store_descriptor_string_in_data_section (string,length,string_label);
-# endif
-
+#endif
 	if (assembly_flag)
 		w_as_descriptor_string_in_data_section (string,length,string_code_label_id,string_label);
-#endif
 }
 
 void code_n_string (char string[],int string_length)

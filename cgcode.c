@@ -80,9 +80,6 @@
 
 #define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
 
-#if defined (M68000) && !defined (SUN)
-# define GEN_MAC_OBJ
-#endif
 #define GEN_OBJ
 
 #ifdef NEW_DESCRIPTORS
@@ -102,14 +99,10 @@
 #  define ARITY_0_DESCRIPTOR_OFFSET (-12)
 # endif
 #endif
-#ifdef GEN_MAC_OBJ
-# define DESCRIPTOR_ARITY_OFFSET (-4)
+#if defined (NO_STRING_ADDRESS_IN_DESCRIPTOR)
+# define DESCRIPTOR_ARITY_OFFSET (-2)
 #else
-# if defined (NO_STRING_ADDRESS_IN_DESCRIPTOR)
-#  define DESCRIPTOR_ARITY_OFFSET (-2)
-# else
-#  define DESCRIPTOR_ARITY_OFFSET (-6)
-# endif
+# define DESCRIPTOR_ARITY_OFFSET (-6)
 #endif
 
 #ifdef G_A64
@@ -2517,22 +2510,14 @@ void code_eq_nulldesc (char descriptor_name[],int a_offset)
 	
 	graph_1=s_get_a (a_offset);
 
-#ifdef GEN_MAC_OBJ
-	graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
-	graph_3=g_g_register (GLOBAL_DATA_REGISTER);
-	graph_4=g_add (graph_3,graph_2);
-	graph_5=g_load_des_id (0,graph_4);
-	graph_6=g_sub (graph_5,graph_2);
-#else
 	graph_2=g_load_id (0,graph_1);
-# ifdef NEW_DESCRIPTORS
+#ifdef NEW_DESCRIPTORS
 	graph_5=g_load_des_id (-2,graph_2);
 	graph_5=g_lsl (g_load_i (3),graph_5);
 	graph_6=g_sub (graph_5,graph_2);
-# else
+#else
 	graph_5=g_load_des_id (2-2,graph_2);
 	graph_6=g_sub (graph_5,graph_2);
-# endif
 #endif
 	graph_7=g_load_des_i (descriptor,0);
 	graph_8=g_cmp_eq (graph_7,graph_6);
@@ -3633,11 +3618,7 @@ void code_get_desc_arity (int a_offset)
 	graph_3=g_g_register (GLOBAL_DATA_REGISTER);
 # endif
 	graph_4=g_add (graph_3,graph_2);
-# ifdef GEN_MAC_OBJ
-	graph_5=g_load_des_id (0,graph_4);
-# else
 	graph_5=g_load_des_id (2,graph_4);
-# endif
 	graph_6=g_sub (graph_5,graph_4);
 	graph_7=g_load_des_id (DESCRIPTOR_ARITY_OFFSET,graph_6);
 #endif
@@ -3658,16 +3639,8 @@ void code_get_node_arity (int a_offset)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
 
 	graph_1=s_get_a (a_offset);
-#ifdef GEN_MAC_OBJ
-	graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
-	graph_3=g_g_register (GLOBAL_DATA_REGISTER);
-	graph_4=g_add (graph_3,graph_2);
-	graph_5=g_load_des_id (0,graph_4);
-	graph_6=g_lsr (g_load_i (2),graph_5);
-#else
 	graph_2=g_load_id (0,graph_1);
 	graph_6=g_load_des_id (-2,graph_2);
-#endif
 
 	s_push_b (graph_6);
 }
@@ -3677,14 +3650,9 @@ void code_get_desc_flags_b (void)
 	INSTRUCTION_GRAPH graph_1,graph_2;
 
 	graph_1=s_pop_b ();
-
-#ifndef GEN_MAC_OBJ
 	graph_2=g_load_des_id (-2-2+DESCRIPTOR_ARITY_OFFSET,graph_1);
 	
 	s_push_b (graph_2);
-#else
-	s_push_b (g_load_i (0));
-#endif
 }
 
 void code_gtC (VOID)
@@ -8606,11 +8574,6 @@ void code_caf (char *label_name,int a_stack_size,int b_stack_size)
 		error_s ("Label %d defined twice\n",label_name);
 	label->label_id=next_label_id++;
 
-#ifdef GEN_MAC_OBJ
-	start_new_module (2);
-	if (assembly_flag)
-		w_as_new_module (2);
-#endif
 #ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
@@ -8618,7 +8581,7 @@ void code_caf (char *label_name,int a_stack_size,int b_stack_size)
 #endif
 
 	if (a_stack_size>0){
-#if defined (GEN_MAC_OBJ) || defined (GEN_OBJ)
+#if defined (GEN_OBJ)
 # ifdef G_A64
 		store_word64_in_data_section (0);
 # else
@@ -8633,15 +8596,8 @@ void code_caf (char *label_name,int a_stack_size,int b_stack_size)
 #endif
 	}
 
-#ifdef GEN_MAC_OBJ
-	if (label->label_flags & EXPORT_LABEL)
-		define_external_label (label->label_id,LDATA,label->label_name);
-	else
-		define_local_label (label->label_id,LDATA);
-#else
-# ifdef GEN_OBJ
-		define_data_label (label);
-# endif
+#ifdef GEN_OBJ
+	define_data_label (label);
 #endif
 
 	if (assembly_flag){
@@ -8652,7 +8608,7 @@ void code_caf (char *label_name,int a_stack_size,int b_stack_size)
 	n_arguments=a_stack_size+b_stack_size;
 
 	for (n=0; n<=n_arguments; ++n){
-#if defined (GEN_MAC_OBJ) || defined (GEN_OBJ)
+#if defined (GEN_OBJ)
 # ifdef G_A64
 		store_word64_in_data_section (0);
 # else
@@ -8670,27 +8626,7 @@ void code_caf (char *label_name,int a_stack_size,int b_stack_size)
 
 void code_comp (int version,char *options)
 {
-#ifdef GEN_MAC_OBJ
-	int option_vector,n,l;
-	
-	l=strlen (options);
-	
-	if (l>8 && options[8]=='1')
-		system_file=1;
-
-	option_vector=0;
-	for (n=0; n<l; ++n)
-		if (options[n]=='1')
-			option_vector |= (1<<n);
-	
-	option_vector |= (check_index_flag<<10);
-	option_vector |= (check_stack<<11);
-	option_vector |= (parallel_flag<<12);
-	
-	write_version_and_options (version,option_vector);
-
-	no_memory_profiling = system_file && l>3 && options[3]=='0';
-#elif defined (G_POWER) || defined (I486)
+#if defined (G_POWER) || defined (I486)
 	int l;
 	
 	l=strlen (options);
@@ -8768,27 +8704,19 @@ static void write_descriptor_curry_table (int arity,LABEL *code_label)
 	int n;
 	
 	for (n=0; n<=arity; ++n){
-#ifdef GEN_MAC_OBJ
-		store_word_in_data_section (n<<2);
-#else
-# ifdef GEN_OBJ
-#  ifdef NEW_DESCRIPTORS
+#ifdef GEN_OBJ
+# ifdef NEW_DESCRIPTORS
 		store_2_words_in_data_section (n,(arity-n)<<3);
-#  else
+# else
 		store_2_words_in_data_section (n,n<<3);
-#  endif
 # endif
 #endif
 		if (assembly_flag){
-#ifdef GEN_MAC_OBJ
-			w_as_word_in_data_section (n<<2);
-#else
 			w_as_word_in_data_section (n);
-# ifdef NEW_DESCRIPTORS
+#ifdef NEW_DESCRIPTORS
 			w_as_word_in_data_section ((arity-n)<<3);
-# else
+#else
 			w_as_word_in_data_section (n<<3);
-# endif
 #endif
 		}
 		
@@ -8817,36 +8745,20 @@ static void write_descriptor_curry_table (int arity,LABEL *code_label)
 			if (add_arg_label->label_id<0)
 				add_arg_label->label_id=next_label_id++;
 
-#ifdef GEN_MAC_OBJ
-			store_label_offset_in_data_section (add_arg_label->label_id);
-#else
-# ifdef GEN_OBJ
+#ifdef GEN_OBJ
 			store_label_in_data_section (add_arg_label);
-# endif
 #endif
 			if (assembly_flag)
 				w_as_label_in_data_section (add_arg_label->label_name);
 
 		} else
 			if (n==arity-1){
-#ifdef GEN_MAC_OBJ
-				store_label_offset_in_data_section (code_label->label_id);
-#else
-# ifdef GEN_OBJ
+#ifdef GEN_OBJ
 				store_label_in_data_section (code_label);
-# endif
 #endif
 				if (assembly_flag)
 					w_as_label_in_data_section (code_label->label_name);
 			}
-#ifdef GEN_MAC_OBJ
-			else {
-				/* for long word alignment */
-				store_word_in_data_section (0);
-				if (assembly_flag)
-					w_as_word_in_data_section (0);
-			}
-#endif
 	}
 }
 
@@ -8868,11 +8780,6 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 
 	label->label_descriptor=string_label;
 
-#ifdef GEN_MAC_OBJ
-	start_new_module (2);
-	if (assembly_flag)
-		w_as_new_module (0);
-#endif
 #ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
@@ -8882,12 +8789,8 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 #if !defined (NEW_DESCRIPTORS) && !defined (M68000)
 	/* not for 68k to maintain long word alignment */
 	if (module_info_flag && module_label){
-# ifdef GEN_MAC_OBJ
-		store_label_offset_in_data_section (module_label->label_id);
-# else
-#  ifdef GEN_OBJ
+# ifdef GEN_OBJ
 		store_label_in_data_section (module_label);
-#  endif
 # endif
 		if (assembly_flag)
 			w_as_label_in_data_section (module_label->label_name);
@@ -8909,32 +8812,12 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 	if (export_flag!=0)
 		enter_label (node_entry_label_name,export_flag);
 
-#ifdef GEN_MAC_OBJ
-	if (parallel_flag){
-		LABEL *node_entry_label;
-
-		store_label_offset_in_data_section (label->label_id);
-		store_word_in_data_section (arity);
-
-		node_entry_label=enter_label (node_entry_label_name,export_flag);
-		if (node_entry_label->label_id<0)
-			node_entry_label->label_id=next_label_id++;
-
-		store_word_in_data_section (0x4eed); /* JMP x(A5) */
-		store_label_offset_in_data_section (node_entry_label->label_id);
-	}
-#endif
-
 #ifndef NEW_DESCRIPTORS
-# ifdef GEN_MAC_OBJ
-	store_word_in_data_section (arity);
-# else
-#  ifdef GEN_OBJ
-#   ifdef I486
+# ifdef GEN_OBJ
+#  ifdef I486
 	store_long_word_in_data_section ((arity<<16) | lazy_record_flag);
-#   else
+#  else
 	store_2_words_in_data_section (lazy_record_flag,arity);
-#   endif
 #  endif
 # endif
 	if (assembly_flag){
@@ -8946,26 +8829,15 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 #endif
 
 #if ! defined (NO_STRING_ADDRESS_IN_DESCRIPTOR)
-# ifdef GEN_MAC_OBJ
-	store_label_offset_in_data_section (string_code_label_id);
-# else
-#  ifdef GEN_OBJ
+# ifdef GEN_OBJ
 	store_label_in_data_section (string_label);
-#  endif
 # endif
 	if (assembly_flag)
 		w_as_internal_label_value (string_code_label_id);
 #endif
 
-#ifdef GEN_MAC_OBJ
-	if (label->label_flags & EXPORT_LABEL)
-		define_external_label (label->label_id,LDATA,label->label_name);
-	else
-		define_local_label (label->label_id,LDATA);
-#else
-# ifdef GEN_OBJ
-		define_data_label (label);
-# endif
+#ifdef GEN_OBJ
+	define_data_label (label);
 #endif
 	if (assembly_flag)
 		w_as_define_label (label);
@@ -9113,13 +8985,8 @@ void code_descn (char label_name[],char node_entry_label_name[],int arity,int la
 #else
 	code_descriptor (label_name,node_entry_label_name,NULL,NULL,0/*arity*/,0,lazy_record_flag,string_label,string_code_label_id);
 #endif
-	
-#ifdef GEN_MAC_OBJ
-	store_word_in_data_section (0<<2);
-	if (assembly_flag)
-		w_as_word_in_data_section (0<<2);
-#else
-# ifdef GEN_OBJ
+
+#ifdef GEN_OBJ
 	store_2_words_in_data_section (arity,0<<3);
 # endif
 	if (assembly_flag){
@@ -9273,11 +9140,6 @@ void code_record (char record_label_name[],char type[],int a_size,int b_size,cha
 		error_s ("Label %d defined twice\n",record_label_name);
 	label->label_id=next_label_id++;
 
-#ifdef GEN_MAC_OBJ
-	start_new_module (0);
-	if (assembly_flag)
-		w_as_new_module (0);
-#endif
 #ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
@@ -9295,48 +9157,28 @@ void code_record (char record_label_name[],char type[],int a_size,int b_size,cha
 #ifndef M68000
 	/* not for 68k to maintain long word alignment */
 	if (module_info_flag && module_label){
-# ifdef GEN_MAC_OBJ
-		store_label_offset_in_data_section (module_label->label_id);
-# else
-#  ifdef GEN_OBJ
+# ifdef GEN_OBJ
 		store_label_in_data_section (module_label);
-#  endif
 # endif
 		if (assembly_flag)
 			w_as_label_in_data_section (module_label->label_name);
 	}
 #endif
 
-#ifdef GEN_MAC_OBJ
-	store_label_offset_in_data_section (string_code_label_id);
-#else
-# ifdef GEN_OBJ
+#ifdef GEN_OBJ
 	store_label_in_data_section (string_label);
-# endif
 #endif
 	if (assembly_flag)
 		w_as_internal_label_value (string_code_label_id);
 
-#ifdef GEN_MAC_OBJ
-	if (label->label_flags & EXPORT_LABEL)
-		define_external_label (label->label_id,LDATA,label->label_name);
-	else
-		define_local_label (label->label_id,LDATA);
-#else
-# ifdef GEN_OBJ
+#ifdef GEN_OBJ
 	define_data_label (label);
-# endif
 #endif
 	if (assembly_flag)
 		w_as_define_label (label);
 
-#ifdef GEN_MAC_OBJ
-	store_word_in_data_section (a_size+b_size+256);
-	store_word_in_data_section (a_size);
-#else
-# ifdef GEN_OBJ
+#ifdef GEN_OBJ
 	store_2_words_in_data_section (a_size+b_size+256,a_size);
-# endif
 #endif
 
 	if (assembly_flag){
@@ -9362,7 +9204,7 @@ void code_record (char record_label_name[],char type[],int a_size,int b_size,cha
 		
 		length=t_p-type;
 
-#if defined (GEN_MAC_OBJ) || defined (GEN_OBJ)
+#if defined (GEN_OBJ)
 		store_c_string_in_data_section (type,length);
 #endif
 
@@ -9536,12 +9378,8 @@ void code_pb (char string[],int string_length)
 
 #if TIME_PROFILE_WITH_MODULE_NAMES
 	if (module_label!=NULL){
-# ifdef GEN_MAC_OBJ
-		store_label_offset_in_data_section (module_label->label_id);
-# else
-#  ifdef GEN_OBJ
+# ifdef GEN_OBJ
 		store_label_in_data_section (module_label);
-#  endif
 # endif
 	}
 #endif
@@ -9603,12 +9441,8 @@ void write_profile_table (void)
 		
 #if TIME_PROFILE_WITH_MODULE_NAMES
 		if (module_label!=NULL){
-# ifdef GEN_MAC_OBJ
-			store_label_offset_in_data_section (module_label->label_id);
-# else
-#  ifdef GEN_OBJ
+# ifdef GEN_OBJ
 			store_label_in_data_section (module_label);
-#  endif
 # endif
 		}
 #endif
@@ -9692,35 +9526,19 @@ static LABEL *code_string_or_module (char label_name[],char string[],int string_
 		error_s ("Label %d defined twice\n",label_name);
 	label->label_id=next_label_id++;
 
-#ifdef GEN_MAC_OBJ
-	start_new_module (0);
-	if (assembly_flag)
-		w_as_new_module (0);
-#endif
 #ifdef FUNCTION_LEVEL_LINKING
 	as_new_data_module();
 	if (assembly_flag)
 		w_as_new_data_module();
 #endif
 
-#ifdef GEN_MAC_OBJ
-	if (label->label_flags & EXPORT_LABEL)
-		define_external_label (label->label_id,LTEXT,label->label_name);
-	else
-		define_local_label (label->label_id,LTEXT);
-	store_abc_string_in_code_section (string,string_length);
-
-	if (assembly_flag)
-		w_as_abc_string_and_label_in_code_section (string,string_length,label_name);
-#else
-# ifdef GEN_OBJ
+#ifdef GEN_OBJ
 	define_data_label (label);
 	store_abc_string_in_data_section (string,string_length);
-# endif
+#endif
 	
 	if (assembly_flag)
 		w_as_abc_string_and_label_in_data_section (string,string_length,label_name);
-#endif
 
 	return label;
 }
