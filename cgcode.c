@@ -80,7 +80,9 @@
 
 #define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
 
-#define GEN_OBJ
+#ifndef MACH_O64
+# define GEN_OBJ
+#endif
 
 #ifdef NEW_DESCRIPTORS
 # ifdef G_A64
@@ -2513,7 +2515,11 @@ void code_eq_nulldesc (char descriptor_name[],int a_offset)
 	graph_2=g_load_id (0,graph_1);
 #ifdef NEW_DESCRIPTORS
 	graph_5=g_load_des_id (-2,graph_2);
+#  ifdef MACH_O64
+	graph_5=g_lsl (g_load_i (4),graph_5);
+#  else
 	graph_5=g_lsl (g_load_i (3),graph_5);
+#  endif
 	graph_6=g_sub (graph_5,graph_2);
 #else
 	graph_5=g_load_des_id (2-2,graph_2);
@@ -3857,7 +3863,11 @@ static void code_jmp_ap_ (int n_apply_args)
 			i_jmp_id_profile (4-2,REGISTER_A2,0);
 		else
 # endif
+# ifdef MACH_O64
+		i_jmp_id (8-2,REGISTER_A2,0);
+# else
 		i_jmp_id (4-2,REGISTER_A2,0);
+# endif
 #else
 		INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
 
@@ -8714,7 +8724,11 @@ static void write_descriptor_curry_table (int arity,LABEL *code_label)
 		if (assembly_flag){
 			w_as_word_in_data_section (n);
 #ifdef NEW_DESCRIPTORS
+# ifdef MACH_O64
+			w_as_word_in_data_section ((arity-n)<<4);
+# else
 			w_as_word_in_data_section ((arity-n)<<3);
+# endif
 #else
 			w_as_word_in_data_section (n<<3);
 #endif
@@ -8748,16 +8762,23 @@ static void write_descriptor_curry_table (int arity,LABEL *code_label)
 #ifdef GEN_OBJ
 			store_label_in_data_section (add_arg_label);
 #endif
-			if (assembly_flag)
+			if (assembly_flag){
+#ifdef MACH_O64
+				w_as_long_in_data_section (0);
+#endif
 				w_as_label_in_data_section (add_arg_label->label_name);
-
+			}
 		} else
 			if (n==arity-1){
 #ifdef GEN_OBJ
 				store_label_in_data_section (code_label);
 #endif
-				if (assembly_flag)
+				if (assembly_flag){
+#ifdef MACH_O64
+					w_as_long_in_data_section (0);
+#endif
 					w_as_label_in_data_section (code_label->label_name);
+				}
 			}
 	}
 }
@@ -8859,7 +8880,11 @@ static void code_new_descriptor (int arity,int lazy_record_flag)
 		store_label_in_data_section (module_label);
 # endif
 		if (assembly_flag)
+# ifdef MACH_O64
+			w_as_label_offset_in_data_section (module_label->label_name);
+# else
 			w_as_label_in_data_section (module_label->label_name);
+# endif
 	}
 }
 #endif
@@ -9171,7 +9196,11 @@ void code_record (char record_label_name[],char type[],int a_size,int b_size,cha
 		store_label_in_data_section (module_label);
 # endif
 		if (assembly_flag)
+# ifdef MACH_O64
+			w_as_label_offset_in_data_section (module_label->label_name);
+# else
 			w_as_label_in_data_section (module_label->label_name);
+# endif
 	}
 #endif
 
@@ -9179,7 +9208,11 @@ void code_record (char record_label_name[],char type[],int a_size,int b_size,cha
 	store_label_in_data_section (string_label);
 #endif
 	if (assembly_flag)
+#ifdef MACH_O64
+		w_as_internal_label_value_offset (string_code_label_id);
+#else
 		w_as_internal_label_value (string_code_label_id);
+#endif
 
 #ifdef GEN_OBJ
 	define_data_label (label);
@@ -9415,7 +9448,11 @@ void code_pb (char string[],int string_length)
 # else
 #  if TIME_PROFILE_WITH_MODULE_NAMES
 		if (module_label!=NULL)
+#   ifdef MACH_O64
+			w_as_label_offset_in_data_section (module_label->label_name);
+#   else
 			w_as_label_in_data_section (module_label->label_name);
+#   endif
 #  endif
 		w_as_define_data_label (profile_function_label->label_number);
 # endif
@@ -9474,7 +9511,11 @@ void write_profile_table (void)
 #else
 # if TIME_PROFILE_WITH_MODULE_NAMES
 			if (module_label!=NULL)
+#  ifdef MACH_O64
+				w_as_label_offset_in_data_section (module_label->label_name);
+#  else
 				w_as_label_in_data_section (module_label->label_name);
+#  endif
 # endif
 			w_as_define_data_label (profile_function_label->label_number);
 #endif
@@ -9492,7 +9533,7 @@ void code_start (char *label_name)
 		return;
 
 	code_o (0,0,e_vector);
-#if defined (SOLARIS) || defined (LINUX_ELF)
+#if defined (SOLARIS) || defined (LINUX_ELF) || defined (MACH_O64)
 	code_label ("__start");
 	code_export ("__start");
 #else

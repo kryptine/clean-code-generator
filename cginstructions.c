@@ -37,7 +37,9 @@
 #  endif
 # endif
 #endif
-#define GEN_OBJ
+#ifndef MACH_O64
+# define GEN_OBJ
+#endif
 
 #define LTEXT 0
 #define LDATA 1
@@ -855,7 +857,11 @@ INSTRUCTION_GRAPH g_load_des_i (LABEL *descriptor_label,int arity)
 	
 	instruction->instruction_parameters[0].l=descriptor_label;
 #ifdef I486
+# ifdef MACH_O64
+	instruction->instruction_parameters[1].i=(arity<<4)+2;
+# else
 	instruction->instruction_parameters[1].i=(arity<<3)+2;
+# endif
 #else
 	instruction->instruction_parameters[1].i=arity;
 #endif
@@ -1159,7 +1165,11 @@ LABEL *w_code_descriptor_length_and_string (char *string,int length)
 	store_abc_string_in_data_section (string,length);
 #endif
 	if (assembly_flag){
+# ifdef MACH_O64
+		w_as_align_and_define_data_label (string_label->label_number);
+# else
 		w_as_define_data_label (string_label->label_number);
+# endif
 		w_as_descriptor_in_data_section (_STRING__label->label_name);
 		w_as_abc_string_in_data_section (string,length);
 	}
@@ -3357,7 +3367,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 #else
 		error ("ABC instruction 'ccall' not implemented");
 #endif
-#if defined (G_POWER) || (defined (G_A64) && defined (LINUX_ELF))
+#if defined (G_POWER) || (defined (G_A64) && (defined (LINUX_ELF) || defined (MACH_O64)))
 		int c_fp_parameter_n;
 		
 		c_fp_parameter_n=0;
@@ -3425,7 +3435,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			case 'R':
 				float_parameters=1;
 				b_offset+=8;
-# if defined (G_A64) && defined (LINUX_ELF)
+# if defined (G_A64) && (defined (LINUX_ELF) || defined (MACH_O64))
 				++c_fp_parameter_n;
 # endif
 				continue;
@@ -3589,7 +3599,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 #endif
 
 	if (!function_address_parameter){
-#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
+#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O) || defined (MACH_O64)
 		{
 		char label_name [202];
 
@@ -4202,7 +4212,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			c_offset=a_result_offset+b_result_offset;
 		}
 
-#  ifdef LINUX_ELF /* for I486 && G_AI64 && LINUX_ELF */
+#  if defined (LINUX_ELF) || defined (MACH_O64) /* for I486 && G_AI64 && (LINUX_ELF || MACH_O64) */
 		{
 		int c_offset_before_pushing_arguments,function_address_reg,c_parameter_n,n_c_parameters,n_c_fp_register_parameters;
 		int a_stack_pointer,heap_pointer;
@@ -4595,7 +4605,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			i_move_r_r (a_stack_pointer,A_STACK_POINTER);
 			i_move_r_r (heap_pointer,HEAP_POINTER);
 		}
-#  else /* for I486 && G_AI64 && ! LINUX_ELF */
+#  else /* for I486 && G_AI64 && ! (LINUX_ELF || MACHO_64) */
 		{
 		int c_offset_before_pushing_arguments,function_address_reg,c_parameter_n;
 		
@@ -4970,13 +4980,13 @@ static void save_registers_before_clean_call (void)
 	i_sub_i_r (144,B_STACK_POINTER);
 
 	i_move_r_id (-6/*RSI*/,136,B_STACK_POINTER);
-#  ifdef LINUX_ELF
+#  if defined (LINUX_ELF) || defined (MACH_O64)
 	i_move_r_r (-6/*RSI*/,3/*R11*/);
 #  endif
 	i_move_l_r (saved_a_stack_p_label,-6/*RSI*/);
 
 	i_move_r_id (-7/*RDI*/,128,B_STACK_POINTER);
-#  ifdef LINUX_ELF
+#  if defined (LINUX_ELF) || defined (MACH_O64)
 	i_move_r_r (-7/*RDI*/,2/*R10*/);
 #  endif
 	i_lea_l_i_r (saved_heap_p_label,0,-7/*RDI*/);
@@ -4990,7 +5000,7 @@ static void save_registers_before_clean_call (void)
 	i_move_r_id ( 5/*R13*/,96,B_STACK_POINTER);
 	i_move_r_id ( 6/*R14*/,88,B_STACK_POINTER);
 
-#  ifndef LINUX_ELF
+#  if ! (defined (LINUX_ELF) || defined (MACH_O64))
 	{
 		int i;
 		/* to do: save all 128 bits, because calling convention has been changed */
@@ -5055,7 +5065,7 @@ static void restore_registers_after_clean_call (void)
 	i_move_id_r (104,B_STACK_POINTER, 4/*R12*/);
 	i_move_id_r ( 96,B_STACK_POINTER, 5/*R13*/);
 	i_move_id_r ( 88,B_STACK_POINTER, 6/*R14*/);
-#  ifndef LINUX_ELF
+#  if ! (defined (LINUX_ELF) || defined (MACH_O64))
 	{
 		int i;
 		/* to do: save all 128 bits, because calling convention has been changed */		

@@ -8575,7 +8575,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		{
 			register int reg_1;
 
-#ifdef I486
+#if defined (I486) && !defined (MACH_O64)
 			if (graph->node_count==1){
 				ad_p->ad_mode=P_DESCRIPTOR_NUMBER;
 				if (graph->inode_arity==1)
@@ -8617,7 +8617,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			ad_p->ad_count_p=&graph->node_count;
 			
 			return;
-#ifdef I486
+#if defined (I486) && !defined (MACH_O64)
 			}
 #endif
 		}

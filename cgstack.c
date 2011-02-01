@@ -4017,7 +4017,11 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 
 #if defined (I486)
 			i_move_id_r (0,REGISTER_A1,REGISTER_A2);
+# ifdef MACH_O64
+			i_jsr_id (8-2,REGISTER_A2,0);
+# else
 			i_jsr_id (4-2,REGISTER_A2,0);
+# endif
 #else
 # ifdef M68000
 #	if !defined (SUN)
