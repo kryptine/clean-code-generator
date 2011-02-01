@@ -27,7 +27,18 @@
 
 #include "cgiwas.h"
 
-int intel_asm=1;
+int intel_asm=
+#ifdef _WINDOWS_
+	1;
+#else
+	0;
+#endif
+int intel_directives=
+#ifdef _WINDOWS_
+     1;
+#else
+     0;
+#endif
 
 extern int sse_128;
 
@@ -59,7 +70,7 @@ static void w_as_define_local_label (int label_number)
 
 static void w_as_define_local_data_label (int label_number)
 {
-	fprintf (assembly_file,intel_asm ? "l_%d label ptr\n" : "l_%d:\n",label_number);
+	fprintf (assembly_file,intel_directives ? "l_%d label ptr\n" : "l_%d:\n",label_number);
 }
 
 static void w_as_define_internal_label (int label_number)
@@ -69,13 +80,20 @@ static void w_as_define_internal_label (int label_number)
 
 static void w_as_define_internal_data_label (int label_number)
 {
-	fprintf (assembly_file,intel_asm ? "i_%d label ptr\n" : "i_%d:\n",label_number);
+	fprintf (assembly_file,intel_directives? "i_%d label ptr\n" : "i_%d:\n",label_number);
 }
 
 void w_as_internal_label_value (int label_id)
 {
-	fprintf (assembly_file,intel_asm ? "\tdd\ti_%d\n" : "\t.long\ti_%d\n",label_id);
+	fprintf (assembly_file,intel_directives ? "\tdd\ti_%d\n" : "\t.long\ti_%d\n",label_id);
 }
+
+#ifdef MACH_O64
+void w_as_internal_label_value_offset (int label_id)
+{
+	fprintf (assembly_file,"\t.long\ti_%d - .\n",label_id);
+}
+#endif
 
 static int in_data_section;
 
@@ -101,22 +119,22 @@ static void w_as_to_code_section (VOID)
 {
 	if (in_data_section){
 		in_data_section=0;
-		w_as_instruction_without_parameters (intel_asm ? ".code" : ".text");
+		w_as_instruction_without_parameters (intel_directives ? ".code" : ".text");
 	}
 }
 
 static void w_as_align (int i)
 {
 #if defined (DOS) || defined (_WINDOWS_) || defined (LINUX_ELF)
-	fprintf (assembly_file,intel_asm ? "\talign\t%d\n" : "\t.align\t%d\n",1<<i);
+	fprintf (assembly_file,intel_directives ? "\talign\t%d\n" : "\t.align\t%d\n",1<<i);
 #else
-	fprintf (assembly_file,intel_asm ? "\talign\t%d\n" : "\t.align\t%d\n",i);
+	fprintf (assembly_file,intel_directives ? "\talign\t%d\n" : "\t.align\t%d\n",i);
 #endif
 }
 
 static void w_as_space (int i)
 {
-	if (intel_asm){
+	if (intel_directives){
 		if (i>0){
 			w_as_opcode ("db");
 			fprintf (assembly_file,"0");
@@ -131,7 +149,7 @@ static void w_as_space (int i)
 void w_as_word_in_data_section (int n)
 {
 	w_as_to_data_section();
-	w_as_opcode (intel_asm ? "dw" : ".word");
+	w_as_opcode (intel_directives ? "dw" : ".word");
 	fprintf (assembly_file,"%d",n);
 	w_as_newline();
 }
@@ -146,7 +164,7 @@ void w_as_long_in_data_section (int n)
 #else
 	w_as_to_data_section();
 #endif
-	w_as_opcode (intel_asm ? "dd" : ".long");
+	w_as_opcode (intel_directives ? "dd" : ".long");
 	fprintf (assembly_file,"%d",n);
 	w_as_newline();
 }
@@ -185,7 +203,7 @@ void w_as_word64_in_data_section (int_64 n)
 #else
 	w_as_to_data_section();
 #endif
-	w_as_opcode (intel_asm ? "dq" : ".quad");
+	w_as_opcode (intel_directives ? "dq" : ".quad");
 
 #ifdef LINUX
 	if ((int)n==n)
@@ -204,20 +222,50 @@ void w_as_word64_in_data_section (int_64 n)
 void w_as_label_in_data_section (char *label_name)
 {
 	w_as_to_data_section ();
-	fprintf (assembly_file,intel_asm ? "\tdd\t%s\n" : "\t.long\t%s\n",label_name);
+#ifdef MACH_O64
+	fprintf (assembly_file,"\t.quad\t%s\n",label_name);
+#else
+	fprintf (assembly_file,intel_directives ? "\tdd\t%s\n" : "\t.long\t%s\n",label_name);
+#endif
 }
 
-static void w_as_label_in_code_section (char *label_name)
+#ifdef MACH_O64
+void w_as_label_offset_in_data_section (char *label_name)
+{
+	w_as_to_data_section ();
+	fprintf (assembly_file,"\t.long\t%s - .\n",label_name);
+}
+#endif
+
+void w_as_label_in_code_section (char *label_name)
 {
 	w_as_to_code_section ();
-	fprintf (assembly_file,intel_asm ? "\tdd\t%s\n" : "\t.long\t%s\n",label_name);
+#ifdef MACH_O64
+	fprintf (assembly_file,"\t.long\t%s - .\n",label_name);
+#else
+	fprintf (assembly_file,intel_directives ? "\tdd\t%s\n" : "\t.long\t%s\n",label_name);
+#endif
 }
+
+#ifdef MACH_O64
+void w_as_label_minus_label_in_code_section (char *label_name1,char *label_name2,int offset2)
+{
+	w_as_to_code_section ();
+	if (offset2==0)
+		fprintf (assembly_file,"\t.long\t%s - %s\n",label_name1,label_name2);
+	else
+		if (offset2>0)
+			fprintf (assembly_file,"\t.long\t%s - (%s + %d)\n",label_name1,label_name2,offset2);
+		else
+			fprintf (assembly_file,"\t.long\t%s - (%s - %d)\n",label_name1,label_name2,-offset2);
+}
+#endif
 
 void w_as_descriptor_in_data_section (char *label_name)
 {
 	w_as_to_data_section();
 	w_as_align (3);
-	fprintf (assembly_file,intel_asm ? "\tdq\t%s+2\n" : "\t.quad\t%s+2\n",label_name);
+	fprintf (assembly_file,intel_directives ? "\tdq\t%s+2\n" : "\t.quad\t%s+2\n",label_name);
 }
 
 #define MAX_BYTES_PER_LINE 16
@@ -245,25 +293,25 @@ static int w_as_data (int n,char *data,int length)
 			if (!in_string){
 				if (n!=0)
 					w_as_newline();
-				w_as_opcode (intel_asm ? "db" : ".ascii");
+				w_as_opcode (intel_directives ? "db" : ".ascii");
 				putc ('\"',assembly_file);
 				in_string=1;
 			}
 			putc (c,assembly_file);
 		} else {
 			if (n==0)
-				w_as_opcode (intel_asm ? "db" : ".byte");
+				w_as_opcode (intel_directives ? "db" : ".byte");
 			else {
 				if (in_string){
 					putc ('\"',assembly_file);
 					w_as_newline();
-					w_as_opcode (intel_asm ? "db" : ".byte");
+					w_as_opcode (intel_directives ? "db" : ".byte");
 					in_string=0;
 				} else
 					putc (',',assembly_file);
 			}
 
-			fprintf (assembly_file,intel_asm ? "%02xh" : "0x%02x",c);
+			fprintf (assembly_file,intel_directives ? "%02xh" : "0x%02x",c);
 		}
 		++n;
 	}
@@ -286,7 +334,7 @@ static int w_as_zeros (register int n,register int length)
 			n=0;
 		}
 		if (n==0)
-			w_as_opcode (intel_asm ? "db" : ".byte");
+			w_as_opcode (intel_directives ? "db" : ".byte");
 		else
 			putc (',',assembly_file);
 		fprintf (assembly_file,"0");
@@ -301,6 +349,15 @@ void w_as_define_data_label (int label_number)
 	
 	w_as_define_local_data_label (label_number);
 }
+
+#ifdef MACH_O64
+void w_as_align_and_define_data_label (int label_number)
+{
+	w_as_to_data_section();
+	w_as_align (3);	
+	w_as_define_local_data_label (label_number);
+}
+#endif
 
 void w_as_labeled_c_string_in_data_section (char *string,int length,int label_number)
 {
@@ -342,7 +399,7 @@ void w_as_abc_string_in_data_section (char *string,int length)
 	
 	w_as_to_data_section();
 	
-	w_as_opcode (intel_asm ? "dq" : ".quad");
+	w_as_opcode (intel_directives ? "dq" : ".quad");
 	fprintf (assembly_file,"%d\n",length);
 	n=w_as_data (0,string,length);
 	if (length & 7)
@@ -360,7 +417,7 @@ void w_as_descriptor_string_in_data_section (char *string,int length,int string_
 	w_as_define_internal_data_label (string_label_id);
 	w_as_define_local_data_label (string_label->label_number);
 
-	w_as_opcode (intel_asm ? "dd" : ".long");
+	w_as_opcode (intel_directives ? "dd" : ".long");
 	fprintf (assembly_file,"%d\n",length);
 	n=w_as_data (0,string,length);
 	if (length & 3)
@@ -406,7 +463,7 @@ static void w_as_define_label_name (char *label_name)
 static void w_as_define_data_label_name (char *label_name)
 {
 	w_as_label (label_name);
-	if (intel_asm)
+	if (intel_directives)
 		fprintf (assembly_file," label ptr");
 	else
 		w_as_colon();
@@ -416,13 +473,13 @@ static void w_as_define_data_label_name (char *label_name)
 void w_as_define_label (LABEL *label)
 {
 	if (label->label_flags & EXPORT_LABEL){
-		w_as_opcode (intel_asm ? "public" : ".globl");
+		w_as_opcode (intel_directives ? "public" : ".globl");
 		w_as_label (label->label_name);
 		w_as_newline();
 	}
 	
 	w_as_label (label->label_name);
-	if (intel_asm)
+	if (intel_directives)
 		fprintf (assembly_file,"\tlabel ptr");
 	else
 		w_as_colon();
@@ -432,7 +489,7 @@ void w_as_define_label (LABEL *label)
 static void w_as_define_code_label (LABEL *label)
 {
 	if (label->label_flags & EXPORT_LABEL){
-		w_as_opcode (intel_asm ? "public" : ".globl");
+		w_as_opcode (intel_directives ? "public" : ".globl");
 		w_as_label (label->label_name);
 		w_as_newline();
 	}
@@ -475,7 +532,7 @@ void w_as_abc_string_and_label_in_data_section (char *string,int length,char *la
 	
 	w_as_define_data_label_name (label_name);
 	
-	w_as_opcode (intel_asm ? "dd" : ".long");
+	w_as_opcode (intel_directives ? "dd" : ".long");
 	fprintf (assembly_file,"%d\n",length);
 	n=w_as_data (0,string,length);
 	if (length & 3)
@@ -649,7 +706,7 @@ static void w_as_descriptor (LABEL *label,int arity)
 
 static void w_as_lea_descriptor (LABEL *label,int arity,int register_1)
 {
-	w_as_opcode (intel_asm ? "lea" : "leal");
+	w_as_opcode (intel_asm ? "lea" : "leaq");
 
 	if (intel_asm)
 		w_as_register_comma (register_1);
@@ -665,11 +722,15 @@ static void w_as_lea_descriptor (LABEL *label,int arity,int register_1)
 		else
 			fprintf (assembly_file,"-%d",-arity);
 
+#ifdef MACH_O64
+	fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");
+#endif
+	
 	if (!intel_asm)
 		w_as_comma_register (register_1);
 	w_as_newline();
 }
-		
+
 static void w_as_parameter (struct parameter *parameter)
 {
 	switch (parameter->parameter_type){
@@ -743,6 +804,8 @@ static void w_as_comma_word_parameter (struct parameter *parameter)
 
 static void w_as_byte_register (int reg)
 {
+	if (!intel_asm)
+		putc ('%',assembly_file);
 	fprintf (assembly_file,"%s",byte_register_name[reg+8]);
 }
 
@@ -760,7 +823,7 @@ static void w_as_comma_byte_register (int reg)
 
 static void w_as_qbyte_register (int reg)
 {
-	fprintf (assembly_file,"%s",qbyte_register_name[reg+8]);
+	fprintf (assembly_file,intel_asm ? "%s" : "%%%s",qbyte_register_name[reg+8]);
 }
 
 static void w_as_comma_qbyte_register (int reg)
@@ -769,17 +832,41 @@ static void w_as_comma_qbyte_register (int reg)
 	w_as_qbyte_register (reg);
 }
 
+#ifdef MACH_O64
+static void intel_syntax (void)
+{
+	w_as_opcode (".intel_syntax");
+	fprintf (assembly_file,"noprefix\n");
+}
+
+static void att_syntax (void)
+{
+	fprintf (assembly_file,"\t.att_syntax\n");
+}
+#endif
+
 static void w_as_call_or_jump (struct parameter *parameter,char *opcode)
 {
 	switch (parameter->parameter_type){
 		case P_LABEL:
+#ifdef MACH_O64
+			if (intel_asm)
+				att_syntax();
+#endif
 			w_as_opcode (opcode);
 	
 			if (parameter->parameter_data.l->label_number!=0)
 				w_as_local_label (parameter->parameter_data.l->label_number);
 			else
 				w_as_label (parameter->parameter_data.l->label_name);
+#ifdef MACH_O64
+			w_as_newline();
+			if (intel_asm)
+				intel_syntax();
+			return;
+#else
 			break;
+#endif
 		case P_INDIRECT:
 		{
 			int offset,reg;
@@ -790,15 +877,26 @@ static void w_as_call_or_jump (struct parameter *parameter,char *opcode)
 			if (!intel_asm){
 				w_as_opcode (opcode);
 				if (offset!=0)
-					fprintf (assembly_file,"%d(%%r%c%c)",
+					fprintf (assembly_file,"*%d(%%r%c%c)",
 							 offset,register_name_char1[reg+8],register_name_char2[reg+8]);
 				else
-					fprintf (assembly_file,"(%%r%c%c)",
+					fprintf (assembly_file,"*(%%r%c%c)",
 							 register_name_char1[reg+8],register_name_char2[reg+8]);
 			} else {
+#ifdef MACH_O64
+				w_as_opcode (opcode);
+				if (offset!=0)
+					fprintf (assembly_file,
+							 "qword ptr %d[r%c%c]",offset,
+							 register_name_char1[reg+8],register_name_char2[reg+8]);
+				else
+					fprintf (assembly_file,
+							 "qword ptr (%d)[r%c%c]",offset,
+							 register_name_char1[reg+8],register_name_char2[reg+8]);
+#else
 #if 1
 				if (offset!=0){
-					w_as_opcode ("movsxd");
+					w_as_opcode (intel_asm ? "movsxd" : "movslq");
 					/*
 					if (reg==REGISTER_R8 || reg==REGISTER_R9)
 						fprintf (assembly_file,"r%cd",register_name_char1[reg+8]);
@@ -825,7 +923,9 @@ static void w_as_call_or_jump (struct parameter *parameter,char *opcode)
 				}
 #endif
 				w_as_opcode (opcode);
+#ifndef MACH_O64
 				fprintf (assembly_file,"near ptr ");
+#endif
 				if (offset>0)
 					fprintf (assembly_file,
 #if 1
@@ -845,6 +945,7 @@ static void w_as_call_or_jump (struct parameter *parameter,char *opcode)
 							"(%d)[r%c%c]",offset,
 #endif
 							 register_name_char1[reg+8],register_name_char2[reg+8]);
+#endif
 			}
 			break;
 		}
@@ -856,7 +957,7 @@ static void w_as_call_or_jump (struct parameter *parameter,char *opcode)
 	
 			reg=parameter->parameter_data.reg.r;
 
-			fprintf (assembly_file,intel_asm ? "r%c%c" : "%%r%c%c",register_name_char1[reg+8],register_name_char2[reg+8]);
+			fprintf (assembly_file,intel_asm ? "r%c%c" : "*%%r%c%c",register_name_char1[reg+8],register_name_char2[reg+8]);
 			break;
 		}
 		default:
@@ -870,14 +971,19 @@ static void w_as_opcode_movl (void)
 	w_as_opcode (intel_asm ? "mov" : "movl");
 }
 
+static void w_as_opcode_movq (void)
+{
+	w_as_opcode (intel_asm ? "mov" : "movq");
+}
+
 static void w_as_opcode_move (int size_flag)
 {
 	w_as_opcode (intel_asm  ? (size_flag==SIZE_OBYTE ? "mov"  :
 							   size_flag==SIZE_BYTE  ? "movzx" :
 							   size_flag==SIZE_DBYTE ? "movsx" : "movsxd")
-							: (size_flag==SIZE_OBYTE ? "movl" :
-							   size_flag==SIZE_BYTE  ? "movzbl" :
-							   size_flag==SIZE_DBYTE  ? "movswl" : "movsxd")
+							: (size_flag==SIZE_OBYTE ? "movq" :
+							   size_flag==SIZE_BYTE  ? "movzbq" :
+							   size_flag==SIZE_DBYTE  ? "movswq" : "movslq")
 							);
 }
 
@@ -904,9 +1010,9 @@ static void w_as_opcode_register_register_newline (char *opcode,int reg1,int reg
 	w_as_register_register_newline (reg1,reg2);
 }
 
-static void w_as_movl_register_register_newline (int reg1,int reg2)
+static void w_as_movq_register_register_newline (int reg1,int reg2)
 {
-	w_as_opcode_movl();
+	w_as_opcode_movq();
 	w_as_register_register_newline (reg1,reg2);
 }
 
@@ -950,7 +1056,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					);
 					return;
 #else
-					w_as_opcode_movl();
+					w_as_opcode_movq();
 					if (intel_asm)
 						w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_descriptor (
@@ -960,7 +1066,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					break;
 #endif
 				case P_IMMEDIATE:
-					w_as_opcode_movl();
+					w_as_opcode_movq();
 					if (intel_asm)
 						w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_immediate (instruction->instruction_parameters[0].parameter_data.imm);
@@ -986,18 +1092,18 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 								  instruction->instruction_parameters[0].parameter_data.ir);
 					break;					
 				case P_REGISTER:
-					w_as_opcode_movl();
+					w_as_opcode_movq();
 					if (intel_asm)
 						w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_register (instruction->instruction_parameters[0].parameter_data.reg.r);
 					break;
 				case P_POST_INCREMENT:
-					w_as_opcode (intel_asm ? "pop" : "popl");
+					w_as_opcode (intel_asm ? "pop" : "popq");
 					w_as_register (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_newline();
 					return;
 				case P_LABEL:
-					w_as_opcode_movl();
+					w_as_opcode_movq();
 					if (intel_asm){
 						w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 						fprintf (assembly_file,"offset ");
@@ -1056,7 +1162,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 #ifdef LEA_ADDRESS
 					w_as_lea_descriptor (parameter.parameter_data.l,parameter.parameter_offset,REGISTER_O0);
 					
-					w_as_opcode_movl();
+					w_as_opcode_movq();
 					if (intel_asm){
 						w_as_indirect (instruction->instruction_parameters[1].parameter_offset,
 									   instruction->instruction_parameters[1].parameter_data.reg.r);
@@ -1064,7 +1170,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					}
 					w_as_scratch_register();
 #else
-					w_as_opcode_movl();
+					w_as_opcode_movq();
 					if (intel_asm){
 						print_ptr (size_flag);
 						w_as_indirect (instruction->instruction_parameters[1].parameter_offset,
@@ -1082,7 +1188,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					return;
 				case P_IMMEDIATE:
 					if ((int)parameter.parameter_data.imm!=parameter.parameter_data.imm){
-						w_as_opcode_movl();
+						w_as_opcode_movq();
 						if (intel_asm)
 							w_as_scratch_register_comma();
 						w_as_immediate (parameter.parameter_data.imm);
@@ -1097,7 +1203,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 				case P_REGISTER:
 					break;
 				case P_POST_INCREMENT:
-					w_as_opcode (intel_asm ? "pop" : "popl");
+					w_as_opcode (intel_asm ? "pop" : "popq");
 					w_as_indirect (instruction->instruction_parameters[1].parameter_offset,
 									   instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_newline();
@@ -1109,9 +1215,12 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 			w_as_opcode (intel_asm ? "mov" : (size_flag==SIZE_OBYTE ? "movq" : 
 											  size_flag==SIZE_BYTE  ? "movb" :
 											  size_flag==SIZE_DBYTE ? "movw" :"movl"));
-			if (!intel_asm)
-				w_as_parameter_comma (&parameter);
-			else if (parameter.parameter_type==P_IMMEDIATE)
+			if (!intel_asm){
+				if (size_flag==SIZE_BYTE && parameter.parameter_type==P_REGISTER)
+					w_as_byte_register_comma (parameter.parameter_data.reg.r);
+				else
+					w_as_parameter_comma (&parameter);
+			} else if (parameter.parameter_type==P_IMMEDIATE)
 				print_ptr (size_flag);
 			w_as_indirect (instruction->instruction_parameters[1].parameter_offset,
 						   instruction->instruction_parameters[1].parameter_data.reg.r);
@@ -1136,7 +1245,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 			if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE &&
 				(int)instruction->instruction_parameters[0].parameter_data.imm!=instruction->instruction_parameters[0].parameter_data.imm)
 			{
-				w_as_opcode_movl();
+				w_as_opcode_movq();
 				if (intel_asm)
 					w_as_scratch_register_comma();
 				w_as_immediate (instruction->instruction_parameters[0].parameter_data.imm);
@@ -1144,11 +1253,11 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					w_as_comma_scratch_register();
 				w_as_newline();
 
-				w_as_opcode (intel_asm ? "push" : "pushl");
+				w_as_opcode (intel_asm ? "push" : "pushq");
 				w_as_scratch_register();
 				w_as_newline();
 			} else {
-				w_as_opcode (intel_asm ? "push" : "pushl");
+				w_as_opcode (intel_asm ? "push" : "pushq");
 				if (instruction->instruction_parameters[0].parameter_type==P_DESCRIPTOR_NUMBER)
 					w_as_descriptor (instruction->instruction_parameters[0].parameter_data.l,instruction->instruction_parameters[0].parameter_offset);
 				else
@@ -1179,7 +1288,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					parameter.parameter_data.reg.r=REGISTER_O0;
 					break;
 				case P_DESCRIPTOR_NUMBER:
-					w_as_opcode_movl();
+					w_as_opcode_movq();
 					if (intel_asm){
 						w_as_indexed (instruction->instruction_parameters[1].parameter_offset,
 									  instruction->instruction_parameters[1].parameter_data.ir);
@@ -1195,7 +1304,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					return;
 				case P_IMMEDIATE:
 					if ((int)parameter.parameter_data.imm!=parameter.parameter_data.imm){
-						w_as_opcode_movl();
+						w_as_opcode_movq();
 						if (intel_asm)
 							w_as_scratch_register_comma();
 						w_as_immediate (parameter.parameter_data.imm);
@@ -1210,7 +1319,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 				case P_REGISTER:
 					break;
 				case P_POST_INCREMENT:
-					w_as_opcode (intel_asm ? "pop" : "popl");
+					w_as_opcode (intel_asm ? "pop" : "popq");
 					w_as_indexed (instruction->instruction_parameters[1].parameter_offset,
 									  instruction->instruction_parameters[1].parameter_data.ir);
 					w_as_newline();
@@ -1219,9 +1328,13 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					internal_error_in_function ("w_as_move");
 			}
 
-			w_as_opcode (intel_asm ? "mov" : (size_flag==SIZE_OBYTE ? "movl" : size_flag==SIZE_DBYTE ? "movw" : "movb"));
-			if (!intel_asm)
-				w_as_parameter_comma (&parameter);
+			w_as_opcode (intel_asm ? "mov" : (size_flag==SIZE_OBYTE ? "movq" : size_flag==SIZE_DBYTE ? "movw" : "movb"));
+			if (!intel_asm){
+				if (size_flag==SIZE_BYTE && parameter.parameter_type==P_REGISTER)
+					w_as_byte_register_comma (parameter.parameter_data.reg.r);					
+				else
+					w_as_parameter_comma (&parameter);
+			}
 			else if (parameter.parameter_type==P_IMMEDIATE)
 				fprintf (assembly_file,size_flag==SIZE_OBYTE ? "qword ptr " : size_flag==SIZE_DBYTE ? "word ptr " : "byte ptr ");
 			w_as_indexed (instruction->instruction_parameters[1].parameter_offset,
@@ -1245,7 +1358,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 		}
 		case P_LABEL:
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
-				w_as_opcode_movl();
+				w_as_opcode_movq();
 				if (!intel_asm){
 					w_as_register_comma (instruction->instruction_parameters[0].parameter_data.reg.r);
 					fprintf (assembly_file,"offset ");
@@ -1269,7 +1382,7 @@ static void w_as_loadsqb_instruction (struct instruction *instruction)
 	if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
 		switch (instruction->instruction_parameters[0].parameter_type){
 			case P_INDIRECT:
-				w_as_opcode ("movsxd");
+				w_as_opcode (intel_asm ? "movsxd" : "movslq");
 				if (intel_asm){
 					w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 					fprintf (assembly_file,"dword ptr ");
@@ -1278,7 +1391,7 @@ static void w_as_loadsqb_instruction (struct instruction *instruction)
 							   instruction->instruction_parameters[0].parameter_data.reg.r);
 				break;
 			case P_INDEXED:
-				w_as_opcode ("movsxd");
+				w_as_opcode (intel_asm ? "movsxd" : "movslq");
 				if (intel_asm){
 					w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 					fprintf (assembly_file,"dword ptr ");
@@ -1287,7 +1400,7 @@ static void w_as_loadsqb_instruction (struct instruction *instruction)
 							  instruction->instruction_parameters[0].parameter_data.ir);
 				break;					
 			case P_REGISTER:
-				w_as_opcode ("movsxd");
+				w_as_opcode (intel_asm ? "movsxd" : "movslq");
 				if (intel_asm){
 					w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 					w_as_qbyte_register (instruction->instruction_parameters[0].parameter_data.reg.r);
@@ -1312,19 +1425,30 @@ static void w_as_loadsqb_instruction (struct instruction *instruction)
 static void w_as_lea_instruction (struct instruction *instruction)
 {
 	if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
-		w_as_opcode (intel_asm ? "lea" : "leal");
+		w_as_opcode (intel_asm ? "lea" : "leaq");
 
 		if (intel_asm)
 			w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
-		w_as_parameter (&instruction->instruction_parameters[0]);
-		if (instruction->instruction_parameters[0].parameter_type==P_LABEL
-			&& instruction->instruction_parameters[0].parameter_offset!=0)
-		{
-			int offset;
+		if (instruction->instruction_parameters[0].parameter_type==P_LABEL){
+#ifndef MACH_O64
+			if (intel_asm)
+				fprintf (assembly_file,"offset ");
+#endif
+			if (instruction->instruction_parameters[0].parameter_data.l->label_number!=0)
+				w_as_local_label (instruction->instruction_parameters[0].parameter_data.l->label_number);
+			else
+				w_as_label (instruction->instruction_parameters[0].parameter_data.l->label_name);
+			if (instruction->instruction_parameters[0].parameter_offset!=0){
+				int offset;
 
-			offset=instruction->instruction_parameters[0].parameter_offset;
-			fprintf (assembly_file,offset>=0 ? "+%d" : "%d",offset);
-		}
+				offset=instruction->instruction_parameters[0].parameter_offset;
+				fprintf (assembly_file,offset>=0 ? "+%d" : "%d",offset);
+			}
+#ifdef MACH_O64
+			fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");
+#endif
+		} else
+			w_as_parameter (&instruction->instruction_parameters[0]);
 		if (!intel_asm)
 			w_as_comma_register (instruction->instruction_parameters[1].parameter_data.reg.r);
 		w_as_newline();
@@ -1377,9 +1501,9 @@ static void w_as_shift_instruction (struct instruction *instruction,char *opcode
 	} else {
 		int r;
 		
-		w_as_movl_register_register_newline (REGISTER_A0,REGISTER_O0);
+		w_as_movq_register_register_newline (REGISTER_A0,REGISTER_O0);
 
-		w_as_opcode_movl();
+		w_as_opcode_movq();
 		if (intel_asm)
 			w_as_register_comma (REGISTER_A0);
 		w_as_parameter (&instruction->instruction_parameters[0]);
@@ -1399,7 +1523,7 @@ static void w_as_shift_instruction (struct instruction *instruction,char *opcode
 			fprintf (assembly_file,",cl");
 		w_as_newline();
 
-		w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A0);
+		w_as_movq_register_register_newline (REGISTER_O0,REGISTER_A0);
 	}
 }
 
@@ -1433,7 +1557,7 @@ static void w_as_shift_s_instruction (struct instruction *instruction,char *opco
 
 			scratch_register=instruction->instruction_parameters[2].parameter_data.reg.r;
 			if (scratch_register==REGISTER_A0){
-				w_as_movl_register_register_newline (r0,REGISTER_A0);
+				w_as_movq_register_register_newline (r0,REGISTER_A0);
 
 				w_as_opcode (opcode);
 				if (!intel_asm)
@@ -1445,8 +1569,8 @@ static void w_as_shift_s_instruction (struct instruction *instruction,char *opco
 			} else {
 				int r;
 				
-				w_as_movl_register_register_newline (REGISTER_A0,scratch_register);
-				w_as_movl_register_register_newline (r0,REGISTER_A0);
+				w_as_movq_register_register_newline (REGISTER_A0,scratch_register);
+				w_as_movq_register_register_newline (r0,REGISTER_A0);
 
 				w_as_opcode (opcode);
 				if (!intel_asm)
@@ -1460,7 +1584,7 @@ static void w_as_shift_s_instruction (struct instruction *instruction,char *opco
 					fprintf (assembly_file,",cl");
 				w_as_newline();
 
-				w_as_movl_register_register_newline (scratch_register,REGISTER_A0);
+				w_as_movq_register_register_newline (scratch_register,REGISTER_A0);
 			}
 		}
 	}
@@ -1477,7 +1601,7 @@ static void w_as_cmp_instruction (struct instruction *instruction)
 		case P_DESCRIPTOR_NUMBER:
 			w_as_lea_descriptor (parameter_0.parameter_data.l,parameter_0.parameter_offset,REGISTER_O0);
 
-			w_as_opcode (intel_asm ? "cmp" : "cmpl");
+			w_as_opcode (intel_asm ? "cmp" : "cmpq");
 			if (intel_asm)
 				w_as_parameter_comma (&parameter_1);
 			w_as_scratch_register();
@@ -1487,7 +1611,7 @@ static void w_as_cmp_instruction (struct instruction *instruction)
 			return;
 		case P_IMMEDIATE:
 			if (parameter_0.parameter_data.i==0 && parameter_1.parameter_type==P_REGISTER){
-				w_as_opcode (intel_asm ? "test" : "testl");
+				w_as_opcode (intel_asm ? "test" : "testq");
 				w_as_register (parameter_1.parameter_data.reg.r);
 				w_as_comma_register (parameter_1.parameter_data.reg.r);
 				w_as_newline();
@@ -1495,7 +1619,7 @@ static void w_as_cmp_instruction (struct instruction *instruction)
 			}
 	}
 
-	w_as_opcode (intel_asm ? "cmp" : "cmpl");
+	w_as_opcode (intel_asm ? "cmp" : "cmpq");
 	if (intel_asm){
 		if (parameter_0.parameter_type==P_IMMEDIATE && parameter_1.parameter_type!=P_REGISTER)
 			fprintf (assembly_file,"qword ptr ");
@@ -1533,7 +1657,7 @@ static void w_as_cmpw_instruction (struct instruction *instruction)
 		case P_DESCRIPTOR_NUMBER:
 			w_as_lea_descriptor (parameter_0.parameter_data.l,parameter_0.parameter_offset,REGISTER_O0);
 
-			w_as_opcode (intel_asm ? "cmp" : "cmpl");
+			w_as_opcode (intel_asm ? "cmp" : "cmpq");
 			if (intel_asm)
 				w_as_parameter_comma (&parameter_1);
 			w_as_scratch_register();
@@ -1555,7 +1679,7 @@ static void w_as_cmpw_instruction (struct instruction *instruction)
 			break;
 	}
 
-	w_as_opcode (intel_asm ? "cmp" : "cmpl");
+	w_as_opcode (intel_asm ? "cmp" : "cmpq");
 	if (intel_asm){
 		if (parameter_0.parameter_type==P_IMMEDIATE && parameter_1.parameter_type!=P_REGISTER)
 			fprintf (assembly_file,"qword ptr ");
@@ -1572,7 +1696,7 @@ static void w_as_tst_instruction (struct instruction *instruction,int size_flag)
 {
 	switch (instruction->instruction_parameters[0].parameter_type){
 		case P_INDIRECT:
-			w_as_opcode (intel_asm ? "cmp" : (size_flag==SIZE_OBYTE ? "cmpl" : "cmpb"));
+			w_as_opcode (intel_asm ? "cmp" : (size_flag==SIZE_OBYTE ? "cmpq" : "cmpb"));
 			if (intel_asm){
 				fprintf (assembly_file,size_flag==SIZE_OBYTE ? "qword ptr " : "byte ptr ");
 				w_as_indirect (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.reg.r);
@@ -1586,7 +1710,7 @@ static void w_as_tst_instruction (struct instruction *instruction,int size_flag)
 			w_as_newline();
 			break;
 		case P_INDEXED:
-			w_as_opcode (intel_asm ? "cmp" : (size_flag==SIZE_OBYTE ? "cmpl" : "cmpb"));
+			w_as_opcode (intel_asm ? "cmp" : (size_flag==SIZE_OBYTE ? "cmpq" : "cmpb"));
 			if (intel_asm){
 				w_as_indexed (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.ir);
 				w_as_comma();
@@ -1599,7 +1723,7 @@ static void w_as_tst_instruction (struct instruction *instruction,int size_flag)
 			w_as_newline();
 			break;
 		case P_REGISTER:
-			w_as_opcode (intel_asm ? "test" : "testl");
+			w_as_opcode (intel_asm ? "test" : "testq");
 			w_as_register (instruction->instruction_parameters[0].parameter_data.reg.r);
 			w_as_comma_register (instruction->instruction_parameters[0].parameter_data.reg.r);
 			w_as_newline();
@@ -1687,9 +1811,17 @@ void w_as_jmpp_instruction (struct instruction *instruction)
 
 static void w_as_branch_instruction (struct instruction *instruction,char *opcode)
 {
+#ifdef MACH_O64
+	if (intel_asm)
+		att_syntax();
+#endif
 	w_as_opcode (opcode);
 	w_as_branch_parameter (&instruction->instruction_parameters[0]);
 	w_as_newline();
+#ifdef MACH_O64
+	if (intel_asm)
+		intel_syntax();
+#endif
 }
 
 static void w_as_float_branch_instruction (struct instruction *instruction,int n)
@@ -1699,11 +1831,27 @@ static void w_as_float_branch_instruction (struct instruction *instruction,int n
 	switch (n){
 		case 2:
 			w_as_opcode ("ja");
+#ifdef MACH_O64
+			if (instruction->instruction_parameters[0].parameter_type==P_LABEL){
+				if (instruction->instruction_parameters[0].parameter_data.l->label_number!=0)
+					w_as_local_label (instruction->instruction_parameters[0].parameter_data.l->label_number);
+				else
+					w_as_label (instruction->instruction_parameters[0].parameter_data.l->label_name);
+			} else
+#endif
 			w_as_parameter (&instruction->instruction_parameters[0]);
 			w_as_newline();
 			return;
 		case 5:
 			w_as_opcode ("jae");
+#ifdef MACH_O64
+			if (instruction->instruction_parameters[0].parameter_type==P_LABEL){
+				if (instruction->instruction_parameters[0].parameter_data.l->label_number!=0)
+					w_as_local_label (instruction->instruction_parameters[0].parameter_data.l->label_number);
+				else
+					w_as_label (instruction->instruction_parameters[0].parameter_data.l->label_name);
+			} else
+#endif
 			w_as_parameter (&instruction->instruction_parameters[0]);
 			w_as_newline();
 			return;
@@ -1729,6 +1877,15 @@ static void w_as_float_branch_instruction (struct instruction *instruction,int n
 			w_as_opcode ("jbe");
 			break;
 	}
+
+#ifdef MACH_O64
+	if (instruction->instruction_parameters[0].parameter_type==P_LABEL){
+		if (instruction->instruction_parameters[0].parameter_data.l->label_number!=0)
+			w_as_local_label (instruction->instruction_parameters[0].parameter_data.l->label_number);
+		else
+			w_as_label (instruction->instruction_parameters[0].parameter_data.l->label_name);
+	} else
+#endif
 	w_as_parameter (&instruction->instruction_parameters[0]);
 	w_as_newline();
 
@@ -1750,7 +1907,7 @@ static void w_as_set_condition_instruction (struct instruction *instruction,char
 	w_as_byte_register (r);
 	w_as_newline();
 
-	w_as_opcode (intel_asm ? "movzx" : "movzbl");
+	w_as_opcode (intel_asm ? "movzx" : "movzbq");
 	if (intel_asm)
 		w_as_register_comma (r);
 	w_as_byte_register (r);
@@ -1778,6 +1935,8 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 			break;
 		default:
 			w_as_opcode ("setnp");
+			if (!intel_asm)
+				putc ('%',assembly_file);
 			fprintf (assembly_file,"bpl");
 			w_as_newline();
 
@@ -1799,15 +1958,26 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 			w_as_newline();
 
 			w_as_opcode ("and");
-			w_as_byte_register (r);
-			w_as_comma();
+			if (intel_asm){
+				w_as_byte_register (r);
+				w_as_comma();
+			}
+			if (!intel_asm)
+				putc ('%',assembly_file);
 			fprintf (assembly_file,"bpl");
+			if (!intel_asm){
+				w_as_comma();
+				w_as_byte_register (r);
+			}
 			w_as_newline();
 	}
 
 	w_as_opcode ("movzx");
-	w_as_register_comma (r);
+	if (intel_asm)
+		w_as_register_comma (r);
 	w_as_byte_register (r);
+	if (!intel_asm)
+		w_as_comma_register (r);
 	w_as_newline();
 }
 
@@ -1839,30 +2009,30 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 
 	if (sd_reg==REGISTER_A1){
 		if (tmp_reg!=REGISTER_D0)
-			w_as_movl_register_register_newline (REGISTER_D0,tmp_reg);
+			w_as_movq_register_register_newline (REGISTER_D0,tmp_reg);
 
-		w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+		w_as_movq_register_register_newline (REGISTER_A1,REGISTER_O0);
 		
 		s_reg1=sd_reg;
 		s_reg2=REGISTER_O0;
 		i_reg=REGISTER_D0;
 	} else if (sd_reg==REGISTER_D0){
 		if (tmp_reg!=REGISTER_A1)
-			w_as_movl_register_register_newline (REGISTER_A1,tmp_reg);			
+			w_as_movq_register_register_newline (REGISTER_A1,tmp_reg);			
 		
-		w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
+		w_as_movq_register_register_newline (REGISTER_D0,REGISTER_O0);
 
 		s_reg1=REGISTER_A1;
 		s_reg2=REGISTER_O0;
 		i_reg=REGISTER_A1;
 	} else {
 		if (tmp_reg==REGISTER_D0)
-			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);			
+			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_O0);			
 		else if (tmp_reg==REGISTER_A1)
-			w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);						
+			w_as_movq_register_register_newline (REGISTER_D0,REGISTER_O0);						
 		else {
-			w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
-			w_as_movl_register_register_newline (REGISTER_A1,tmp_reg);
+			w_as_movq_register_register_newline (REGISTER_D0,REGISTER_O0);
+			w_as_movq_register_register_newline (REGISTER_A1,tmp_reg);
 		}
 		
 		s_reg1=sd_reg;
@@ -1870,15 +2040,15 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 		i_reg=REGISTER_D0;
 	}
 
-	w_as_opcode_movl();
+	w_as_opcode_movq();
 	w_as_immediate_register_newline (ms.m,i_reg);
 
-	w_as_opcode (intel_asm ? "imul" : "imull");
+	w_as_opcode (intel_asm ? "imul" : "imulq");
 	w_as_register (s_reg1);
 	w_as_newline();
 	
 	if (compute_remainder)
-		w_as_movl_register_register_newline (s_reg2,REGISTER_D0);
+		w_as_movq_register_register_newline (s_reg2,REGISTER_D0);
 
 	if (ms.m<0)
 		w_as_opcode_register_register_newline ("add",s_reg2,REGISTER_A1);
@@ -1905,7 +2075,7 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 				w_as_opcode_register_register_newline ("add",s_reg2,REGISTER_A1);
 			else {
 				w_as_opcode_register_register_newline ("sub",REGISTER_A1,s_reg2);
-				w_as_movl_register_register_newline (s_reg2,sd_reg);
+				w_as_movq_register_register_newline (s_reg2,sd_reg);
 			}
 		} else if (sd_reg==REGISTER_D0){
 			struct index_registers index_registers;
@@ -1914,7 +2084,7 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 				index_registers.a_reg.r=REGISTER_A1;
 				index_registers.d_reg.r=s_reg2;
 						
-				w_as_opcode (intel_asm ? "lea" : "leal");
+				w_as_opcode (intel_asm ? "lea" : "leaq");
 				if (intel_asm)
 					w_as_register_comma (sd_reg);
 				w_as_indexed (0,&index_registers);
@@ -1922,7 +2092,7 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 					w_as_comma_register (sd_reg);
 				w_as_newline();
 			} else {
-				w_as_movl_register_register_newline (s_reg2,sd_reg);
+				w_as_movq_register_register_newline (s_reg2,sd_reg);
 				w_as_opcode_register_register_newline ("sub",REGISTER_A1,sd_reg);			
 			}
 		} else
@@ -1957,30 +2127,30 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 				n_shifts=1;
 			}
 		} else {
-			w_as_opcode (intel_asm ? "imul" : "imull");
+			w_as_opcode (intel_asm ? "imul" : "imulq");
 			w_as_immediate_register_newline (i,REGISTER_A1);
 
 			w_as_opcode_register_register_newline ("sub",REGISTER_A1,s_reg3);
 		}
 		
 		if (sd_reg!=s_reg3)
-			w_as_movl_register_register_newline (s_reg3,sd_reg);
+			w_as_movq_register_register_newline (s_reg3,sd_reg);
 	}
 
 	if (sd_reg==REGISTER_A1){
 		if (tmp_reg!=REGISTER_D0)
-			w_as_movl_register_register_newline (tmp_reg,REGISTER_D0);
+			w_as_movq_register_register_newline (tmp_reg,REGISTER_D0);
 	} else if (sd_reg==REGISTER_D0){
 		if (tmp_reg!=REGISTER_A1)
-			w_as_movl_register_register_newline (tmp_reg,REGISTER_A1);
+			w_as_movq_register_register_newline (tmp_reg,REGISTER_A1);
 	} else {
 		if (tmp_reg==REGISTER_D0)
-			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
+			w_as_movq_register_register_newline (REGISTER_O0,REGISTER_A1);
 		else if (tmp_reg==REGISTER_A1)
-			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);						
+			w_as_movq_register_register_newline (REGISTER_O0,REGISTER_D0);						
 		else {
-			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);			
-			w_as_movl_register_register_newline (tmp_reg,REGISTER_A1);			
+			w_as_movq_register_register_newline (REGISTER_O0,REGISTER_D0);			
+			w_as_movq_register_register_newline (tmp_reg,REGISTER_A1);			
 		}
 	}
 }
@@ -2006,7 +2176,7 @@ static void w_as_div_instruction (struct instruction *instruction)
 				++log2i;
 			}
 			
-			w_as_movl_register_register_newline (d_reg,REGISTER_O0);
+			w_as_movq_register_register_newline (d_reg,REGISTER_O0);
 
 			if (log2i==1){
 				w_as_opcode ("sar");
@@ -2035,11 +2205,11 @@ static void w_as_div_instruction (struct instruction *instruction)
 
 	switch (d_reg){
 		case REGISTER_D0:
-			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_O0);
 	
 			w_as_instruction_without_parameters ("cqo");
 	
-			w_as_opcode (intel_asm ? "idiv" : "idivl");
+			w_as_opcode (intel_asm ? "idiv" : "idivq");
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER
 				&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
 			{
@@ -2056,16 +2226,16 @@ static void w_as_div_instruction (struct instruction *instruction)
 			}
 			w_as_newline();
 		
-			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
+			w_as_movq_register_register_newline (REGISTER_O0,REGISTER_A1);
 			break;
 		case REGISTER_A1:
-			w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
+			w_as_movq_register_register_newline (REGISTER_D0,REGISTER_O0);
 	
-			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
+			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_D0);
 	
 			w_as_instruction_without_parameters ("cqo");
 	
-			w_as_opcode (intel_asm ? "idiv" : "idivl");
+			w_as_opcode (intel_asm ? "idiv" : "idivq");
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
 				int r;
 				
@@ -2094,18 +2264,18 @@ static void w_as_div_instruction (struct instruction *instruction)
 			}
 			w_as_newline();
 	
-			w_as_movl_register_register_newline (REGISTER_D0,REGISTER_A1);
+			w_as_movq_register_register_newline (REGISTER_D0,REGISTER_A1);
 		
-			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);
+			w_as_movq_register_register_newline (REGISTER_O0,REGISTER_D0);
 			break;
 		default:
-			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_O0);
 	
 			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
 	
 			w_as_instruction_without_parameters ("cqo");
 
-			w_as_opcode (intel_asm ? "idiv" : "idivl");
+			w_as_opcode (intel_asm ? "idiv" : "idivq");
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
 				int r;
 				
@@ -2140,7 +2310,7 @@ static void w_as_div_instruction (struct instruction *instruction)
 	
 			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
 		
-			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
+			w_as_movq_register_register_newline (REGISTER_O0,REGISTER_A1);
 	}
 }
 
@@ -2169,7 +2339,7 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			++log2i;
 		}
 		
-		w_as_movl_register_register_newline (d_reg,REGISTER_O0);
+		w_as_movq_register_register_newline (d_reg,REGISTER_O0);
 
 		if (log2i==1){
 			w_as_opcode ("and");
@@ -2199,11 +2369,11 @@ static void w_as_rem_instruction (struct instruction *instruction)
 
 	switch (d_reg){
 		case REGISTER_D0:
-			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_O0);
 
 			w_as_instruction_without_parameters ("cqo");
 
-			w_as_opcode (intel_asm ? "idiv" : "idivl");
+			w_as_opcode (intel_asm ? "idiv" : "idivq");
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER
 				&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
 			{
@@ -2220,19 +2390,19 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			}
 			w_as_newline();
 
-			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
+			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_D0);
 
-			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
+			w_as_movq_register_register_newline (REGISTER_O0,REGISTER_A1);
 	
 			break;		
 		case REGISTER_A1:
-			w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
+			w_as_movq_register_register_newline (REGISTER_D0,REGISTER_O0);
 	
-			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
+			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_D0);
 	
 			w_as_instruction_without_parameters ("cqo");
 	
-			w_as_opcode (intel_asm ? "idiv" : "idivl");
+			w_as_opcode (intel_asm ? "idiv" : "idivq");
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
 				int r;
 				
@@ -2261,16 +2431,16 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			}
 			w_as_newline();
 
-			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);
+			w_as_movq_register_register_newline (REGISTER_O0,REGISTER_D0);
 			break;
 		default:	
-			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_O0);
 
 			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
 	
 			w_as_instruction_without_parameters ("cqo");
 	
-			w_as_opcode (intel_asm ? "idiv" : "idivl");
+			w_as_opcode (intel_asm ? "idiv" : "idivq");
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
 				int r;
 				
@@ -2303,25 +2473,25 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			}
 			w_as_newline();
 
-			w_as_movl_register_register_newline (d_reg,REGISTER_D0);
+			w_as_movq_register_register_newline (d_reg,REGISTER_D0);
 
-			w_as_movl_register_register_newline (REGISTER_A1,d_reg);
+			w_as_movq_register_register_newline (REGISTER_A1,d_reg);
 
-			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
+			w_as_movq_register_register_newline (REGISTER_O0,REGISTER_A1);
 	}
 }
 
-static void w_as_2movl_registers (int reg1,int reg2,int reg3)
+static void w_as_2movq_registers (int reg1,int reg2,int reg3)
 {
-	w_as_movl_register_register_newline (reg2,reg3);
-	w_as_movl_register_register_newline (reg1,reg2);
+	w_as_movq_register_register_newline (reg2,reg3);
+	w_as_movq_register_register_newline (reg1,reg2);
 }
 
-static void w_as_3movl_registers (int reg1,int reg2,int reg3,int reg4)
+static void w_as_3movq_registers (int reg1,int reg2,int reg3,int reg4)
 {
-	w_as_movl_register_register_newline (reg3,reg4);
-	w_as_movl_register_register_newline (reg2,reg3);
-	w_as_movl_register_register_newline (reg1,reg2);
+	w_as_movq_register_register_newline (reg3,reg4);
+	w_as_movq_register_register_newline (reg2,reg3);
+	w_as_movq_register_register_newline (reg1,reg2);
 }
 
 static void w_as_mulud_instruction (struct instruction *instruction)
@@ -2335,33 +2505,33 @@ static void w_as_mulud_instruction (struct instruction *instruction)
 		if (reg_1==REGISTER_A1){
 			w_as_opcode_register_newline ("mul",reg_1);
 		} else {
-			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_O0);
 			w_as_opcode_register_newline ("mul",reg_1);
-			w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_1);
+			w_as_2movq_registers (REGISTER_O0,REGISTER_A1,reg_1);
 		}
 	} else if (reg_1==REGISTER_A1){
-		w_as_2movl_registers (reg_2,REGISTER_D0,REGISTER_O0);
+		w_as_2movq_registers (reg_2,REGISTER_D0,REGISTER_O0);
 		w_as_opcode_register_newline ("mul",reg_1);
-		w_as_2movl_registers (REGISTER_O0,REGISTER_D0,reg_2);
+		w_as_2movq_registers (REGISTER_O0,REGISTER_D0,reg_2);
 	} else if (reg_1==REGISTER_D0){
 		if (reg_2==REGISTER_A1){
 			w_as_opcode_register_newline ("mul",REGISTER_A1);
 			w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);
 		} else {
-			w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_O0);
 			w_as_opcode_register_newline ("mul",reg_2);
-			w_as_3movl_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_2);
+			w_as_3movq_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_2);
 		}
 	} else if (reg_2==REGISTER_A1){
-		w_as_2movl_registers (reg_2,REGISTER_D0,REGISTER_O0);		
+		w_as_2movq_registers (reg_2,REGISTER_D0,REGISTER_O0);		
 		w_as_opcode_register_newline ("mul",reg_1);
-		w_as_3movl_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_1);
+		w_as_3movq_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_1);
 	} else {
 		w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_D0);
-		w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+		w_as_movq_register_register_newline (REGISTER_A1,REGISTER_O0);
 		w_as_opcode_register_newline ("mul",reg_1);
 		w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_D0);
-		w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_1);
+		w_as_2movq_registers (REGISTER_O0,REGISTER_A1,reg_1);
 	}
 }
 
@@ -2378,9 +2548,9 @@ static void w_as_divdu_instruction (struct instruction *instruction)
 			if (reg_2==REGISTER_A1)
 				w_as_opcode_register_newline ("div",reg_1);
 			else {
-				w_as_2movl_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				w_as_2movq_registers (reg_2,REGISTER_A1,REGISTER_O0);
 				w_as_opcode_register_newline ("div",reg_1);
-				w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_2);
+				w_as_2movq_registers (REGISTER_O0,REGISTER_A1,reg_2);
 			}
 		} else if (reg_3==REGISTER_A1){
 			if (reg_2==REGISTER_D0){
@@ -2388,24 +2558,24 @@ static void w_as_divdu_instruction (struct instruction *instruction)
 				w_as_opcode_register_newline ("div",REGISTER_A1);
 				w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);							
 			} else {
-				w_as_3movl_registers (reg_2,REGISTER_A1,REGISTER_D0,REGISTER_O0);
+				w_as_3movq_registers (reg_2,REGISTER_A1,REGISTER_D0,REGISTER_O0);
 				w_as_opcode_register_newline ("div",REGISTER_O0);
-				w_as_3movl_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_2);
+				w_as_3movq_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_2);
 			}
 		} else {
 			if (reg_2==REGISTER_A1){
-				w_as_2movl_registers (reg_3,REGISTER_D0,REGISTER_O0);
+				w_as_2movq_registers (reg_3,REGISTER_D0,REGISTER_O0);
 				w_as_opcode_register_newline ("div",REGISTER_O0);
-				w_as_2movl_registers (REGISTER_O0,REGISTER_D0,reg_3);
+				w_as_2movq_registers (REGISTER_O0,REGISTER_D0,reg_3);
 			} else if (reg_2==REGISTER_D0){
-				w_as_3movl_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
+				w_as_3movq_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
 				w_as_opcode_register_newline ("div",REGISTER_A1);
-				w_as_3movl_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
+				w_as_3movq_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
 			} else {
 				w_as_opcode_register_register_newline ("xchg",reg_3,REGISTER_D0);
-				w_as_2movl_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				w_as_2movq_registers (reg_2,REGISTER_A1,REGISTER_O0);
 				w_as_opcode_register_newline ("div",reg_3);
-				w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_2);
+				w_as_2movq_registers (REGISTER_O0,REGISTER_A1,reg_2);
 				w_as_opcode_register_register_newline ("xchg",reg_3,REGISTER_D0);
 			}
 		}
@@ -2414,9 +2584,9 @@ static void w_as_divdu_instruction (struct instruction *instruction)
 			if (reg_3==REGISTER_D0)
 				w_as_opcode_register_newline ("div",reg_1);
 			else {
-				w_as_2movl_registers (reg_3,REGISTER_D0,REGISTER_O0);
+				w_as_2movq_registers (reg_3,REGISTER_D0,REGISTER_O0);
 				w_as_opcode_register_newline ("div",reg_1);
-				w_as_2movl_registers (REGISTER_O0,REGISTER_D0,reg_3);
+				w_as_2movq_registers (REGISTER_O0,REGISTER_D0,reg_3);
 			}
 		} else if (reg_2==REGISTER_D0){
 			if (reg_3==REGISTER_A1){
@@ -2424,24 +2594,24 @@ static void w_as_divdu_instruction (struct instruction *instruction)
 				w_as_opcode_register_newline ("div",REGISTER_D0);
 				w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);							
 			} else {
-				w_as_3movl_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
+				w_as_3movq_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
 				w_as_opcode_register_newline ("div",REGISTER_O0);
-				w_as_3movl_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
+				w_as_3movq_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
 			}
 		} else {
 			if (reg_3==REGISTER_D0){
-				w_as_2movl_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				w_as_2movq_registers (reg_2,REGISTER_A1,REGISTER_O0);
 				w_as_opcode_register_newline ("div",REGISTER_O0);
-				w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_2);
+				w_as_2movq_registers (REGISTER_O0,REGISTER_A1,reg_2);
 			} else if (reg_3==REGISTER_A1){
-				w_as_3movl_registers (reg_2,REGISTER_A1,REGISTER_D0,REGISTER_O0);
+				w_as_3movq_registers (reg_2,REGISTER_A1,REGISTER_D0,REGISTER_O0);
 				w_as_opcode_register_newline ("div",REGISTER_D0);
-				w_as_3movl_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_2);
+				w_as_3movq_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_2);
 			} else {
 				w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_A1);
-				w_as_2movl_registers (reg_3,REGISTER_D0,REGISTER_O0);
+				w_as_2movq_registers (reg_3,REGISTER_D0,REGISTER_O0);
 				w_as_opcode_register_newline ("div",reg_2);
-				w_as_2movl_registers (REGISTER_O0,REGISTER_D0,reg_3);
+				w_as_2movq_registers (REGISTER_O0,REGISTER_D0,reg_3);
 				w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_A1);
 			}
 		}
@@ -2450,33 +2620,33 @@ static void w_as_divdu_instruction (struct instruction *instruction)
 			if (reg_2==REGISTER_A1){
 				w_as_opcode_register_newline ("div",reg_1);
 			} else {
-				w_as_2movl_registers (reg_2,REGISTER_A1,REGISTER_O0);
+				w_as_2movq_registers (reg_2,REGISTER_A1,REGISTER_O0);
 				w_as_opcode_register_newline ("div",reg_1);
-				w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_2);
+				w_as_2movq_registers (REGISTER_O0,REGISTER_A1,reg_2);
 			}
 		} else if (reg_2==REGISTER_A1){
-			w_as_2movl_registers (reg_3,REGISTER_D0,REGISTER_O0);
+			w_as_2movq_registers (reg_3,REGISTER_D0,REGISTER_O0);
 			w_as_opcode_register_newline ("div",reg_1);
-			w_as_2movl_registers (REGISTER_O0,REGISTER_D0,reg_3);
+			w_as_2movq_registers (REGISTER_O0,REGISTER_D0,reg_3);
 		} else if (reg_2==REGISTER_D0){
 			if (reg_3==REGISTER_A1){
 				w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);
 				w_as_opcode_register_newline ("div",reg_1);
 				w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);
 			} else {
-				w_as_3movl_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
+				w_as_3movq_registers (reg_3,REGISTER_D0,REGISTER_A1,REGISTER_O0);
 				w_as_opcode_register_newline ("div",reg_1);
-				w_as_3movl_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
+				w_as_3movq_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
 			}
 		} else if (reg_2==REGISTER_A1){
-			w_as_3movl_registers (reg_3,REGISTER_A1,REGISTER_D0,REGISTER_O0);
+			w_as_3movq_registers (reg_3,REGISTER_A1,REGISTER_D0,REGISTER_O0);
 			w_as_opcode_register_newline ("div",reg_1);
-			w_as_3movl_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_3);
+			w_as_3movq_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_3);
 		} else {
 			w_as_opcode_register_register_newline ("xchg",reg_3,REGISTER_D0);
-			w_as_2movl_registers (reg_2,REGISTER_A1,REGISTER_O0);
+			w_as_2movq_registers (reg_2,REGISTER_A1,REGISTER_O0);
 			w_as_opcode_register_newline ("div",reg_1);
-			w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_2);
+			w_as_2movq_registers (REGISTER_O0,REGISTER_A1,reg_2);
 			w_as_opcode_register_register_newline ("xchg",reg_3,REGISTER_D0);
 		}
 	}
@@ -2524,7 +2694,7 @@ static void w_as_word_instruction (struct instruction *instruction)
 			for (; float_constant!=NULL; float_constant=float_constant->float_constant_next){
 				w_as_define_internal_data_label (float_constant->float_constant_label_number);
 			
-				w_as_opcode (intel_asm ? "dq" : ".double");
+				w_as_opcode (intel_directives ? "dq" : ".double");
 				fprintf (assembly_file,intel_asm ? "%.20e" : "0r%.20e",*float_constant->float_constant_r_p);
 				w_as_newline();		
 			}
@@ -2539,7 +2709,7 @@ static void w_as_word_instruction (struct instruction *instruction)
 	
 		w_as_define_internal_data_label (label_number);
 	
-		w_as_opcode (intel_asm ? "dq" : ".double");
+		w_as_opcode (intel_directives ? "dq" : ".double");
 		fprintf (assembly_file,intel_asm ? "%.20e" : "0r%.20e",*r_p);
 		w_as_newline();
 	
@@ -2558,7 +2728,11 @@ static void w_as_opcode_parameter_newline (char *opcode,struct parameter *parame
 
 			w_as_float_constant (label_number,parameter_p->parameter_data.r);
 
+#ifndef MACH_O64
 			fprintf (assembly_file,intel_asm ? "\t%s\tqword ptr i_%d" : "\t%sl\ti_%d",opcode,label_number);
+#else
+			fprintf (assembly_file,intel_asm ? "\t%s\tqword ptr i_%d[rip]" : "\t%sl\ti_%d",opcode,label_number);
+#endif
 			w_as_newline();
 			break;
 		}
@@ -2600,28 +2774,60 @@ static void w_as_dyadic_float_instruction (struct instruction *instruction,char 
 			w_as_float_constant (label_number,instruction->instruction_parameters[0].parameter_data.r);
 
 			w_as_opcode (opcode);
-			w_as_fp_register (d_freg);
-			w_as_comma();
-			fprintf (assembly_file,"qword ptr i_%d",label_number);
+			if (intel_asm){
+				w_as_fp_register (d_freg);
+				w_as_comma();
+#ifndef MACH_O64
+				fprintf (assembly_file,"qword ptr i_%d",label_number);
+#else
+				fprintf (assembly_file,"qword ptr i_%d[rip]",label_number);
+#endif
+			} else {
+#ifndef MACH_O64
+				fprintf (assembly_file,"i_%d",label_number);
+#else
+				fprintf (assembly_file,"i_%d(%%rip)",label_number);
+#endif			
+				w_as_comma();
+				w_as_fp_register (d_freg);
+			}
 			break;
 		}
 		case P_INDIRECT:
 			w_as_opcode (opcode);
-			w_as_fp_register (d_freg);
-			w_as_comma();
+			if (intel_asm){
+				w_as_fp_register (d_freg);
+				w_as_comma();
+			}
 			w_as_indirect (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.reg.r);
+			if (!intel_asm){
+				w_as_comma();
+				w_as_fp_register (d_freg);
+			}
 			break;
 		case P_INDEXED:
 			w_as_opcode (opcode);
-			w_as_fp_register (d_freg);
-			w_as_comma();
+			if (intel_asm){
+				w_as_fp_register (d_freg);
+				w_as_comma();
+			}
 			w_as_indexed (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.ir);
+			if (!intel_asm){
+				w_as_comma();
+				w_as_fp_register (d_freg);
+			}
 			break;
 		case P_F_REGISTER:
 			w_as_opcode (opcode);
-			w_as_fp_register (d_freg);
-			w_as_comma();
+			if (intel_asm){
+				w_as_fp_register (d_freg);
+				w_as_comma();
+			}
 			w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+			if (!intel_asm){
+				w_as_comma();
+				w_as_fp_register (d_freg);			
+			}
 			break;
 		default:
 			internal_error_in_function ("w_as_dyadic_float_instruction");
@@ -2646,34 +2852,66 @@ static void w_as_float_neg_instruction (struct instruction *instruction)
 			w_as_float_constant (label_number,instruction->instruction_parameters[0].parameter_data.r);
 			
 			w_as_opcode (sse_128 ? "movsd" : "movlpd");
-			w_as_fp_register (d_freg);
-			w_as_comma();
-			fprintf (assembly_file,"qword ptr i_%d",label_number);
+			if (intel_asm){
+				w_as_fp_register (d_freg);
+				w_as_comma();
+#ifndef MACH_O64
+				fprintf (assembly_file,"qword ptr i_%d",label_number);
+#else
+				fprintf (assembly_file,"qword ptr i_%d[rip]",label_number);
+#endif
+			} else {
+#ifndef MACH_O64
+				fprintf (assembly_file,"i_%d",label_number);
+#else
+				fprintf (assembly_file,"i_%d(%%rip)",label_number);
+#endif			
+				w_as_comma();
+				w_as_fp_register (d_freg);
+			}
 			w_as_newline();
 			break;
 		}
 		case P_INDIRECT:
 			w_as_opcode (sse_128 ? "movsd" : "movlpd");
-			w_as_fp_register (d_freg);
-			w_as_comma();
-			fprintf (assembly_file,"qword ptr ");
+			if (intel_asm){
+				w_as_fp_register (d_freg);
+				w_as_comma();
+				fprintf (assembly_file,"qword ptr ");
+			}
 			w_as_indirect (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.reg.r);
+			if (!intel_asm){
+				w_as_comma();
+				w_as_fp_register (d_freg);
+			}
 			w_as_newline();
 			break;
 		case P_INDEXED:
 			w_as_opcode (sse_128 ? "movsd" : "movlpd");
-			w_as_fp_register (d_freg);
-			w_as_comma();
-			fprintf (assembly_file,"qword ptr ");
+			if (intel_asm){
+				w_as_fp_register (d_freg);
+				w_as_comma();
+				fprintf (assembly_file,"qword ptr ");
+			}
 			w_as_indexed (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.ir);
+			if (!intel_asm){
+				w_as_comma();
+				w_as_fp_register (d_freg);
+			}
 			w_as_newline();
 			break;
 		case P_F_REGISTER:
 			if (instruction->instruction_parameters[0].parameter_data.reg.r!=d_freg){
 				w_as_opcode (sse_128 ? "movapd" : "movsd");
-				w_as_fp_register (d_freg);
-				w_as_comma();
+				if (intel_asm){
+					w_as_fp_register (d_freg);
+					w_as_comma();
+				}
 				w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+				if (!intel_asm){
+					w_as_comma();
+					w_as_fp_register (d_freg);
+				}
 				w_as_newline();
 			}
 			break;
@@ -2683,17 +2921,36 @@ static void w_as_float_neg_instruction (struct instruction *instruction)
 	}
 	
 	if (!sign_real_mask_imported){
+#ifndef MACH_O64
 		w_as_opcode ("extrn");
 		fprintf (assembly_file,"sign_real_mask:near");
+#else
+		w_as_opcode (".globl");
+		fprintf (assembly_file,"sign_real_mask");
+#endif
 		w_as_newline();
 		
 		sign_real_mask_imported=1;
 	}
 
 	w_as_opcode ("xorpd");
-	w_as_fp_register (d_freg);
-	w_as_comma();
-	fprintf (assembly_file,"oword ptr sign_real_mask");	
+	if (intel_asm){
+		w_as_fp_register (d_freg);
+		w_as_comma();
+#ifndef MACH_O64
+		fprintf (assembly_file,"oword ptr sign_real_mask");
+#else
+		fprintf (assembly_file,"oword ptr sign_real_mask[rip]");
+#endif
+	} else {
+#ifndef MACH_O64
+		fprintf (assembly_file,"sign_real_mask");
+#else
+		fprintf (assembly_file,"sign_real_mask(%%rip)");
+#endif	
+		w_as_comma();
+		w_as_fp_register (d_freg);
+	}
 	w_as_newline();
 }
 
@@ -2713,34 +2970,66 @@ static void w_as_float_abs_instruction (struct instruction *instruction)
 			w_as_float_constant (label_number,instruction->instruction_parameters[0].parameter_data.r);
 			
 			w_as_opcode (sse_128 ? "movsd" : "movlpd");
-			w_as_fp_register (d_freg);
-			w_as_comma();
-			fprintf (assembly_file,"qword ptr i_%d",label_number);
+			if (intel_asm){
+				w_as_fp_register (d_freg);
+				w_as_comma();
+#ifndef MACH_O64
+				fprintf (assembly_file,"qword ptr i_%d",label_number);
+#else
+				fprintf (assembly_file,"qword ptr i_%d[rip]",label_number);
+#endif
+			} else {
+#ifndef MACH_O64
+				fprintf (assembly_file,"i_%d",label_number);
+#else
+				fprintf (assembly_file,"i_%d(%%rip)",label_number);
+#endif
+				w_as_comma();
+				w_as_fp_register (d_freg);
+			}
 			w_as_newline();
 			break;
 		}
 		case P_INDIRECT:
 			w_as_opcode (sse_128 ? "movsd" : "movlpd");
-			w_as_fp_register (d_freg);
-			w_as_comma();
-			fprintf (assembly_file,"qword ptr ");
+			if (intel_asm){
+				w_as_fp_register (d_freg);
+				w_as_comma();
+				fprintf (assembly_file,"qword ptr ");
+			}
 			w_as_indirect (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.reg.r);
+			if (!intel_asm){
+				w_as_comma();
+				w_as_fp_register (d_freg);
+			}
 			w_as_newline();
 			break;
 		case P_INDEXED:
 			w_as_opcode (sse_128 ? "movsd" : "movlpd");
-			w_as_fp_register (d_freg);
-			w_as_comma();
-			fprintf (assembly_file,"qword ptr ");
+			if (intel_asm){
+				w_as_fp_register (d_freg);
+				w_as_comma();
+				fprintf (assembly_file,"qword ptr ");
+			}
 			w_as_indexed (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.ir);
+			if (!intel_asm){
+				w_as_comma();
+				w_as_fp_register (d_freg);
+			}			
 			w_as_newline();
 			break;
 		case P_F_REGISTER:
 			if (instruction->instruction_parameters[0].parameter_data.reg.r!=d_freg){
 				w_as_opcode (sse_128 ? "movapd" : "movsd");
-				w_as_fp_register (d_freg);
-				w_as_comma();
+				if (intel_asm){
+					w_as_fp_register (d_freg);
+					w_as_comma();
+				}
 				w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+				if (!intel_asm){
+					w_as_comma();
+					w_as_fp_register (d_freg);
+				}
 				w_as_newline();
 			}
 			break;
@@ -2750,17 +3039,35 @@ static void w_as_float_abs_instruction (struct instruction *instruction)
 	}
 	
 	if (!abs_real_mask_imported){
+#ifndef MACH_O64
 		w_as_opcode ("extrn");
 		fprintf (assembly_file,"abs_real_mask:near");
+#else
+		w_as_opcode (".globl");
+		fprintf (assembly_file,"abs_real_mask");
+#endif
 		w_as_newline();
-		
 		abs_real_mask_imported=1;
 	}
 
 	w_as_opcode ("andpd");
-	w_as_fp_register (d_freg);
-	w_as_comma();
-	fprintf (assembly_file,"oword ptr abs_real_mask");	
+	if (intel_asm){
+		w_as_fp_register (d_freg);
+		w_as_comma();
+#ifndef MACH_O64
+		fprintf (assembly_file,"oword ptr abs_real_mask");
+#else
+		fprintf (assembly_file,"oword ptr abs_real_mask[rip]");
+#endif
+	} else {
+#ifndef MACH_O64
+		fprintf (assembly_file,"abs_real_mask");
+#else
+		fprintf (assembly_file,"abs_real_mask(%%rip)");
+#endif
+		w_as_comma();
+		w_as_fp_register (d_freg);
+	}
 	w_as_newline();
 }
 
@@ -2771,27 +3078,43 @@ static void w_as_fmove_instruction (struct instruction *instruction)
 			switch (instruction->instruction_parameters[0].parameter_type){
 				case P_F_REGISTER:
 					w_as_opcode (sse_128 ? "movapd" : "movsd");
-					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-					w_as_comma();
+					if (intel_asm){
+						w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+						w_as_comma();
+					}
 					w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+					if (!intel_asm){
+						w_as_comma();
+						w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+					}
 					break;
 				case P_INDIRECT:
 					w_as_opcode (sse_128 ? "movsd" : "movlpd");
-					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-					w_as_comma();
-					if (intel_asm)
+					if (intel_asm){
+						w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+						w_as_comma();
 						fprintf (assembly_file,"qword ptr ");
+					}
 					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,
 								   instruction->instruction_parameters[0].parameter_data.reg.r);
+					if (!intel_asm){
+						w_as_comma();
+						w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+					}
 					break;
 				case P_INDEXED:
 					w_as_opcode (sse_128 ? "movsd" : "movlpd");
-					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-					w_as_comma();
-					if (intel_asm)
+					if (intel_asm){
+						w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+						w_as_comma();
 						fprintf (assembly_file,"qword ptr ");
+					}
 					w_as_indexed (instruction->instruction_parameters[0].parameter_offset,
 								  instruction->instruction_parameters[0].parameter_data.ir);
+					if (!intel_asm){
+						w_as_comma();
+						w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+					}
 					break;
 				case P_F_IMMEDIATE:
 				{
@@ -2800,11 +3123,23 @@ static void w_as_fmove_instruction (struct instruction *instruction)
 					w_as_float_constant (label_number,instruction->instruction_parameters[0].parameter_data.r);
 			
 					w_as_opcode (sse_128 ? "movsd" : "movlpd");
-					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-					w_as_comma();
-					if (intel_asm)
-						fprintf (assembly_file,"qword ptr ");
-					fprintf (assembly_file,"i_%d",label_number);
+					if (intel_asm){
+						w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+						w_as_comma();
+#ifndef MACH_O64
+						fprintf (assembly_file,"qword ptr i_%d",label_number);
+#else
+						fprintf (assembly_file,"qword ptr i_%d[rip]",label_number);
+#endif
+					} else {
+#ifndef MACH_O64
+						fprintf (assembly_file,"i_%d",label_number);
+#else
+						fprintf (assembly_file,"i_%d(%%rip)",label_number);
+#endif
+						w_as_comma();
+						w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+					}
 					break;
 				}
 				default:
@@ -2823,15 +3158,21 @@ static void w_as_fmove_instruction (struct instruction *instruction)
 				w_as_opcode ("movsd");
 				if (intel_asm)
 					fprintf (assembly_file,"qword ptr ");
+				else {
+					w_as_fp_register (s_freg);
+					w_as_comma();
+				}
 				if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT)
 					w_as_indirect (instruction->instruction_parameters[1].parameter_offset,
 								   instruction->instruction_parameters[1].parameter_data.reg.r);
 				else
 					w_as_indexed (instruction->instruction_parameters[1].parameter_offset,
 								  instruction->instruction_parameters[1].parameter_data.ir);
-					
-				w_as_comma();
-				w_as_fp_register (s_freg);
+				
+				if (intel_asm){
+					w_as_comma();
+					w_as_fp_register (s_freg);
+				}
 				w_as_newline();
 				return;
 			}
@@ -2909,34 +3250,52 @@ static void w_as_fmovel_instruction (struct instruction *instruction)
 {
 	if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
 		if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
-			w_as_opcode ("cvtsd2si");
-			w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+			w_as_opcode (intel_asm ? "cvtsd2si" : "cvtsd2siq");
+			if (intel_asm)
+				w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 			w_as_fp_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+			if (!intel_asm)
+				w_as_comma_register (instruction->instruction_parameters[1].parameter_data.reg.r);			
 			w_as_newline();
 		} else
 			internal_error_in_function ("w_as_fmovel_instruction");
 	} else {
 		switch (instruction->instruction_parameters[0].parameter_type){
 			case P_REGISTER:
-				w_as_opcode ("cvtsi2sd");
+				w_as_opcode (intel_asm ? "cvtsi2sd" : "cvtsi2sdq");
+				if (!intel_asm)
+					w_as_register_comma (instruction->instruction_parameters[0].parameter_data.reg.r);
 				w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-				w_as_comma_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+				if (intel_asm)
+					w_as_comma_register (instruction->instruction_parameters[0].parameter_data.reg.r);
 				w_as_newline();
 				break;
 			case P_INDIRECT:
-				w_as_opcode ("cvtsi2sd");
-				w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-				w_as_comma();
+				w_as_opcode (intel_asm ? "cvtsi2sd" : "cvtsi2sdq");
+				if (intel_asm){
+					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_comma();
+				}
 				w_as_indirect (instruction->instruction_parameters[0].parameter_offset,
 							   instruction->instruction_parameters[0].parameter_data.reg.r);
+				if (!intel_asm){
+					w_as_comma();
+					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+				}
 				w_as_newline();
 				break;
 			case P_INDEXED:
-				w_as_opcode ("cvtsi2sd");
-				w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-				w_as_comma();
+				w_as_opcode (intel_asm ? "cvtsi2sd" : "cvtsi2sdq");
+				if (intel_asm){
+					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_comma();
+				}
 				w_as_indexed (instruction->instruction_parameters[0].parameter_offset,
 							  instruction->instruction_parameters[0].parameter_data.ir);
+				if (!intel_asm){
+					w_as_comma();
+					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+				}
 				w_as_newline();
 				break;
 			case P_IMMEDIATE:
@@ -2949,16 +3308,22 @@ static void w_as_fmovel_instruction (struct instruction *instruction)
 
 				w_as_define_internal_data_label (label_number);
 
-				w_as_opcode (intel_asm ? "dd" : ".long");
+				w_as_opcode (intel_directives ? "dd" : ".long");
 				fprintf (assembly_file,"%d",instruction->instruction_parameters[0].parameter_data.i);
 				w_as_newline();
 
 				w_as_to_code_section();
 
-				w_as_opcode ("cvtsi2sd");
-				w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
-				w_as_comma();
-				fprintf (assembly_file,"qword ptr i_%d",label_number);
+				w_as_opcode (intel_asm ? "cvtsi2sd" : "cvtsi2sdq");
+				if (intel_asm){
+					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+					w_as_comma();
+					fprintf (assembly_file,"qword ptr i_%d",label_number);
+				} else {
+					fprintf (assembly_file,"i_%d",label_number);				
+					w_as_comma();
+					w_as_fp_register (instruction->instruction_parameters[1].parameter_data.reg.r);
+				}
 				w_as_newline();
 				break;
 			}
@@ -2993,10 +3358,10 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_lea_instruction (instruction);
 				break;
 			case IADD:
-				w_as_dyadic_instruction (instruction,intel_asm ? "add" : "addl");
+				w_as_dyadic_instruction (instruction,intel_asm ? "add" : "addq");
 				break;
 			case ISUB:
-				w_as_dyadic_instruction (instruction,intel_asm ? "sub" : "subl");
+				w_as_dyadic_instruction (instruction,intel_asm ? "sub" : "subq");
 				break;
 			case ICMP:
 				w_as_cmp_instruction (instruction);
@@ -3071,7 +3436,7 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_shift_s_instruction (instruction,"sar");
 				break;
 			case IMUL:
-				w_as_dyadic_instruction (instruction,intel_asm ? "imul" : "imull");
+				w_as_dyadic_instruction (instruction,intel_asm ? "imul" : "imulq");
 				break;
 			case IDIV:
 				w_as_div_instruction (instruction);
@@ -3086,13 +3451,13 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_div_rem_i_instruction (instruction,1);
 				break;
 			case IAND:
-				w_as_dyadic_instruction (instruction,intel_asm ? "and" : "andl");
+				w_as_dyadic_instruction (instruction,intel_asm ? "and" : "andq");
 				break;
 			case IOR:
-				w_as_dyadic_instruction (instruction,intel_asm ? "or" : "orl");
+				w_as_dyadic_instruction (instruction,intel_asm ? "or" : "orq");
 				break;
 			case IEOR:
-				w_as_dyadic_instruction (instruction,intel_asm ? "xor" : "xorl");
+				w_as_dyadic_instruction (instruction,intel_asm ? "xor" : "xorq");
 				break;
 			case ISEQ:
 				w_as_set_condition_instruction (instruction,"sete");
@@ -3157,16 +3522,16 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_dyadic_instruction (instruction,"xchg");
 				break;
 			case INEG:
-				w_as_monadic_instruction (instruction,intel_asm ? "neg" : "negl");
+				w_as_monadic_instruction (instruction,intel_asm ? "neg" : "negq");
 				break;
 			case INOT:
-				w_as_monadic_instruction (instruction,intel_asm ? "not" : "notl");
+				w_as_monadic_instruction (instruction,intel_asm ? "not" : "notq");
 				break;
 			case IADC:
 				w_as_dyadic_instruction (instruction,"adc");
 				break;
 			case ISBB:
-				w_as_dyadic_instruction (instruction,intel_asm ? "sbb" : "sbbl");
+				w_as_dyadic_instruction (instruction,intel_asm ? "sbb" : "sbbq");
 				break;
 			case IMULUD:
 				w_as_mulud_instruction (instruction);
@@ -3265,7 +3630,7 @@ static void w_as_instructions (register struct instruction *instruction)
 
 static void w_as_number_of_arguments (int n_node_arguments)
 {
-	w_as_opcode (intel_asm ? "dd" : ".long");
+	w_as_opcode (intel_directives ? "dd" : ".long");
 	fprintf (assembly_file,"%d",n_node_arguments);
 	w_as_newline();
 }
@@ -3320,7 +3685,7 @@ static void w_as_garbage_collect_test (struct basic_block *block)
 		first_call_and_jump=new_call_and_jump;
 	last_call_and_jump=new_call_and_jump;
 
-	w_as_opcode (intel_asm ? "sub" : "subl");
+	w_as_opcode (intel_asm ? "sub" : "subq");
 	if (intel_asm)
 		w_as_register_comma (REGISTER_R15);
 	w_as_immediate (n_cells);
@@ -3362,14 +3727,14 @@ static void w_as_check_stack (struct basic_block *block)
 {
 	if (block->block_a_stack_check_size>0){
 		if (block->block_a_stack_check_size<=32){
-			w_as_opcode (intel_asm ? "cmp" : "cmpl");
+			w_as_opcode (intel_asm ? "cmp" : "cmpq");
 			if (intel_asm)
 				w_as_register_comma (A_STACK_POINTER);
 			fprintf (assembly_file,end_a_stack_label->label_name);
 			if (!intel_asm)
 				w_as_comma_register (A_STACK_POINTER);
 		} else {
-			w_as_opcode (intel_asm ? "lea" : "leal");
+			w_as_opcode (intel_asm ? "lea" : "leaq");
 			if (intel_asm)
 				w_as_scratch_register_comma();
 			w_as_indirect (block->block_a_stack_check_size,A_STACK_POINTER);
@@ -3377,7 +3742,7 @@ static void w_as_check_stack (struct basic_block *block)
 				w_as_comma_scratch_register();
 			w_as_newline();
 
-			w_as_opcode (intel_asm ? "cmp" : "cmpl");
+			w_as_opcode (intel_asm ? "cmp" : "cmpq");
 			if (intel_asm)
 				w_as_scratch_register_comma();
 			fprintf (assembly_file,end_a_stack_label->label_name);
@@ -3393,14 +3758,14 @@ static void w_as_check_stack (struct basic_block *block)
 
 	if (block->block_b_stack_check_size>0){
 		if (block->block_b_stack_check_size<=32){
-			w_as_opcode (intel_asm ? "cmp" : "cmpl");
+			w_as_opcode (intel_asm ? "cmp" : "cmpq");
 			if (intel_asm)
 				w_as_register_comma (B_STACK_POINTER);
 			fprintf (assembly_file,end_b_stack_label->label_name);
 			if (!intel_asm)
 				w_as_comma_register (B_STACK_POINTER);
 		} else {
-			w_as_opcode (intel_asm ? "lea" : "leal");
+			w_as_opcode (intel_asm ? "lea" : "leaq");
 			if (intel_asm)
 				w_as_scratch_register_comma();
 			w_as_indirect (block->block_b_stack_check_size,B_STACK_POINTER);
@@ -3408,7 +3773,7 @@ static void w_as_check_stack (struct basic_block *block)
 				w_as_comma_scratch_register();
 			w_as_newline();
 
-			w_as_opcode (intel_asm ? "cmp" : "cmpl");
+			w_as_opcode (intel_asm ? "cmp" : "cmpq");
 			if (intel_asm)
 				w_as_scratch_register_comma();
 			fprintf (assembly_file,end_b_stack_label->label_name);
@@ -3467,6 +3832,8 @@ static void w_as_indirect_node_entry_jump (LABEL *label)
 			w_as_newline();
 			
 			w_as_opcode ("jmp");
+			if (!intel_asm)
+				putc ('*',assembly_file);
 			w_as_register (REGISTER_D0);
 			w_as_newline();
 		} else {
@@ -3477,6 +3844,8 @@ static void w_as_indirect_node_entry_jump (LABEL *label)
 			w_as_newline();
 			
 			w_as_opcode ("jmp");
+			if (!intel_asm)
+				putc ('*',assembly_file);
 			w_as_register (REGISTER_D0);
 			w_as_newline();
 		
@@ -3490,8 +3859,11 @@ static void w_as_indirect_node_entry_jump (LABEL *label)
 
 			if (descriptor_label->label_id<0)
 				descriptor_label->label_id=next_label_id++;
-	
+#ifdef MACH_O64
+			w_as_label_minus_label_in_code_section (descriptor_label->label_name,new_label_name,-8);
+#else
 			w_as_label_in_code_section (descriptor_label->label_name);
+#endif
 		} else
 			w_as_number_of_arguments (0);
 	} else
@@ -3503,7 +3875,11 @@ static void w_as_indirect_node_entry_jump (LABEL *label)
 		if (descriptor_label->label_id<0)
 			descriptor_label->label_id=next_label_id++;
 
+#ifdef MACH_O64
+		w_as_label_minus_label_in_code_section (descriptor_label->label_name,new_label_name,-8);
+#else
 		w_as_label_in_code_section (descriptor_label->label_name);
+#endif
 	}
 
 	w_as_number_of_arguments (label->label_arity);
@@ -3547,8 +3923,13 @@ static void w_as_import_labels (struct label_node *label_node)
 	label=&label_node->label_node_label;
 	
 	if (!(label->label_flags & LOCAL_LABEL) && label->label_number==0){
+#ifndef MACH_O64
 		w_as_opcode ("extrn");
 		fprintf (assembly_file,"%s:near",label->label_name);
+#else
+		w_as_opcode (".globl");
+		fprintf (assembly_file,"%s",label->label_name);
+#endif
 		w_as_newline();
 	}
 	
@@ -3600,6 +3981,10 @@ static void w_as_apply_update_entry (struct basic_block *block)
 		w_as_instruction_without_parameters ("nop");
 		w_as_instruction_without_parameters ("nop");
 	} else {
+#ifdef MACH_O64
+		if (intel_asm)
+			att_syntax();
+#endif
 		w_as_opcode ("call");
 		w_as_label (add_empty_node_labels[block->block_n_node_arguments+200]->label_name);
 		w_as_newline();
@@ -3607,6 +3992,10 @@ static void w_as_apply_update_entry (struct basic_block *block)
 		w_as_opcode ("jmp");
 		w_as_label (block->block_ea_label->label_name);
 		w_as_newline();
+#ifdef MACH_O64
+		if (intel_asm)
+			intel_syntax();
+#endif
 	}
 
 	w_as_instruction_without_parameters ("nop");
@@ -3619,9 +4008,12 @@ void write_assembly (VOID)
 	struct basic_block *block;
 	struct call_and_jump *call_and_jump;
 
-	if (intel_asm)
+	if (intel_asm){
+#ifdef MACH_O64
+		intel_syntax();
+#endif
 		w_as_import_labels (labels);
-
+	}
 	w_as_to_code_section();
 
 #ifdef DATA_IN_CODE_SECTION
@@ -3685,7 +4077,7 @@ void write_assembly (VOID)
 					w_as_number_of_arguments (0);
 					
 				w_as_number_of_arguments (block->block_n_node_arguments);
-				w_as_opcode (intel_asm ? "push" : "pushl"); fprintf (assembly_file,intel_asm ? "offset push_updated_node" : "$push_updated_node"); w_as_newline();
+				w_as_opcode (intel_asm ? "push" : "pushq"); fprintf (assembly_file,intel_asm ? "offset push_updated_node" : "$push_updated_node"); w_as_newline();
 				w_as_opcode ("jmp"); fprintf (assembly_file,".+23"); w_as_newline();
 				w_as_space (1);
 #endif /* GENERATIONAL_GC */
@@ -3703,13 +4095,24 @@ void write_assembly (VOID)
 						if (intel_asm)
 							w_as_register_comma (REGISTER_A4);
 						w_as_label (block->block_ea_label->label_name);
+#ifdef MACH_O64
+						fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");						
+#endif
 						if (!intel_asm)
 							w_as_comma_register (REGISTER_A4);
 						w_as_newline();
 
+#ifdef MACH_O64
+						if (intel_asm)
+							att_syntax();
+#endif
 						w_as_opcode ("jmp");
 						w_as_label (eval_upd_labels[n_node_arguments]->label_name);
 						w_as_newline();
+#ifdef MACH_O64
+						if (intel_asm)
+							intel_syntax();
+#endif
 					} else {
 						w_as_opcode_movl();
 						if (intel_asm)
@@ -3745,20 +4148,37 @@ void write_assembly (VOID)
 					if (intel_asm)
 						w_as_register_comma (REGISTER_D0);
 					w_as_label (block->block_ea_label->label_name);
+#ifdef MACH_O64
+					fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");						
+#endif
 					if (!intel_asm)
 						w_as_comma_register (REGISTER_D0);
 					w_as_newline();
 				
 					w_as_opcode ("jmp");
+					if (!intel_asm)
+						putc ('*',assembly_file);
 					w_as_register (REGISTER_D0);
 					w_as_newline();
 
 					w_as_space (3);
 				}
 				
-				if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
+				if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
+#ifdef MACH_O64
+					struct block_label *labels;
+
+					labels=block->block_labels;
+					while (labels!=NULL && labels->block_label_label->label_number!=0)
+						labels=labels->block_label_next;
+
+					if (labels!=NULL)
+						w_as_label_minus_label_in_code_section
+							(block->block_descriptor->label_name,labels->block_label_label->label_name,-8);
+					else
+#endif
 					w_as_label_in_code_section (block->block_descriptor->label_name);
-				else
+				} else
 					w_as_number_of_arguments (0);
 			} else
 
@@ -3770,7 +4190,23 @@ void write_assembly (VOID)
 #else
 			if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
 #endif
+#ifdef MACH_O64
+			{
+				struct block_label *labels;
+
+				labels=block->block_labels;
+				while (labels!=NULL && labels->block_label_label->label_number!=0)
+					labels=labels->block_label_next;
+
+				if (labels!=NULL)
+					w_as_label_minus_label_in_code_section
+						(block->block_descriptor->label_name,labels->block_label_label->label_name,-8);
+				else
+#endif
 				w_as_label_in_code_section (block->block_descriptor->label_name);
+#ifdef MACH_O64
+			}
+#endif
 #ifdef GENERATIONAL_GC
 			else
 				w_as_number_of_arguments (0);
@@ -3799,15 +4235,24 @@ void write_assembly (VOID)
 		w_as_instructions (block->block_instructions);
 	}
 
+#ifdef MACH_O64
+	if (intel_asm && first_call_and_jump!=NULL)
+		att_syntax();
+#endif
 	for_l (call_and_jump,first_call_and_jump,cj_next)
 		w_as_call_and_jump (call_and_jump);
-	
+#ifdef MACH_O64
+	if (intel_asm && first_call_and_jump!=NULL)
+		intel_syntax();
+#endif
+
 #ifdef DATA_IN_CODE_SECTION
 	write_float_constants();
 #endif
-
+#ifndef MACH_O64
 	if (intel_asm){
 		w_as_opcode ("end");
 		w_as_newline();
 	}
+#endif
 }
