@@ -59,6 +59,8 @@
 
 int sse_128=1;
 
+#ifndef MACH_O64
+
 #ifdef FUNCTION_LEVEL_LINKING
 # define TEXT_LABEL_ID (-2)
 # define DATA_LABEL_ID (-3)
@@ -2568,6 +2570,8 @@ static void as_parameter (int code1,int code2,struct parameter *parameter)
 	}
 }
 
+#endif
+
 /*
 	From The PowerPC Compiler Writers Guide,
 	Warren, Henry S., Jr., IBM Research Report RC 18601 [1992]. Changing Division by a
@@ -2615,6 +2619,8 @@ struct ms magic (int_64 d)
 
 	return mag;
 }
+
+#ifndef MACH_O64
 
 static void as_div_rem_i_instruction (struct instruction *instruction,int compute_remainder)
 {
@@ -7065,3 +7071,6 @@ void assemble_code (void)
 	write_object_labels();
 	write_string_table();
 }
+
+#endif
+
