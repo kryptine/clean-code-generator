@@ -55,6 +55,11 @@ static void w_as_newline (VOID)
 
 static void w_as_opcode (char *opcode)
 {
+#ifdef MACH_O64
+	if (!intel_asm)
+		fprintf (assembly_file,"\t%s ",opcode);
+	else
+#endif
 	fprintf (assembly_file,"\t%s\t",opcode);
 }
 
@@ -541,6 +546,9 @@ void w_as_abc_string_and_label_in_data_section (char *string,int length,char *la
 		w_as_newline();
 }
 
+static char *register_name[16]=	{"sp","di","si","bp","9","8","dx","cx","ax","bx",
+								"10","11","12","13","14","15"};
+
 static char register_name_char1[16]="sdsb98dcab111111";
 static char register_name_char2[16]="piip  xxxx012345";
 
@@ -562,16 +570,16 @@ static void w_as_indirect (int i,int reg)
 {
 	if (!intel_asm){
 		if (i!=0){
-			fprintf (assembly_file,"%d(%%r%c%c)",i,register_name_char1[reg+8],register_name_char2[reg+8]);
+			fprintf (assembly_file,"%d(%%r%s)",i,register_name[reg+8]);
 		} else
-			fprintf (assembly_file,"(%%r%c%c)",register_name_char1[reg+8],register_name_char2[reg+8]);
+			fprintf (assembly_file,"(%%r%s)",register_name[reg+8]);
 	} else {
 		if (i>0)
-			fprintf (assembly_file,"%d[r%c%c]",i,register_name_char1[reg+8],register_name_char2[reg+8]);
+			fprintf (assembly_file,"%d[r%s]",i,register_name[reg+8]);
 		else if (i==0)
-			fprintf (assembly_file,"[r%c%c]",register_name_char1[reg+8],register_name_char2[reg+8]);	
+			fprintf (assembly_file,"[r%s]",register_name[reg+8]);	
 		else
-			fprintf (assembly_file,"(%d)[r%c%c]",i,register_name_char1[reg+8],register_name_char2[reg+8]);
+			fprintf (assembly_file,"(%d)[r%s]",i,register_name[reg+8]);
 	}
 }
 
@@ -588,42 +596,40 @@ static void w_as_indexed (int offset,struct index_registers *index_registers)
 	if (offset!=0){
 		if (!intel_asm || offset>0){
 			if (shift!=0)
-				fprintf (assembly_file,intel_asm ? "%d[r%c%c+r%c%c*%d]" : "%d(%%r%c%c,%%r%c%c,%d)",offset,
-						 register_name_char1[reg1+8],register_name_char2[reg1+8],
-						 register_name_char1[reg2+8],register_name_char2[reg2+8],1<<shift);
+				fprintf (assembly_file,intel_asm ? "%d[r%s+r%s*%d]" : "%d(%%r%s,%%r%s,%d)",offset,
+						 register_name[reg1+8],register_name[reg2+8],1<<shift);
 			else
-				fprintf (assembly_file,intel_asm ? "%d[r%c%c+r%c%c]" : "%d(%%r%c%c,%%r%c%c)",offset,
-						 register_name_char1[reg1+8],register_name_char2[reg1+8],
-						 register_name_char1[reg2+8],register_name_char2[reg2+8]);
+				fprintf (assembly_file,intel_asm ? "%d[r%s+r%s]" : "%d(%%r%s,%%r%s)",offset,
+						 register_name[reg1+8],register_name[reg2+8]);
 		} else {
 			if (shift!=0)
-				fprintf (assembly_file,"(%d)[r%c%c+r%c%c*%d]",offset,
-						 register_name_char1[reg1+8],register_name_char2[reg1+8],
-						 register_name_char1[reg2+8],register_name_char2[reg2+8],1<<shift);
+				fprintf (assembly_file,"(%d)[r%s+r%s*%d]",offset,
+						 register_name[reg1+8],register_name[reg2+8],1<<shift);
 			else
-				fprintf (assembly_file,"(%d)[r%c%c+r%c%c]",offset,
-						 register_name_char1[reg1+8],register_name_char2[reg1+8],
-						 register_name_char1[reg2+8],register_name_char2[reg2+8]);
+				fprintf (assembly_file,"(%d)[r%s+r%s]",offset,
+						 register_name[reg1+8],register_name[reg2+8]);
 		}
 	} else {
 		if (shift!=0)
-			fprintf (assembly_file,intel_asm ? "[r%c%c+r%c%c*%d]" : "(%%r%c%c,%%r%c%c,%d)",
-					 register_name_char1[reg1+8],register_name_char2[reg1+8],
-					 register_name_char1[reg2+8],register_name_char2[reg2+8],1<<shift);
+			fprintf (assembly_file,intel_asm ? "[r%s+r%s*%d]" : "(%%r%s,%%r%s,%d)",
+					 register_name[reg1+8],register_name[reg2+8],1<<shift);
 		else
-			fprintf (assembly_file,intel_asm ? "[r%c%c+r%c%c]" : "(%%r%c%c,%%r%c%c)",
-					 register_name_char1[reg1+8],register_name_char2[reg1+8],
-					 register_name_char1[reg2+8],register_name_char2[reg2+8]);
+			fprintf (assembly_file,intel_asm ? "[r%s+r%s]" : "(%%r%s,%%r%s)",
+					 register_name[reg1+8],register_name[reg2+8]);
 	}
 }
 
 static void w_as_register (int reg)
 {
+	char c2;
+
 	if (!intel_asm)
 		putc ('%',assembly_file);
 	putc ('r',assembly_file);
 	putc (register_name_char1[reg+8],assembly_file);
-	putc (register_name_char2[reg+8],assembly_file);
+	c2=register_name_char2[reg+8];
+	if (c2!=' ')
+		putc (c2,assembly_file);
 }
 
 static void w_as_comma (VOID)
@@ -791,6 +797,7 @@ static void w_as_comma_parameter (struct parameter *parameter)
 static void w_as_comma_word_parameter (struct parameter *parameter)
 {
 	int reg;
+	char c2;
 	
 	w_as_comma();
 	if (parameter->parameter_type!=P_REGISTER)
@@ -799,7 +806,9 @@ static void w_as_comma_word_parameter (struct parameter *parameter)
 	reg=parameter->parameter_data.reg.r;
 
 	putc (register_name_char1[reg+8],assembly_file);
-	putc (register_name_char2[reg+8],assembly_file);
+	c2=register_name_char2[reg+8];
+	if (c2!=' ')
+		putc (c2,assembly_file);
 }
 
 static void w_as_byte_register (int reg)
@@ -877,22 +886,16 @@ static void w_as_call_or_jump (struct parameter *parameter,char *opcode)
 			if (!intel_asm){
 				w_as_opcode (opcode);
 				if (offset!=0)
-					fprintf (assembly_file,"*%d(%%r%c%c)",
-							 offset,register_name_char1[reg+8],register_name_char2[reg+8]);
+					fprintf (assembly_file,"*%d(%%r%s)",offset,register_name[reg+8]);
 				else
-					fprintf (assembly_file,"*(%%r%c%c)",
-							 register_name_char1[reg+8],register_name_char2[reg+8]);
+					fprintf (assembly_file,"*(%%r%s)",register_name[reg+8]);
 			} else {
 #ifdef MACH_O64
 				w_as_opcode (opcode);
 				if (offset!=0)
-					fprintf (assembly_file,
-							 "qword ptr %d[r%c%c]",offset,
-							 register_name_char1[reg+8],register_name_char2[reg+8]);
+					fprintf (assembly_file,"qword ptr %d[r%s]",offset,register_name[reg+8]);
 				else
-					fprintf (assembly_file,
-							 "qword ptr (%d)[r%c%c]",offset,
-							 register_name_char1[reg+8],register_name_char2[reg+8]);
+					fprintf (assembly_file,"qword ptr (%d)[r%s]",offset,register_name[reg+8]);
 #else
 #if 1
 				if (offset!=0){
@@ -909,13 +912,9 @@ static void w_as_call_or_jump (struct parameter *parameter,char *opcode)
 					w_as_scratch_register();
 					w_as_comma();
 					if (offset>0)
-						fprintf (assembly_file,
-								 "dword ptr %d[r%c%c]",offset,
-								 register_name_char1[reg+8],register_name_char2[reg+8]);
+						fprintf (assembly_file,"dword ptr %d[r%s]",offset,register_name[reg+8]);
 					else
-						fprintf (assembly_file,
-								 "dword ptr (%d)[r%c%c]",offset,
-								 register_name_char1[reg+8],register_name_char2[reg+8]);
+						fprintf (assembly_file,"dword ptr (%d)[r%s]",offset,register_name[reg+8]);
 					
 					w_as_newline();
 					
@@ -929,22 +928,21 @@ static void w_as_call_or_jump (struct parameter *parameter,char *opcode)
 				if (offset>0)
 					fprintf (assembly_file,
 #if 1
-							"r%c%c",
+							"r%s",
 #else
-							"%d[r%c%c]",offset,
+							"%d[r%s]",offset,
 #endif							 
-							 register_name_char1[reg+8],register_name_char2[reg+8]);
+							 register_name[reg+8]);
 				else if (offset==0)
-					fprintf (assembly_file,"[r%c%c]",
-							 register_name_char1[reg+8],register_name_char2[reg+8]);
+					fprintf (assembly_file,"[r%s]",register_name[reg+8]);
 				else
 					fprintf (assembly_file,
 #if 1
-							"r%c%c",
+							"r%s",
 #else
-							"(%d)[r%c%c]",offset,
+							"(%d)[r%s]",offset,
 #endif
-							 register_name_char1[reg+8],register_name_char2[reg+8]);
+							 register_name[reg+8]);
 #endif
 			}
 			break;
@@ -957,7 +955,7 @@ static void w_as_call_or_jump (struct parameter *parameter,char *opcode)
 	
 			reg=parameter->parameter_data.reg.r;
 
-			fprintf (assembly_file,intel_asm ? "r%c%c" : "*%%r%c%c",register_name_char1[reg+8],register_name_char2[reg+8]);
+			fprintf (assembly_file,intel_asm ? "r%s" : "*%%r%s",register_name[reg+8]);
 			break;
 		}
 		default:
@@ -3796,6 +3794,11 @@ void initialize_write_assembly (FILE *ass_file)
 
 	first_call_and_jump=NULL;
 	int_to_real_scratch_imported=0;
+
+#ifdef  MACH_O64
+	if (!intel_asm)
+		fprintf (assembly_file,"#NO_APP\n");
+#endif
 }
 
 #ifndef GENERATIONAL_GC
