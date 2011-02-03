@@ -3939,6 +3939,9 @@ static void w_as_import_labels (struct label_node *label_node)
 
 static void w_as_profile_call (struct basic_block *block)
 {
+#ifdef MACH_O64
+	w_as_lea_descriptor (block->block_profile_function_label,0,REGISTER_O0);
+#else
 	w_as_opcode_movl();
 	if (intel_asm)
 		w_as_scratch_register_comma();
@@ -3946,7 +3949,7 @@ static void w_as_profile_call (struct basic_block *block)
 	if (!intel_asm)
 		w_as_comma_scratch_register();
 	w_as_newline();
-
+#endif
 	w_as_opcode ("call");
 	
 	if (block->block_n_node_arguments>-100)
@@ -4114,6 +4117,9 @@ void write_assembly (VOID)
 							intel_syntax();
 #endif
 					} else {
+#ifdef MACH_O64
+						w_as_lea_descriptor (block->block_profile_function_label,0,REGISTER_A4);
+#else
 						w_as_opcode_movl();
 						if (intel_asm)
 							w_as_register_comma (REGISTER_A4);
@@ -4121,7 +4127,7 @@ void write_assembly (VOID)
 						if (!intel_asm)
 							w_as_comma_register (REGISTER_A4);
 						w_as_newline();
-
+#endif
 						w_as_opcode ("jmp");
 						w_as_label (eval_upd_labels[n_node_arguments]->label_name);
 						fprintf (assembly_file,"-8");
@@ -4131,6 +4137,9 @@ void write_assembly (VOID)
 						if (intel_asm)
 							w_as_register_comma (REGISTER_D0);
 						w_as_label (block->block_ea_label->label_name);
+#ifdef MACH_O64
+						fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");						
+#endif
 						if (!intel_asm)
 							w_as_comma_register (REGISTER_D0);
 						w_as_newline();

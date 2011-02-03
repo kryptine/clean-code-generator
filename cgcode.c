@@ -3860,7 +3860,11 @@ static void code_jmp_ap_ (int n_apply_args)
 		i_move_id_r (0,REGISTER_A1,REGISTER_A2);
 # ifdef PROFILE
 		if (profile_function_label!=NULL)
-			i_jmp_id_profile (4-2,REGISTER_A2,0);
+#  ifdef MACH_O64
+			i_jmp_id_profile (8-2,REGISTER_A2,0);
+#  else
+			i_jmp_id_profile (4-2,REGISTER_A2,0);			
+#  endif
 		else
 # endif
 # ifdef MACH_O64
