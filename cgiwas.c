@@ -4016,6 +4016,18 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IMOD:
 				w_as_floordiv_mod_instruction (instruction,1);
 				break;
+			case IROTL:
+				w_as_shift_instruction (instruction,"rol");
+				break;
+			case IROTR:
+				w_as_shift_instruction (instruction,"ror");
+				break;
+			case IROTL_S:
+				w_as_shift_s_instruction (instruction,"rol");
+				break;
+			case IROTR_S:
+				w_as_shift_s_instruction (instruction,"ror");
+				break;
 			case IFMOVE:
 				instruction=w_as_fmove_instruction (instruction);
 				break;

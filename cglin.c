@@ -4560,7 +4560,6 @@ static ADDRESS *evaluate_arguments (union instruction_parameter arguments[],int 
 				arguments[first_argument_number].p=f_graph;
 				arguments[first_argument_number+1].p=f_graph;
 				
-				/* CHANGED 22-10-1999 */
 				{
 				int f_graph_count;
 
@@ -4571,9 +4570,6 @@ static ADDRESS *evaluate_arguments (union instruction_parameter arguments[],int 
 					--f_graph_count;
 				f_graph->node_count=f_graph_count+1;
 				}				
-				/*
-				--f_graph->node_count;
-				*/
 				
 				linearize_float_graph (f_graph,&ad_a[first_argument_number]);
 				argument_evaluated[first_argument_number]=1;
@@ -4814,7 +4810,6 @@ static void linearize_load_graph (register INSTRUCTION_GRAPH load_graph)
 					i_fmove_id_fr (load_graph->instruction_parameters[0].i,load_graph->instruction_parameters[1].i,reg);
 					
 					float_register_node (load_graph,reg);
-					
 					break;
 				}
 				case GREGISTER:
@@ -9014,6 +9009,14 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 #if defined (I486) || defined (G_POWER)
 		case GNOT:
 			linearize_monadic_data_operator (INOT,graph,ad_p);
+			return;
+#endif
+#ifdef I486
+		case GROTL:
+			linearize_shift_operator (IROTL,IROTL_S,graph,ad_p);
+			return;
+		case GROTR:
+			linearize_shift_operator (IROTR,IROTR_S,graph,ad_p);
 			return;
 #endif
 		case GMOVEMI:

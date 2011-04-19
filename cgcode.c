@@ -2282,7 +2282,7 @@ void code_eqI (VOID)
 	s_put_b (0,graph_3);
 }
 
-void code_eqI_a (LONG value,int a_offset)
+void code_eqI_a (CleanInt value,int a_offset)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
 	
@@ -2294,7 +2294,7 @@ void code_eqI_a (LONG value,int a_offset)
 	s_push_b (graph_4);
 }
 
-void code_eqI_b (LONG value,int b_offset)
+void code_eqI_b (CleanInt value,int b_offset)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 	
@@ -3346,14 +3346,18 @@ void code_fillF_b (int b_offset,int a_offset)
 	s_put_a (a_offset,graph_5);
 }
 
-void code_fillI (LONG value,int a_offset)
+void code_fillI (CleanInt value,int a_offset)
 {
 	INSTRUCTION_GRAPH graph_1,graph_3,graph_4,graph_5;
 
 	graph_1=s_get_a (a_offset);
 
 	if (!parallel_flag &&
+#ifndef G_A64
 		(unsigned long)value<(unsigned long)33 && graph_1->instruction_code==GCREATE)
+#else
+		(uint_64)value<(uint_64)33 && graph_1->instruction_code==GCREATE)
+#endif
 	{
 		if (small_integers_label==NULL)
 			small_integers_label=enter_label ("small_integers",IMPORT_LABEL | DATA_LABEL);
@@ -5556,11 +5560,6 @@ void code_pushR_a (int a_offset)
 	graph_1=s_get_a (a_offset);
 	
 	if (!mc68881_flag){
-		/*
-		graph_2=g_movem (ARGUMENTS_OFFSET,graph_1,2);
-		graph_3=g_movemi (0,graph_2);
-		graph_4=g_movemi (1,graph_2);
-		*/
 		graph_3=g_load_id (ARGUMENTS_OFFSET-NODE_POINTER_OFFSET,graph_1);
 		graph_4=g_load_id (ARGUMENTS_OFFSET-NODE_POINTER_OFFSET+4,graph_1);
 	} else {
@@ -7019,6 +7018,57 @@ void code_release (void)
 {
 }
 
+#ifdef I486
+static INSTRUCTION_GRAPH remove_and_31_or_63 (INSTRUCTION_GRAPH graph)
+{
+	if (graph->instruction_parameters[0].p->instruction_code==GLOAD_I &&
+# ifndef G_A64
+		graph->instruction_parameters[0].p->instruction_parameters[0].i==31)
+# else
+		graph->instruction_parameters[0].p->instruction_parameters[0].i==63)
+# endif
+	{
+		return graph->instruction_parameters[1].p;
+	}
+	if (graph->instruction_parameters[1].p->instruction_code==GLOAD_I &&
+# ifndef G_A64
+		graph->instruction_parameters[1].p->instruction_parameters[0].i==31)
+# else
+		graph->instruction_parameters[1].p->instruction_parameters[0].i==63)
+# endif
+	{
+		return graph->instruction_parameters[0].p;
+	}
+	return graph;
+}
+
+void code_rotl (void)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+
+	graph_1=s_pop_b();
+	graph_2=s_get_b (0);
+	if (graph_2->instruction_code==GAND)
+		graph_2=remove_and_31_or_63 (graph_2);
+	graph_3=g_instruction_2 (GROTL,graph_2,graph_1);
+
+	s_put_b (0,graph_3);
+}
+
+void code_rotr (void)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+
+	graph_1=s_pop_b();
+	graph_2=s_get_b (0);
+	if (graph_2->instruction_code==GAND)
+		graph_2=remove_and_31_or_63 (graph_2);
+	graph_3=g_instruction_2 (GROTR,graph_2,graph_1);
+	
+	s_put_b (0,graph_3);
+}
+#endif
+
 void code_rtn (void)
 {
 	int b_offset,a_stack_size,b_stack_size,return_with_rts,n_data_parameter_registers;
@@ -7697,32 +7747,7 @@ void code_set_finalizers (VOID)
 }
 #endif
 
-#ifdef I486
-static INSTRUCTION_GRAPH remove_and_31_or_63 (INSTRUCTION_GRAPH graph)
-{
-	if (graph->instruction_parameters[0].p->instruction_code==GLOAD_I &&
-# ifndef G_A64
-		graph->instruction_parameters[0].p->instruction_parameters[0].i==31)
-# else
-		graph->instruction_parameters[0].p->instruction_parameters[0].i==63)
-# endif
-	{
-		return graph->instruction_parameters[1].p;
-	}
-	if (graph->instruction_parameters[1].p->instruction_code==GLOAD_I &&
-# ifndef G_A64
-		graph->instruction_parameters[1].p->instruction_parameters[0].i==31)
-# else
-		graph->instruction_parameters[1].p->instruction_parameters[0].i==63)
-# endif
-	{
-		return graph->instruction_parameters[0].p;
-	}
-	return graph;
-}
-#endif
-
-void code_shiftl (VOID)
+void code_shiftl (void)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 
@@ -7737,7 +7762,7 @@ void code_shiftl (VOID)
 	s_put_b (0,graph_3);
 }
 
-void code_shiftr (VOID)
+void code_shiftr (void)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 

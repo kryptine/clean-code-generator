@@ -1597,10 +1597,6 @@ static int parse_directive_n_n_t (InstructionP instruction)
 {
 	LONG n1,n2;
 	int i;
-/* CHANGED 8-3-98
-	static ULONG small_vector,*vector_p;
-	static int vector_size=0;
-*/	
 	static ULONG small_vector;
 	ULONG *vector_p;
 	int vector_size=0;
@@ -1609,7 +1605,6 @@ static int parse_directive_n_n_t (InstructionP instruction)
 		return 0;
 	
 	vector_size=n2;
-/* CHANGED 6-8-92: one extra */
 	if (vector_size+1<=SMALL_VECTOR_SIZE)
 		vector_p=&small_vector;
 	else
@@ -2322,6 +2317,10 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("repl_args_b",	parse_instruction,			code_repl_args_b );
 	put_instruction_name ("repl_r_args",	parse_instruction_n_n,		code_repl_r_args );
 	put_instruction_name ("repl_r_args_a",	parse_instruction_n_n_n_n,	code_repl_r_args_a );
+#ifdef I486
+	put_instruction_name ("rotl%",			parse_instruction,			code_rotl );
+	put_instruction_name ("rotr%",			parse_instruction,			code_rotr );
+#endif
 	put_instruction_name ("rtn",			parse_instruction,			code_rtn );
 	put_instruction_name ("RtoI",			parse_instruction,			code_RtoI );
 	put_instruction_name ("select",			parse_instruction_a_n_n,	code_select );

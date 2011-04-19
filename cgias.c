@@ -4908,6 +4908,18 @@ static void as_instructions (struct instruction *instruction)
 			case IWORD:
 				store_c (instruction->instruction_parameters[0].parameter_data.i);
 				break;
+			case IROTL:
+				as_shift_instruction (instruction,0);
+				break;
+			case IROTR:
+				as_shift_instruction (instruction,1);
+				break;
+			case IROTL_S:
+				as_shift_s_instruction (instruction,0);
+				break;
+			case IROTR_S:
+				as_shift_s_instruction (instruction,1);
+				break;
 			case IFMOVE:
 				instruction=as_fmove_instruction (instruction);
 				break;

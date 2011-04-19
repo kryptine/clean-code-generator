@@ -2426,6 +2426,10 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 		case GLSL:
 		case GLSR:
 		case GASR:
+#ifdef I486
+		case GROTL:
+		case GROTR:
+#endif
 			calculate_shift_operator (graph);
 			return;
 		case GCREATE:
@@ -2762,6 +2766,10 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GSUB_O:
 		case GEOR:
 		case GASR:
+#ifdef I486
+		case GROTL:
+		case GROTR:
+#endif
 		case GCOPY:
 		case GBOUNDS:
 #ifdef G_POWER
@@ -2978,6 +2986,10 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GSUB_O:
 		case GEOR:
 		case GASR:
+#ifdef I486
+		case GROTL:
+		case GROTR:
+#endif
 		case GCOPY:
 		case GBOUNDS:
 #ifdef G_POWER
@@ -3210,6 +3222,10 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GSUB_O:
 		case GEOR:
 		case GASR:
+#ifdef I486
+		case GROTL:
+		case GROTR:
+#endif
 		case GCOPY:
 		case GBOUNDS:
 #ifdef G_POWER

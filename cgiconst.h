@@ -50,6 +50,7 @@ enum {
 #endif
 #ifdef I486
 	,IASR_S,ILSL_S,ILSR_S
+	,IROTL,IROTR,IROTL_S,IROTR_S
 #endif
 #if defined (I486) && !defined (G_A64)
 	,IFCEQ,	IFCGE, IFCGT, IFCLE, IFCLT, IFCNE

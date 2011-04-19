@@ -683,6 +683,8 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 					instruction->instruction_icode!=ILSR_S &&
 					instruction->instruction_icode!=IFLOORDIV &&
 					instruction->instruction_icode!=IMOD &&
+					instruction->instruction_icode!=IROTL_S &&
+					instruction->instruction_icode!=IROTR_S &&
 #endif
 					instruction->instruction_icode!=IREM)
 #ifdef M68000
@@ -923,7 +925,9 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					instruction->instruction_icode!=ILSR_S &&
 					instruction->instruction_icode!=IFLOORDIV &&
 					instruction->instruction_icode!=IMOD &&
-					instruction->instruction_icode!=IREM)
+					instruction->instruction_icode!=IREM &&
+					instruction->instruction_icode!=IROTL_S &&
+					instruction->instruction_icode!=IROTR_S)
 					internal_error_in_function ("optimize_stack_access");
 				/* only first argument of mod might be register indirect */
 				/* no break ! */
@@ -1537,6 +1541,9 @@ static void store_next_uses (struct instruction *instruction)
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IASR:	case ILSL:	case ILSR:
 			case IDIV:
+# ifdef I486
+			case IROTL:	case IROTR:
+# endif
 #endif
 #if defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)
 			case IMULUD:
@@ -1564,7 +1571,7 @@ IF_G_POWER ( case IUMULH: )
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
 #ifdef I486_USE_SCRATCH_REGISTER
-			case IASR:	case ILSL:	case ILSR:
+			case IASR:	case ILSL:	case ILSR:	case IROTL:	case IROTR:
 				if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
 					define_scratch_register();
 				use_parameter (&instruction->instruction_parameters[1]);
@@ -1661,7 +1668,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 # endif
 #endif
 #ifdef I486
-			case IASR_S: case ILSL_S: case ILSR_S:
+			case IASR_S: case ILSL_S: case ILSR_S: case IROTL_S: case IROTR_S:
 				define_parameter (&instruction->instruction_parameters[2]);
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
@@ -2014,7 +2021,7 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 		real_reg_n=reg_n;
 #endif
 	else {
-		register int i;
+		int i;
 	
 #ifdef NEW_R_ALLOC
 		if (register_flag!=F_REGISTER){
@@ -3864,6 +3871,9 @@ static void allocate_registers (struct basic_block *basic_block)
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IASR:	case ILSL:	case ILSR:
 			case IDIV:
+# ifdef I486
+			case IROTL:	case IROTR:
+# endif
 #endif
 #if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
 			case IDIVU:
@@ -3879,7 +3889,7 @@ IF_G_POWER ( case IUMULH: )
 				instruction_use_2 (instruction,USE_DEF);
 				break;
 #ifdef I486_USE_SCRATCH_REGISTER
-			case IASR:	case ILSL:	case ILSR:
+			case IASR:	case ILSL:	case ILSR:	case IROTL:	case IROTR:
 				if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
 					use_scratch_register();
 				instruction_use_2 (instruction,USE_DEF);
@@ -3994,7 +4004,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #endif
 
 #ifdef I486
-			case IASR_S: case ILSL_S: case ILSR_S:
+			case IASR_S: case ILSL_S: case ILSR_S: case IROTL_S: ITOTR_S:
 				use_3_same_type_registers
 					(&instruction->instruction_parameters[0].parameter_data.reg,USE,
 					 &instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,

@@ -4397,6 +4397,18 @@ static void as_instructions (struct instruction *instruction)
 			case IDIVDU:
 				as_divdu_instruction (instruction);
 				break;
+			case IROTL:
+				as_shift_instruction (instruction,0);
+				break;
+			case IROTR:
+				as_shift_instruction (instruction,1);
+				break;
+			case IROTL_S:
+				as_shift_s_instruction (instruction,0);
+				break;
+			case IROTR_S:
+				as_shift_s_instruction (instruction,1);
+				break;
 			case IWORD:
 				store_c (instruction->instruction_parameters[0].parameter_data.i);
 				break;
