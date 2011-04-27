@@ -1216,7 +1216,7 @@ static int parse_instruction_i_n (InstructionP instruction)
 	CleanInt i;
 	LONG n;
 
-	if (!parse_integer (&i) || !parse_unsigned_integer (&n))
+	if (!parse_integer (&i) || !parse_clean_integer (&n))
 		return 0;
 	instruction->instruction_code_function (i,(int)n);
 	return 1;
