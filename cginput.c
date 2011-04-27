@@ -1213,7 +1213,8 @@ static int parse_instruction_c_n (InstructionP instruction)
 
 static int parse_instruction_i_n (InstructionP instruction)
 {
-	LONG i,n;
+	CleanInt i;
+	LONG n;
 
 	if (!parse_integer (&i) || !parse_unsigned_integer (&n))
 		return 0;
