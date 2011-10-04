@@ -5504,7 +5504,7 @@ void code_pushLc (char *c_function_name)
 	INSTRUCTION_GRAPH graph_1;
 	LABEL *label;
 
-#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
+#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (G_AI64) && !defined (LINUX_ELF)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
 	char label_name [202];
 	
 # if defined (G_POWER) && !defined (MACH_O)
