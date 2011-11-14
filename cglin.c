@@ -2648,7 +2648,21 @@ static void to_data_addressing_mode (ADDRESS *ad_p)
 #endif
 }
 
-static void in_register (register ADDRESS *ad_p)
+#ifdef G_A64
+static void load_large_immediate (ADDRESS *ad_p)
+{
+	int dreg;
+		
+	dreg=get_dregister();
+	i_move_i_r (ad_p->ad_offset,dreg);
+	ad_p->ad_mode=P_REGISTER;
+	ad_p->ad_register=dreg;
+	ad_p->ad_count_p=&ad_p->ad_count;
+	ad_p->ad_count=1;
+}
+#endif
+
+static void in_register (ADDRESS *ad_p)
 {
 	int dreg;
 	
@@ -3211,11 +3225,15 @@ static void linearize_dyadic_commutative_operator (int i_instruction_code,INSTRU
 		linearize_graph (graph_2,&ad_2);
 		linearize_graph (graph_1,&ad_1);
 	}
-	
+
 	if (graph->instruction_d_min_a_cost<=0){
 		if (ad_1.ad_mode==P_REGISTER && is_d_register (ad_1.ad_register) && *ad_1.ad_count_p<=1 && 
 			!(ad_2.ad_mode==P_REGISTER && is_d_register (ad_2.ad_register) && *ad_2.ad_count_p<=1))
 		{
+#ifdef G_A64
+			if (ad_2.ad_mode==P_IMMEDIATE && ((int)ad_2.ad_offset)!=ad_2.ad_offset)
+				load_large_immediate (&ad_2);
+#endif
 			instruction_ad_r (i_instruction_code,&ad_2,ad_1.ad_register);
 			--*ad_1.ad_count_p;
 			reg_1=ad_1.ad_register;
@@ -3232,6 +3250,10 @@ static void linearize_dyadic_commutative_operator (int i_instruction_code,INSTRU
 # endif
 				{
 				in_alterable_data_register (&ad_1);
+# ifdef G_A64
+				if (((int)ad_2.ad_offset)!=ad_2.ad_offset)
+					load_large_immediate (&ad_2);
+# endif
 				instruction_ad_r (i_instruction_code,&ad_2,ad_1.ad_register);
 				--*ad_1.ad_count_p;
 				reg_1=ad_1.ad_register;
@@ -3248,10 +3270,8 @@ static void linearize_dyadic_commutative_operator (int i_instruction_code,INSTRU
 #endif
 
 			{
-#if 1 /* optimization added 9-1-2000 */
 			if (! (ad_1.ad_mode==P_REGISTER && ad_2.ad_mode==P_REGISTER && ad_1.ad_register==ad_2.ad_register &&
 				is_d_register (ad_1.ad_register) && *ad_1.ad_count_p==2 && ad_1.ad_count_p==ad_2.ad_count_p))
-#endif
 				in_alterable_data_register (&ad_2);
 			instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
 			--*ad_2.ad_count_p;
@@ -3280,11 +3300,19 @@ static void linearize_dyadic_commutative_operator (int i_instruction_code,INSTRU
 			&& is_a_register (ad_1.ad_register) && *ad_1.ad_count_p<=1)
 		{
 			in_alterable_address_register (&ad_1);
+#ifdef G_A64
+			if (ad_2.ad_mode==P_IMMEDIATE && ((int)ad_2.ad_offset)!=ad_2.ad_offset)
+				load_large_immediate (&ad_2);
+#endif
 			instruction_ad_r (i_instruction_code,&ad_2,ad_1.ad_register);
 			--*ad_1.ad_count_p;
 			reg_1=ad_1.ad_register;
 		} else {
 			in_alterable_address_register (&ad_2);
+#ifdef G_A64
+			if (ad_1.ad_mode==P_IMMEDIATE && ((int)ad_1.ad_offset)!=ad_1.ad_offset)
+				load_large_immediate (&ad_1);
+#endif
 			instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
 			--*ad_2.ad_count_p;
 			reg_1=ad_2.ad_register;
