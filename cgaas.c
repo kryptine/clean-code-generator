@@ -1397,6 +1397,30 @@ static void as_sar_i_r (int i,int reg)
 	store_c (i);
 }
 
+static void as_shl_i_r (int i,int reg)
+{
+	int reg_n;
+
+	reg_n=reg_num (reg);
+
+	store_c (0x48 | ((reg_n & 8)>>3));
+	store_c (0301);
+	store_c (0300 | (4<<3) | (reg_n & 7));
+	store_c (i);
+}
+
+static void as_shr_i_r (int i,int reg)
+{
+	int reg_n;
+
+	reg_n=reg_num (reg);
+
+	store_c (0x48 | ((reg_n & 8)>>3));
+	store_c (0301);
+	store_c (0300 | (5<<3) | (reg_n & 7));
+	store_c (i);
+}
+
 static void as_xchg_d0_rn (int r_n)
 {
 	store_c (0x48 | ((r_n & 8)>>3));
@@ -2624,15 +2648,16 @@ struct ms magic (int_64 d)
 
 static void as_div_rem_i_instruction (struct instruction *instruction,int compute_remainder)
 {
-	int s_reg1,s_reg2,s_reg3,i,sd_reg,i_reg,tmp_reg,abs_i;
+	int s_reg1,s_reg2,s_reg3,sd_reg,i_reg,tmp_reg;
 	struct ms ms;
+	int_64 i,abs_i;
 
 	if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
 		internal_error_in_function ("as_div_rem_i_instruction");
 		
-	i=instruction->instruction_parameters[0].parameter_data.i;
+	i=instruction->instruction_parameters[0].parameter_data.imm;
 
-	if (! ((i>1 || (i<-1 && i!=0x80000000))))
+	if (! ((i>1 || (i<-1 && i!=0x8000000000000000ll))))
 		internal_error_in_function ("as_div_rem_i_instruction");
 	
 	abs_i=i>=0 ? i : -i;
@@ -2697,17 +2722,9 @@ static void as_div_rem_i_instruction (struct instruction *instruction,int comput
 			s_reg3=REGISTER_D0;
 	}
 
-	if (i>=0){
-		int s_reg2_n;
-	
-		s_reg2_n=reg_num (s_reg2);
-
-		/* shr */
-		store_c (0x48 | ((s_reg2_n & 8)>>3));
-		store_c (0301);
-		store_c (0300 | (5<<3) | (s_reg2_n & 7));
-		store_c (63);
-	} else
+	if (i>=0)
+		as_shr_i_r (63,s_reg2);
+	else
 		as_sar_i_r (63,s_reg2);
 
 	if (ms.s>0)
@@ -2741,13 +2758,14 @@ static void as_div_rem_i_instruction (struct instruction *instruction,int comput
 				as_r_r (0053,REGISTER_A1,s_reg2); /* sub */ /* s_reg2==sd_reg */
 		}
 	} else {
-		int r,i2;
+		int r;
+		int_64 i2;
 		
 		as_r_r (0003,s_reg2,REGISTER_A1); /* add */
 
 		i2=i & (i-1);
 		if ((i2 & (i2-1))==0){
-			unsigned int n;
+			uint_64 n;
 			int n_shifts;
 
 			n=i;
@@ -2759,13 +2777,8 @@ static void as_div_rem_i_instruction (struct instruction *instruction,int comput
 					++n_shifts;
 				}
 				
-				if (n_shifts>0){
-					/* shl */
-					store_c (0x48);
-					store_c (0301);
-					store_c (0300 | (4<<3) | reg_num (REGISTER_A1));
-					store_c (n_shifts);
-				}
+				if (n_shifts>0)
+					as_shl_i_r (n_shifts,REGISTER_A1);
 				
 				as_r_r (0053,REGISTER_A1,s_reg3); /* sub */
 
@@ -2774,16 +2787,22 @@ static void as_div_rem_i_instruction (struct instruction *instruction,int comput
 			}
 		} else {
 			/* imul */
-			r=reg_num (REGISTER_A1);
-			store_c (0x48);
-			if ((signed char)i==i){
-				store_c (0153);
-				store_c (0300 | (r<<3) | r);
-				store_c (i);
+			if (((int)i)==i){
+				r=reg_num (REGISTER_A1);
+				store_c (0x48);
+				if ((signed char)i==i){
+					store_c (0153);
+					store_c (0300 | (r<<3) | r);
+					store_c (i);
+				} else {
+					store_c (0151);
+					store_c (0300 | (r<<3) | r);
+					store_l (i);
+				}
 			} else {
-				store_c (0151);
-				store_c (0300 | (r<<3) | r);
-				store_l (i);
+				as_move_i64_r (i,s_reg2);
+
+				as_017_r_r (0257,s_reg2,REGISTER_A1); /* imul */
 			}
 
 			as_r_r (0053,REGISTER_A1,s_reg3); /* sub */
@@ -2818,9 +2837,10 @@ static void as_div_instruction (struct instruction *instruction)
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
 	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
-		int i,log2i;
+		int_64 i;
+		int log2i;
 		
-		i=instruction->instruction_parameters[0].parameter_data.i;
+		i=instruction->instruction_parameters[0].parameter_data.imm;
 		
 		if (! ((i & (i-1))==0 && i>0)){
 			internal_error_in_function ("as_div_instruction");
@@ -2843,15 +2863,20 @@ static void as_div_instruction (struct instruction *instruction)
 
 			as_r_r (0053,REGISTER_O0,d_reg); /* sub */
 		} else {
-			as_sar_i_r (63,d_reg);
+			if (log2i<32){
+				as_sar_i_r (63,d_reg);
 
-			/* and */
-			if (d_reg==EAX){
-				store_c (0x48);
-				store_c (045);
-			} else
-				as_r (0201,040,d_reg);
-			store_l ((1<<log2i)-1);
+				/* and */
+				if (d_reg==EAX){
+					store_c (0x48);
+					store_c (045);
+				} else
+					as_r (0201,040,d_reg);
+				store_l ((1<<log2i)-1);
+			} else {
+				as_sar_i_r (log2i-1,d_reg);
+				as_shr_i_r (64-log2i,d_reg);
+			}
 
 			as_r_r (0003,REGISTER_O0,d_reg); /* add */
 		}
@@ -2966,11 +2991,12 @@ static void as_rem_instruction (struct instruction *instruction)
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
 	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
-		int i,log2i;
+		int log2i;
+		int_64 i;
 		
-		i=instruction->instruction_parameters[0].parameter_data.i;
+		i=instruction->instruction_parameters[0].parameter_data.imm;
 
-		if (i<0 && i!=0x80000000)
+		if (i<0 && i!=0x8000000000000000ll)
 			i=-i;
 		
 		if (! ((i & (i-1))==0 && i>1)){
@@ -2999,25 +3025,31 @@ static void as_rem_instruction (struct instruction *instruction)
 
 			as_r_r (0063,REGISTER_O0,d_reg); /* xor */
 		} else {
-			as_sar_i_r (31,REGISTER_O0);
-
-			/* and */
-			if (REGISTER_O0==EAX){
-				store_c (0x48);
-				store_c (045);
-			} else
-				as_r (0201,040,REGISTER_O0);
-			store_l ((1<<log2i)-1);
+			as_sar_i_r (63,REGISTER_O0);
 
 			as_r_r (0003,REGISTER_O0,d_reg); /* add */
 
-			/* and */
-			if (d_reg==EAX){
-				store_c (0x48);
-				store_c (045);
-			} else
-				as_r (0201,040,d_reg);
-			store_l ((1<<log2i)-1);
+			if (log2i<32){
+				/* and */
+				if (REGISTER_O0==EAX){
+					store_c (0x48);
+					store_c (045);
+				} else
+					as_r (0201,040,REGISTER_O0);
+				store_l ((1<<log2i)-1);
+
+				/* and */
+				if (d_reg==EAX){
+					store_c (0x48);
+					store_c (045);
+				} else
+					as_r (0201,040,d_reg);
+				store_l ((1<<log2i)-1);
+			} else {
+				as_shr_i_r (64-log2i,REGISTER_O0);
+				as_shl_i_r (64-log2i,d_reg);
+				as_shr_i_r (64-log2i,d_reg);
+			}
 		}
 
 		as_r_r (0053,REGISTER_O0,d_reg); /* sub */

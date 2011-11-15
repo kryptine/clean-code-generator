@@ -1981,18 +1981,19 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 
 static void w_as_div_rem_i_instruction (struct instruction *instruction,int compute_remainder)
 {
-	int s_reg1,s_reg2,s_reg3,i,sd_reg,i_reg,tmp_reg,abs_i;
+	int s_reg1,s_reg2,s_reg3,sd_reg,i_reg,tmp_reg;
 	struct ms ms;
+	int_64 i,abs_i;
 
 	if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
 		internal_error_in_function ("w_as_div_rem_i_instruction");
-		
-	i=instruction->instruction_parameters[0].parameter_data.i;
 
-	if (! ((i>1 || (i<-1 && i!=0x80000000))))
+	i=instruction->instruction_parameters[0].parameter_data.imm;
+
+	if (! ((i>1 || (i<-1 && i!=0x8000000000000000ll))))
 		internal_error_in_function ("w_as_div_rem_i_instruction");
 	
-	abs_i=abs (i);
+	abs_i=i>=0 ? i : -i;
 
 	if (compute_remainder)
 		i=abs_i;
@@ -2096,13 +2097,13 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 		} else
 			w_as_opcode_register_register_newline (i>=0 ? "add" : "sub",REGISTER_A1,s_reg2); /* s_reg2==sd_reg */
 	} else {
-		int i2;
+		int_64 i2;
 		
 		w_as_opcode_register_register_newline ("add",s_reg2,REGISTER_A1);
 
 		i2=i & (i-1);
 		if ((i2 & (i2-1))==0){
-			unsigned int n;
+			uint_64 n;
 			int n_shifts;
 
 			n=i;
@@ -2125,8 +2126,15 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 				n_shifts=1;
 			}
 		} else {
-			w_as_opcode (intel_asm ? "imul" : "imulq");
-			w_as_immediate_register_newline (i,REGISTER_A1);
+			if (((int)i)==i){
+				w_as_opcode (intel_asm ? "imul" : "imull");
+				w_as_immediate_register_newline (i,REGISTER_A1);
+			} else {
+				w_as_opcode_movl();
+				w_as_immediate_register_newline (i,s_reg2);
+
+				w_as_opcode_register_register_newline (intel_asm ? "imul" : "imull",s_reg2,REGISTER_A1);
+			}
 
 			w_as_opcode_register_register_newline ("sub",REGISTER_A1,s_reg3);
 		}
@@ -2160,9 +2168,10 @@ static void w_as_div_instruction (struct instruction *instruction)
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
 	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
-		int i,log2i;
+		int_64 i;
+		int log2i;
 		
-		i=instruction->instruction_parameters[0].parameter_data.i;
+		i=instruction->instruction_parameters[0].parameter_data.imm;
 		
 		if ((i & (i-1))==0 && i>0){		
 			if (i==1)
@@ -2182,11 +2191,19 @@ static void w_as_div_instruction (struct instruction *instruction)
 
 				w_as_opcode_register_register_newline ("sub",REGISTER_O0,d_reg);
 			} else {
-				w_as_opcode ("sar");
-				w_as_immediate_register_newline (63,d_reg);
+				if (log2i<32){
+					w_as_opcode ("sar");
+					w_as_immediate_register_newline (63,d_reg);
 
-				w_as_opcode ("and");
-				w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
+					w_as_opcode ("and");
+					w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
+				} else {
+					w_as_opcode ("sar");
+					w_as_immediate_register_newline (log2i-1,d_reg);
+
+					w_as_opcode ("shr");
+					w_as_immediate_register_newline (64-log2i,d_reg);
+				}
 
 				w_as_opcode_register_register_newline ("add",REGISTER_O0,d_reg);
 			}
@@ -2319,11 +2336,12 @@ static void w_as_rem_instruction (struct instruction *instruction)
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
 	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
-		int i,log2i;
+		int log2i;
+		int_64 i;
 		
-		i=instruction->instruction_parameters[0].parameter_data.i;
+		i=instruction->instruction_parameters[0].parameter_data.imm;
 		
-		if (i<0 && i!=0x80000000)
+		if (i<0 && i!=0x8000000000000000ll)
 			i=-i;
 		
 		if (! ((i & (i-1))==0 && i>1)){
@@ -2351,13 +2369,24 @@ static void w_as_rem_instruction (struct instruction *instruction)
 			w_as_opcode ("sar");
 			w_as_immediate_register_newline (63,REGISTER_O0);
 
-			w_as_opcode ("and");
-			w_as_immediate_register_newline ((1<<log2i)-1,REGISTER_O0);
-
 			w_as_opcode_register_register_newline ("add",REGISTER_O0,d_reg);
 
-			w_as_opcode ("and");
-			w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
+			if (log2i<32){
+				w_as_opcode ("and");
+				w_as_immediate_register_newline ((1<<log2i)-1,REGISTER_O0);
+
+				w_as_opcode ("and");
+				w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
+			} else {
+				w_as_opcode ("shr");
+				w_as_immediate_register_newline (64-log2i,REGISTER_O0);
+
+				w_as_opcode ("shl");
+				w_as_immediate_register_newline (64-log2i,d_reg);			
+
+				w_as_opcode ("shr");
+				w_as_immediate_register_newline (64-log2i,d_reg);			
+			}
 		}
 		
 		w_as_opcode_register_register_newline ("sub",REGISTER_O0,d_reg);

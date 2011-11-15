@@ -3943,27 +3943,36 @@ static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH
 		linearize_graph (graph_2,&ad_2);
 		linearize_graph (graph_1,&ad_1);
 	}
-
+# ifdef I486
+	in_preferred_alterable_register (&ad_2,REGISTER_D0);
+# else
 	in_alterable_data_register (&ad_2);
-	to_data_addressing_mode (&ad_1);
-
+# endif
 # ifdef I486
 	if (ad_1.ad_mode==P_IMMEDIATE){
 		if (i_instruction_code==IDIVU || i_instruction_code==IREMU){
 			in_data_register (&ad_1);
 			instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);		
 		} else {
-			int i;
+			CleanInt i;
 			
 			i=ad_1.ad_offset;
+# ifndef G_A64
 			if (i_instruction_code==IREM && i<0 && i!=0x80000000)
+# else
+			if (i_instruction_code==IREM && i<0 && i!=0x8000000000000000ll)
+# endif
 				i=-i;
-			
-			if ((i & (i-1))==0 && (i_instruction_code==IREM ? i>1 : i>0))
+
+			if ((i & (i-1))==0 && (i_instruction_code==IREM ? i>1 : i>0)){
 				instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
-			else if (i>1 || (i<-1 && i!=0x80000000)){
+# ifndef G_A64
+			} else if (i>1 || (i<-1 && i!=0x80000000)){
+# else
+			} else if (i>1 || (i<-1 && i!=0x8000000000000000ll)){
+# endif
 				int tmp_reg;
-				
+
 				tmp_reg=get_dregister();
 				instruction_ad_r_r (i_instruction_code==IDIV ? IDIVI : IREMI,&ad_1,ad_2.ad_register,tmp_reg);
 				free_dregister (tmp_reg);
@@ -3973,6 +3982,7 @@ static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH
 			}
 		}
 	} else {
+		to_data_addressing_mode (&ad_1);
 		if (ad_1.ad_mode==P_INDEXED)
 			in_data_register (&ad_1);
 		instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
@@ -3983,7 +3993,7 @@ static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH
 
 	--*ad_2.ad_count_p;
 	reg_1=ad_2.ad_register;
-	
+
 	if (graph->instruction_d_min_a_cost>0){
 		int areg;
 		
@@ -4071,10 +4081,14 @@ static void linearize_floordiv_mod_operator (int i_instruction_code,INSTRUCTION_
 	}
 
 	{
-	int i;
+	CleanInt i;
 
 	if (ad_1.ad_mode==P_IMMEDIATE && i_instruction_code==IFLOORDIV &&
+# ifndef G_A64
 		(i=ad_1.ad_offset, (i>1 || (i<-1 && i!=0x80000000))))
+# else
+		(i=ad_1.ad_offset, (i>1 || (i<-1 && i!=0x8000000000000000ll))))
+# endif
 	{
 		int tmp_reg2;
 
@@ -6751,9 +6765,8 @@ static void linearize_dyadic_commutative_float_operator (int instruction_code,re
 	}
 	
 	if (ad_1.ad_mode==P_F_REGISTER && *ad_1.ad_count_p==1
-		/* added 17-3-1999: prefer result in lowest register number */
+		/* prefer result in lowest register number */
 		&& !(ad_2.ad_mode==P_F_REGISTER && *ad_2.ad_count_p==1 && ad_2.ad_register<ad_1.ad_register)
-		/* */
 	){
 		reg_1=ad_1.ad_register;
 		instruction_ad_fr (instruction_code,&ad_2,reg_1);
