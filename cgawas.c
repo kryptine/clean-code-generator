@@ -2130,7 +2130,7 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 				w_as_opcode (intel_asm ? "imul" : "imull");
 				w_as_immediate_register_newline (i,REGISTER_A1);
 			} else {
-				w_as_opcode_movl();
+				w_as_opcode_movq();
 				w_as_immediate_register_newline (i,s_reg2);
 
 				w_as_opcode_register_register_newline (intel_asm ? "imul" : "imull",s_reg2,REGISTER_A1);
