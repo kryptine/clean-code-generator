@@ -3271,8 +3271,6 @@ static void w_as_fmoves_instruction (struct instruction *instruction)
 	internal_error_in_function ("w_as_fmoves_instruction");
 }
 
-static int int_to_real_scratch_imported=0;
-
 static void w_as_fmovel_instruction (struct instruction *instruction)
 {
 	if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
@@ -3834,7 +3832,6 @@ void initialize_write_assembly (FILE *ass_file)
 	in_data_section=0;
 
 	first_call_and_jump=NULL;
-	int_to_real_scratch_imported=0;
 
 #ifdef  MACH_O64
 	if (!intel_asm)
