@@ -2543,6 +2543,21 @@ static void instruction_l (int instruction_code,LABEL *label)
 	instruction->instruction_parameters[0].parameter_data.l=label;
 }
 
+#if defined (THREAD64)
+void instruction_l_r (int instruction_code,LABEL *label,int register_1)
+{
+	struct instruction *instruction;
+
+	instruction=i_new_instruction2 (instruction_code);
+	
+	S2 (instruction->instruction_parameters[0],	parameter_type=P_LABEL,
+												parameter_data.l=label);
+
+	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
+												parameter_data.i=register_1);
+}
+#endif
+
 static void instruction_ad_r_r (int instruction_code,ADDRESS *ad_p,int register_1,int register_2)
 {
 	struct instruction *instruction;

@@ -1999,7 +1999,9 @@ static void insert_move (int reg_n_1,int reg_n_2,int register_flag)
 #define REAL_A0 (N_REAL_A_REGISTERS-1)
 #define REAL_A1 (N_REAL_A_REGISTERS-2)
 #define REAL_A2 (N_REAL_A_REGISTERS-3)
-#define REAL_A3 (N_REAL_A_REGISTERS-4)
+# ifndef THREAD64
+#  define REAL_A3 (N_REAL_A_REGISTERS-4)
+# endif
 #define REAL_A4 (N_REAL_A_REGISTERS-5)
 #define REAL_A5 (N_REAL_A_REGISTERS-6)
 #define REAL_A6 (N_REAL_A_REGISTERS-7)
@@ -2076,10 +2078,12 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 				i=reg_alloc[REAL_A2].instruction_n;
 			}
 #endif
+#ifndef THREAD64
 			if (reg_alloc[REAL_A3].instruction_n<i){
 				real_reg_n=REAL_A3;
 				i=reg_alloc[REAL_A3].instruction_n;
 			}
+#endif
 #ifndef POWER_PC_A_STACK_OPTIMIZE
 			if (reg_alloc[REAL_A4].instruction_n<i){
 				real_reg_n=REAL_A4;
@@ -2301,10 +2305,12 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 				i=reg_alloc[REAL_A2].instruction_n;
 			}
 #endif
+#ifndef THREAD64
 			if (reg_alloc[REAL_A3].instruction_n<i && avoid_reg_n!=REAL_A3){
 				real_reg_n=REAL_A3;
 				i=reg_alloc[REAL_A3].instruction_n;
 			}
+#endif
 #ifndef POWER_PC_A_STACK_OPTIMIZE
 			if (reg_alloc[REAL_A4].instruction_n<i && avoid_reg_n!=REAL_A4){
 				real_reg_n=REAL_A4;
@@ -2531,10 +2537,12 @@ static int find_reg_not_in_set
 				i=reg_alloc[REAL_A2].instruction_n;
 			}
 #  endif
+#  ifndef THREAD64
 			if (reg_alloc[REAL_A3].instruction_n<i && !(avoid_reg_set & (1<<REAL_A3))){
 				real_reg_n=REAL_A3;
 				i=reg_alloc[REAL_A3].instruction_n;
 			}
+#  endif
 #ifndef POWER_PC_A_STACK_OPTIMIZE
 			if (reg_alloc[REAL_A4].instruction_n<i && !(avoid_reg_set & (1<<REAL_A4))){
 				real_reg_n=REAL_A4;

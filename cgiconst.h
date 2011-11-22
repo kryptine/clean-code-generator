@@ -80,6 +80,9 @@ enum {
 #ifdef G_AI64
 	,ILOADSQB, IMOVEQB,	IFCVT2S
 #endif
+#if defined (THREAD64)
+	,ILDTLSP
+#endif
 };
 
 enum {

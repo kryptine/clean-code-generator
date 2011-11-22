@@ -37,6 +37,9 @@
 #  endif
 # endif
 #endif
+#if defined (THREAD64)
+# include "cgiconst.h"
+#endif
 #ifndef MACH_O64
 # define GEN_OBJ
 #endif
@@ -55,11 +58,14 @@ extern LABEL *	system_sp_label,
 				*string_to_string_node_label,*int_array_to_node_label,*real_array_to_node_label,
 				*new_int_reducer_label,*channelP_label,*stop_reducer_label,*send_request_label,*send_graph_label;
 
-#if defined (I486) || defined (G_POWER)
+#if (defined (I486) && !defined (THREAD64)) || defined (G_POWER)
 LABEL *saved_heap_p_label,*saved_a_stack_p_label;
 #endif
 #ifdef MACH_O
 LABEL *dyld_stub_binding_helper_p_label;
+#endif
+#if defined (THREAD64)
+LABEL *tlsp_tls_index_label;
 #endif
 
 extern struct basic_block *last_block;
@@ -2176,12 +2182,252 @@ static void stoi_next_parts (int i_s,char s[],int size_s,int i_a_f,int i_a_e,int
 		printf ("error in stoi_next_parts\n");
 }
 
+static struct integer octal_string_to_integer (W sign,char *s,int size_s)
+{
+	int n_bits,n_zero_bits_in_msd;
+	
+	while (size_s>0 && s[0]=='0'){
+		--size_s;
+		++s;
+	}
+
+	if (size_s>0){
+		int n;
+
+		n=s[size_s-1] & 7;
+		if (n<3)
+			n_zero_bits_in_msd=3-n;
+		else if (n==3)
+			n_zero_bits_in_msd=1;
+		else
+			n_zero_bits_in_msd=0;
+
+		n_bits = 3*size_s-n_zero_bits_in_msd;
+	} else {
+		n_bits=0;
+		n_zero_bits_in_msd=0; /* not used */
+	}
+
+	if (n_bits<=IF_INT_64_OR_32(64,32)){
+		struct integer i;
+		UW l;
+		
+		l=0;
+		while (size_s>0){
+			char c;
+			
+			c=*s++;
+			l<<=(UW)3;
+			l+=(UW) (c & 7);
+			--size_s;
+		}
+
+		if ((UW)l < (UW)(((UW)1<<(UW)Max_bit_n_in_int)-sign)){
+			i.s=(l ^ sign)-sign;
+			i.a=NULL;
+		
+			return i;
+		} else {
+			UW *a;
+
+			a=calloc (2,sizeof (UW));
+			if (a==NULL)
+				error ("Out of memory\n");
+
+			a[0]=1;
+			a[1]=l;
+			
+			i.s=sign;
+			i.a=a+1;
+
+			return i;
+		}		
+	} else {
+		int size_a,i,j,n_auw_bits;
+		struct integer si;
+		UW *a,auw;
+
+		size_a = IF_INT_64_OR_32 ((n_bits+63)>>6,(n_bits+31)>>5);
+
+		a = calloc (size_a+1,sizeof(UW));
+		if (a==NULL)
+			printf ("Out of memory\n");
+		++a;
+
+		auw=0;
+		n_auw_bits=0;
+		
+		j=size_s;
+		i=0;
+		
+		while (j>IF_INT_64_OR_32(21,10)){
+			UW uw;
+			int n_uw_bits;
+			
+			uw=0;
+			n_uw_bits=0;
+			do {
+				--j;
+				uw |= ((UW)(s[j] & 7)) << ((UW)n_uw_bits);
+				
+				n_uw_bits+=3;
+			} while (n_uw_bits<IF_INT_64_OR_32(63,30));
+
+			auw |= uw << (UW)n_auw_bits;
+			n_auw_bits+=n_uw_bits;
+			if (n_auw_bits>=IF_INT_64_OR_32(64,32)){
+				a[i]=auw;
+				++i;
+				n_auw_bits-=IF_INT_64_OR_32(64,32);
+				auw=uw >> (UW)(n_uw_bits-n_auw_bits);
+			}
+		}
+		
+		{
+			UW uw,m;
+			int n_uw_bits;
+			
+			uw=0;
+			n_uw_bits=0;
+			while (j>0){
+				--j;
+				uw |= ((UW)(s[j] & 7)) << ((UW)n_uw_bits);
+				
+				n_uw_bits+=3;
+			};
+
+			n_uw_bits-=n_zero_bits_in_msd;
+
+			auw |= uw << (UW)n_auw_bits;
+			n_auw_bits+=n_uw_bits;
+			if (n_auw_bits>=IF_INT_64_OR_32(64,32)){
+				a[i]=auw;
+				++i;
+				n_auw_bits-=IF_INT_64_OR_32(64,32);
+				auw=uw >> (UW)(n_uw_bits-n_auw_bits);
+			}
+			
+			if (n_auw_bits>0)
+				a[i]=auw;
+				++i;
+		}
+
+		si.a=a;
+		si.s=sign;
+		a[-1]=size_a;
+			
+		return si;
+	}
+}
+
+static struct integer hex_string_to_integer (W sign,char *s,int size_s)
+{
+	while (size_s>0 && s[0]=='0'){
+		--size_s;
+		++s;
+	}
+
+	if (size_s<=IF_INT_64_OR_32(16,8)){
+		struct integer i;
+		UW l;
+		
+		l=0;
+		while (size_s>0){
+			char c;
+			
+			c=*s++;
+			l<<=(UW)4;
+			l+=(UW) (c<='9' ? c-'0' : (c | 0x20)-('a'-10));
+			--size_s;
+		}
+
+		if ((UW)l < (UW)(((UW)1<<(UW)Max_bit_n_in_int)-sign)){
+			i.s=(l ^ sign)-sign;
+			i.a=NULL;
+		
+			return i;
+		} else {
+			UW *a;
+
+			a=calloc (2,sizeof (UW));
+			if (a==NULL)
+				error ("Out of memory\n");
+
+			a[0]=1;
+			a[1]=l;
+			
+			i.s=sign;
+			i.a=a+1;
+
+			return i;
+		}
+	} else {
+		int size_a,i,j;
+		UW *a,uw;
+		struct integer si;
+
+		size_a = IF_INT_64_OR_32 ((size_s+15)>>4,(size_s+7)>>3);
+
+		a = calloc (size_a+1,sizeof(UW));
+		if (a==NULL)
+			printf ("Out of memory\n");
+		++a;
+
+		i=size_a-1;
+
+		uw=0;
+
+		j=size_s & IF_INT_64_OR_32(15,7);
+		if (j==0)
+			j=IF_INT_64_OR_32(16,8);
+
+		do {
+			char c;
+			
+			c=*s++;
+			uw<<=(UW)4;
+			uw+=(UW) (c<='9' ? c-'0' : (c | 0x20)-('a'-10));
+		} while (--j!=0);
+
+		a[i]=uw;
+		--i;
+
+		while (i>=0){
+			uw=0;
+			
+			for (j=IF_INT_64_OR_32(16,8); j!=0; --j){
+				char c;
+				
+				c=*s++;
+				uw<<=(UW)4;
+				uw+=(UW) (c<='9' ? c-'0' : (c | 0x20)-('a'-10));				
+			}
+			
+			a[i]=uw;
+			--i;
+		}
+
+		si.a=a;
+		si.s=sign;
+		a[-1]=size_a;
+			
+		return si;
+	}
+}
+
 static struct integer string_to_integer (W sign,char *s,int size_s)
 {
 	if (s[0]=='-'){
 		sign=-1;
 		--size_s;
 		++s;
+	}
+
+	if (size_s>2 && s[0]=='0'){
+		if ((s[1] | 0x20)=='x')
+			return hex_string_to_integer (sign,s+2,size_s-2);
+		else if ((s[1] | 0x20)=='o')
+			return octal_string_to_integer (sign,s+2,size_s-2);
 	}
 
 	if (size_s<=N_digits_in_part){
@@ -3323,27 +3569,91 @@ static char ccall_error_string[] = "Error in ccall of '%s'";
 # define B_STACK_REGISTER B_STACK_POINTER
 #endif
 
-#if defined (G_POWER) || defined (sparc)
-	static void ccall_load_b_offset (int b_o,int c_parameter_n)
-	{
-		if (c_parameter_n<N_C_PARAMETER_REGISTERS)
-			i_lea_id_r (b_o,B_STACK_REGISTER,C_PARAMETER_REGISTER_0+c_parameter_n);
-		else {
-			i_lea_id_r (b_o,B_STACK_REGISTER,REGISTER_A3);
-			i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n)<<2,SP_REGISTER);
-		}
-	}
+#ifdef G_AI64
+static void remove_at_sign_size_from_function_name (char c_function_name[])
+{
+	int l;
 	
-	static void ccall_load_string_or_array_offset (int offset,int c_parameter_n,int a_o)
-	{
-		i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
-		if (c_parameter_n<N_C_PARAMETER_REGISTERS)
-			i_lea_id_r (offset,REGISTER_A0,C_PARAMETER_REGISTER_0+c_parameter_n);
-		else {
-			i_lea_id_r (offset,REGISTER_A0,REGISTER_A3);
-			i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n)<<2,SP_REGISTER);
-		}
+	l=strlen (c_function_name)-1;
+	if (l>=0 && isdigit (c_function_name[l])){
+		do
+			--l;
+		while (l>=0 && isdigit (c_function_name[l]));
+		if (l>0 && c_function_name[l]=='@')
+			c_function_name[l]='\0';
 	}
+}
+#endif
+
+static void push_extra_clean_b_register_parameters (int n_extra_clean_b_register_parameters)
+{
+	int n,offset;
+	
+	offset=-STACK_ELEMENT_SIZE;
+	for (n=0; n<n_extra_clean_b_register_parameters-1; ++n){
+#ifdef i486
+		i_move_r_pd (REGISTER_D0+n,B_STACK_POINTER);
+#else
+		i_move_r_id (REGISTER_D0+n,offset,B_STACK_POINTER);
+#endif
+		offset-=STACK_ELEMENT_SIZE;
+	}
+
+#ifdef G_POWER
+	i_move_r_idu (REGISTER_D0+n,offset,B_STACK_POINTER);
+#elif defined (sparc)
+	i_move_r_id (REGISTER_D0+n,offset,B_STACK_POINTER);
+	i_sub_i_r (-offset,B_STACK_POINTER);
+#else
+	i_move_r_pd (REGISTER_D0+n,B_STACK_POINTER);
+#endif
+}
+
+#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
+static LABEL *enter_c_function_name_label (char *c_function_name)
+{
+	char label_name [202];
+
+# if defined (G_POWER) && !defined (MACH_O)
+	label_name[0]='.';
+# else
+	label_name[0]='_';
+# endif
+	strcpy (&label_name[1],c_function_name);
+
+	return enter_label (label_name,0);
+}
+#else
+# define enter_c_function_name_label(c_function_name) enter_label (c_function_name,0)
+#endif
+
+#if defined (G_POWER) || defined (sparc)
+static void ccall_load_b_offset (int b_o,int c_parameter_n)
+{
+	if (c_parameter_n<N_C_PARAMETER_REGISTERS)
+		i_lea_id_r (b_o,B_STACK_REGISTER,C_PARAMETER_REGISTER_0+c_parameter_n);
+	else {
+		i_lea_id_r (b_o,B_STACK_REGISTER,REGISTER_A3);
+		i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n)<<2,SP_REGISTER);
+	}
+}
+
+static void ccall_load_string_or_array_offset (int offset,int c_parameter_n,int a_o)
+{
+	i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
+	if (c_parameter_n<N_C_PARAMETER_REGISTERS)
+		i_lea_id_r (offset,REGISTER_A0,C_PARAMETER_REGISTER_0+c_parameter_n);
+	else {
+		i_lea_id_r (offset,REGISTER_A0,REGISTER_A3);
+		i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n)<<2,SP_REGISTER);
+	}
+}
+#endif
+
+#ifdef THREAD64
+# define SAVED_HEAP_P_OFFSET 24
+# define SAVED_R15_OFFSET 32
+# define SAVED_A_STACK_P_OFFSET 40
 #endif
 
 void code_ccall (char *c_function_name,char *s,int length)
@@ -3356,6 +3666,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 	int n_extra_clean_b_register_parameters;
 	int first_pointer_result_index,callee_pops_arguments,save_state_in_global_variables;
 	int function_address_parameter;
+	int n_a_c_in_clean_out_parameters_size,n_b_c_in_clean_out_parameters_size;
 
 #if defined (sparc) || defined (G_POWER)
 		int	c_parameter_n;
@@ -3379,7 +3690,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 		++s;
 		--length;
 		save_state_in_global_variables=1;
-#if defined (I486) || defined (G_POWER)
+#if (defined (I486) && !defined (THREAD64)) || defined (G_POWER)
 		if (saved_heap_p_label==NULL)
 			saved_heap_p_label=enter_label ("saved_heap_p",IMPORT_LABEL);
 		if (saved_a_stack_p_label==NULL)
@@ -3394,18 +3705,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 		callee_pops_arguments=1;
 
 #ifdef G_AI64
-		{
-			int l;
-			
-			l=strlen (c_function_name)-1;
-			if (l>=0 && isdigit (c_function_name[l])){
-				do
-					--l;
-				while (l>=0 && isdigit (c_function_name[l]));
-				if (l>0 && c_function_name[l]=='@')
-					c_function_name[l]='\0';
-			}
-		}
+		remove_at_sign_size_from_function_name (c_function_name);
 #endif
 	} else
 		callee_pops_arguments=0;
@@ -3416,6 +3716,8 @@ void code_ccall (char *c_function_name,char *s,int length)
 	a_offset=0;
 	b_offset=0;
 	n_clean_b_register_parameters=0;
+	n_a_c_in_clean_out_parameters_size=0;
+	n_b_c_in_clean_out_parameters_size=0;
 
 	for (l=0; l<length; ++l){
 		switch (s[l]){
@@ -3428,6 +3730,12 @@ void code_ccall (char *c_function_name,char *s,int length)
 				b_offset+=STACK_ELEMENT_SIZE;
 				if (!float_parameters)
 					++n_clean_b_register_parameters;
+#if defined (I486) && !defined (G_AI64)
+				if (s[l+1]=='>'){
+					++l;
+					n_b_c_in_clean_out_parameters_size+=STACK_ELEMENT_SIZE;
+				}
+#endif
 				continue;
 # if defined (I486) || defined (G_POWER)
 			case 'r':
@@ -3443,6 +3751,12 @@ void code_ccall (char *c_function_name,char *s,int length)
 			case 's':
 			case 'A':
 				a_offset+=STACK_ELEMENT_SIZE;
+#if defined (I486) && !defined (G_AI64)
+				if (s[l+1]=='>'){
+					++l;
+					n_a_c_in_clean_out_parameters_size+=STACK_ELEMENT_SIZE;
+				}
+#endif
 				continue;
 			case 'O':
 			case 'F':
@@ -3529,7 +3843,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 				}
 				break;
 			case 'V':
-				if (l==min_index+1 && l!=length-1)
+				if ((l==min_index+1 && l!=length-1) || n_a_c_in_clean_out_parameters_size+n_b_c_in_clean_out_parameters_size!=0)
 					continue;
 			default:
 				error_s (ccall_error_string,c_function_name);
@@ -3542,35 +3856,15 @@ void code_ccall (char *c_function_name,char *s,int length)
 	} else if (n_clean_b_register_parameters+n_extra_clean_b_register_parameters>N_DATA_PARAMETER_REGISTERS)
 		n_extra_clean_b_register_parameters=N_DATA_PARAMETER_REGISTERS-n_clean_b_register_parameters;
 
- 	end_basic_block_with_registers (0,n_clean_b_register_parameters+n_extra_clean_b_register_parameters,e_vector);
+	end_basic_block_with_registers (0,n_clean_b_register_parameters+n_extra_clean_b_register_parameters,e_vector);
 
 	b_offset-=n_clean_b_register_parameters<<STACK_ELEMENT_LOG_SIZE;
 
-	if (n_extra_clean_b_register_parameters!=0){
-		int n,offset;
-			
-		offset=-STACK_ELEMENT_SIZE;
-		for (n=0; n<n_extra_clean_b_register_parameters-1; ++n){
-# ifdef i486
-				i_move_r_pd (REGISTER_D0+n,B_STACK_POINTER);
-# else
-				i_move_r_id (REGISTER_D0+n,offset,B_STACK_POINTER);
-# endif
-			offset-=STACK_ELEMENT_SIZE;
-		}
-
-# ifdef G_POWER
-		i_move_r_idu (REGISTER_D0+n,offset,B_STACK_POINTER);
-# elif defined (sparc)
-		i_move_r_id (REGISTER_D0+n,offset,B_STACK_POINTER);
-		i_sub_i_r (-offset,B_STACK_POINTER);
-# else
-		i_move_r_pd (REGISTER_D0+n,B_STACK_POINTER);
-# endif
-	}
+	if (n_extra_clean_b_register_parameters!=0)
+		push_extra_clean_b_register_parameters (n_extra_clean_b_register_parameters);
 
 # ifndef sparc
-		c_offset=b_offset;
+	c_offset=b_offset;
 # endif
 
 	if (s[min_index]=='-' && length-1!=min_index+1){
@@ -3599,277 +3893,53 @@ void code_ccall (char *c_function_name,char *s,int length)
 #endif
 
 	if (!function_address_parameter){
-#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O) || defined (MACH_O64)
-		{
-		char label_name [202];
+		label = enter_c_function_name_label (c_function_name);
 
-# if defined (G_POWER) && !defined (MACH_O)
-		label_name[0]='.';
-# else
-		label_name[0]='_';
-
-# endif
-		strcpy (&label_name[1],c_function_name);
-		
-		label=enter_label (label_name,0);
-
-# if defined (G_POWER) && defined (MACH_O)
+#if defined (G_POWER) && defined (MACH_O)
 		if (dyld_stub_binding_helper_p_label==NULL)
 			dyld_stub_binding_helper_p_label=enter_label ("dyld_stub_binding_helper",IMPORT_LABEL);
-# endif
-		}
-#else
-		label=enter_label (c_function_name,0);
 #endif
 	}
 
 #if defined (G_POWER) || defined (sparc)
-		{
-			int b_a_offset;
+	{
+		int b_a_offset;
 
 # ifdef G_POWER
-				if (a_result_offset+b_result_offset>b_offset){
-					i_sub_i_r (a_result_offset+b_result_offset-b_offset,B_STACK_POINTER);
-					c_offset=a_result_offset+b_result_offset;
-				}
-				b_o=c_offset-b_result_offset;
+		if (a_result_offset+b_result_offset>b_offset){
+			i_sub_i_r (a_result_offset+b_result_offset-b_offset,B_STACK_POINTER);
+			c_offset=a_result_offset+b_result_offset;
+		}
+		b_o=c_offset-b_result_offset;
 # else
-				b_o=b_offset-b_result_offset;
+		b_o=b_offset-b_result_offset;
 # endif
-			b_a_offset=b_o;
+		b_a_offset=b_o;
 
 # ifdef ALIGN_C_CALLS
-			i_move_r_r (B_STACK_POINTER,REGISTER_O0);
-			i_or_i_r (28,B_STACK_POINTER);
+		i_move_r_r (B_STACK_POINTER,REGISTER_O0);
+		i_or_i_r (28,B_STACK_POINTER);
 # endif
 
-			c_parameter_n=(b_offset+a_offset>>2)+n_clean_b_register_parameters-(function_address_parameter=='F');
-			
-			for (l=first_pointer_result_index; l<length; ++l){
-				switch (s[l]){
-					case 'I':
-					case 'p':
-						ccall_load_b_offset (b_o,c_parameter_n);
-						++c_parameter_n;
-						b_o+=STACK_ELEMENT_SIZE;
-						break;
-					case 'R':
-						ccall_load_b_offset (b_o,c_parameter_n);
-						++c_parameter_n;
-						b_o+=8;
-						break;
-					case 'S':
-						b_a_offset-=STACK_ELEMENT_SIZE;
-						ccall_load_b_offset (b_a_offset,c_parameter_n);
-						++c_parameter_n;
-						break;
-					case 'V':
-						break;
-					default:
-						error_s (ccall_error_string,c_function_name);
-				}
-			}
-		}
-
-		a_o=0;
-# ifdef G_POWER
-			b_o=c_offset-b_offset;
-# else
-			b_o=0;
-# endif
-		c_parameter_n=0;
-# ifdef G_POWER
-		c_fp_parameter_n=0;
-# endif
-
-		{
-		int function_address_reg;
+		c_parameter_n=(b_offset+a_offset>>2)+n_clean_b_register_parameters-(function_address_parameter=='F');
 		
-		clean_b_register_parameter_n=0;
-		for (l=0; l<min_index; ++l){
-			switch (s[l]){
-				case 'I':
-				case 'p':
-					if (clean_b_register_parameter_n < n_clean_b_register_parameters){
-						int clean_b_reg_n;
-						
-						clean_b_reg_n=REGISTER_D0+n_extra_clean_b_register_parameters+n_clean_b_register_parameters-1-clean_b_register_parameter_n;
-						if (c_parameter_n<N_C_PARAMETER_REGISTERS)
-							i_move_r_r (clean_b_reg_n,C_PARAMETER_REGISTER_0+c_parameter_n);
-						else
-							i_move_r_id (clean_b_reg_n,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n)<<2,SP_REGISTER);
-						++c_parameter_n;
-						++clean_b_register_parameter_n;
-					} else {
-						if (c_parameter_n<N_C_PARAMETER_REGISTERS)
-							i_move_id_r (b_o,B_STACK_REGISTER,C_PARAMETER_REGISTER_0+c_parameter_n++);
-						else {
-							i_move_id_r (b_o,B_STACK_REGISTER,REGISTER_A3);
-							i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
-						}
-						b_o+=STACK_ELEMENT_SIZE;
-					}					
-					break;
-# ifdef G_POWER
-				case 'r':
-					if (c_fp_parameter_n<13){
-						++c_parameter_n;
-						i_fmove_id_fr (b_o,B_STACK_REGISTER,1+c_fp_parameter_n-14);
-						i_word_i (0xFC000018 | ((1+c_fp_parameter_n) << 21) | ((1+c_fp_parameter_n) << 11)); // frsp frp,frp
-					} else
-						error_s ("Passing single precision argument in fp position > 13 not implemented (in '%s')",c_function_name);
-					++c_fp_parameter_n;
-					b_o+=8;
-					break;
-# endif
-				case 'R':
-# ifdef G_POWER
-#  ifdef LINUX_ELF
-					if (c_fp_parameter_n<8){
-#  else
-					if (c_fp_parameter_n<13){
-						c_parameter_n+=2;
-#  endif
-						i_fmove_id_fr (b_o,B_STACK_REGISTER,1+c_fp_parameter_n-14);
-					} else {
-#  ifdef LINUX_ELF
-						error_s ("Passing more than 8 fp registers not implemented (in '%s')",c_function_name);
-#  else
-						i_move_id_r (b_o,B_STACK_REGISTER,REGISTER_A3);
-						i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
-						i_move_id_r (b_o+4,B_STACK_REGISTER,REGISTER_A3);
-						i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
-#  endif
-					}
-					++c_fp_parameter_n;
-# else
-					if (c_parameter_n<N_C_PARAMETER_REGISTERS)
-						i_move_id_r (b_o,B_STACK_REGISTER,C_PARAMETER_REGISTER_0+c_parameter_n++);
-					else {
-						i_move_id_r (b_o,B_STACK_REGISTER,REGISTER_A3);
-						i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
-					}
-					if (c_parameter_n<N_C_PARAMETER_REGISTERS)
-						i_move_id_r (b_o+4,B_STACK_REGISTER,C_PARAMETER_REGISTER_0+c_parameter_n++);
-					else {
-						i_move_id_r (b_o+4,B_STACK_REGISTER,REGISTER_A3);
-						i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
-					}
-# endif
-					b_o+=8;
-					break;
-				case 'S':
-					a_o-=STACK_ELEMENT_SIZE;
-					ccall_load_string_or_array_offset (4,c_parameter_n,a_o);
-					++c_parameter_n;
-					break;
-				case 's':
-					a_o-=STACK_ELEMENT_SIZE;
-					ccall_load_string_or_array_offset (8,c_parameter_n,a_o);
-					++c_parameter_n;
-					break;
-				case 'A':
-					a_o-=STACK_ELEMENT_SIZE;
-					ccall_load_string_or_array_offset (12,c_parameter_n,a_o);
-					++c_parameter_n;
-					break;
-				case 'F':
-				case 'O':
-					if (clean_b_register_parameter_n < n_clean_b_register_parameters){
-						int clean_b_reg_n;
-						
-						clean_b_reg_n=REGISTER_D0+n_extra_clean_b_register_parameters+n_clean_b_register_parameters-1-clean_b_register_parameter_n;
-
-						if (function_address_parameter=='O'){
-							if (c_parameter_n<N_C_PARAMETER_REGISTERS)
-								i_move_r_r (clean_b_reg_n,C_PARAMETER_REGISTER_0+c_parameter_n);
-							else
-								i_move_r_id (clean_b_reg_n,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n)<<2,SP_REGISTER);
-							++c_parameter_n;
-						}
-
-						function_address_reg=clean_b_reg_n;
-
-						while (l+1<length && (s[l+1]=='*' || s[l+1]=='[')){
-							int n;
-							
-							++l;
-							n=0;
-							
-							if (s[l]=='['){
-								++l;
-								while (l<length && (unsigned)(s[l]-'0')<(unsigned)10){
-									n=n*10+(s[l]-'0');
-									++l;
-								}
-							}
-							
-							i_move_id_r (n,clean_b_reg_n,clean_b_reg_n);
-						}
-
-
-						++clean_b_register_parameter_n;
-						break;
-					}
-				default:
-					error_s (ccall_error_string,c_function_name);
-			}
-		}
-# ifdef G_POWER
-		if (save_state_in_global_variables){
-			i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_A3);
-			i_move_r_id (A_STACK_POINTER,0,REGISTER_A3);
-			i_lea_l_i_r (saved_heap_p_label,0,REGISTER_A3);
-			i_move_r_id (HEAP_POINTER,0,REGISTER_A3);
-			i_move_r_id (REGISTER_D7,4,REGISTER_A3);
-		}
-
-		if (!function_address_parameter)
-			i_call_l (label,128);
-		else
-			i_call_r (function_address_reg,128);
-
-		if (save_state_in_global_variables){
-			i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_A3);
-			i_move_id_r (0,REGISTER_A3,A_STACK_POINTER);
-			i_lea_l_i_r (saved_heap_p_label,0,REGISTER_A3);
-			i_move_id_r (0,REGISTER_A3,HEAP_POINTER);
-			i_move_id_r (4,REGISTER_A3,REGISTER_D7);
-		}
-
-		begin_new_basic_block(); /* MTLR/MFLR optimization only finds IJSR at end of basic block */
-# else
-		if (!function_address_parameter)
-			i_call_l (label);
-		else
-			i_call_r (function_address_reg);
-# endif
-		}
-
-		if (a_offset!=0)
-			i_add_i_r (-a_offset,A_STACK_POINTER);
-# ifdef G_POWER
-		if (c_offset-(b_result_offset+a_result_offset)!=0)
-			i_add_i_r (c_offset-(b_result_offset+a_result_offset),B_STACK_POINTER);
-# else
-		if (b_offset-(b_result_offset+a_result_offset)!=0)
-			i_add_i_r (b_offset-(b_result_offset+a_result_offset),B_STACK_POINTER);
-# endif
-
 		for (l=first_pointer_result_index; l<length; ++l){
 			switch (s[l]){
 				case 'I':
 				case 'p':
+					ccall_load_b_offset (b_o,c_parameter_n);
+					++c_parameter_n;
+					b_o+=STACK_ELEMENT_SIZE;
+					break;
 				case 'R':
+					ccall_load_b_offset (b_o,c_parameter_n);
+					++c_parameter_n;
+					b_o+=8;
 					break;
 				case 'S':
-					if (string_to_string_node_label==NULL)
-						string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
-
-					i_move_id_r (0,B_STACK_POINTER,REGISTER_A0);
-					i_jsr_l_id (string_to_string_node_label,0);
-					i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
-					i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
+					b_a_offset-=STACK_ELEMENT_SIZE;
+					ccall_load_b_offset (b_a_offset,c_parameter_n);
+					++c_parameter_n;
 					break;
 				case 'V':
 					break;
@@ -3877,49 +3947,262 @@ void code_ccall (char *c_function_name,char *s,int length)
 					error_s (ccall_error_string,c_function_name);
 			}
 		}
-		
-		switch (result){
+	}
+
+	a_o=0;
+# ifdef G_POWER
+	b_o=c_offset-b_offset;
+# else
+	b_o=0;
+# endif
+	c_parameter_n=0;
+# ifdef G_POWER
+	c_fp_parameter_n=0;
+# endif
+
+	{
+	int function_address_reg;
+	
+	clean_b_register_parameter_n=0;
+	for (l=0; l<min_index; ++l){
+		switch (s[l]){
 			case 'I':
 			case 'p':
-				i_move_r_r (C_PARAMETER_REGISTER_0,REGISTER_D0);
-				begin_new_basic_block();
-				init_b_stack (1,i_vector);
+				if (clean_b_register_parameter_n < n_clean_b_register_parameters){
+					int clean_b_reg_n;
+					
+					clean_b_reg_n=REGISTER_D0+n_extra_clean_b_register_parameters+n_clean_b_register_parameters-1-clean_b_register_parameter_n;
+					if (c_parameter_n<N_C_PARAMETER_REGISTERS)
+						i_move_r_r (clean_b_reg_n,C_PARAMETER_REGISTER_0+c_parameter_n);
+					else
+						i_move_r_id (clean_b_reg_n,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n)<<2,SP_REGISTER);
+					++c_parameter_n;
+					++clean_b_register_parameter_n;
+				} else {
+					if (c_parameter_n<N_C_PARAMETER_REGISTERS)
+						i_move_id_r (b_o,B_STACK_REGISTER,C_PARAMETER_REGISTER_0+c_parameter_n++);
+					else {
+						i_move_id_r (b_o,B_STACK_REGISTER,REGISTER_A3);
+						i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
+					}
+					b_o+=STACK_ELEMENT_SIZE;
+				}					
 				break;
+# ifdef G_POWER
+			case 'r':
+				if (c_fp_parameter_n<13){
+					++c_parameter_n;
+					i_fmove_id_fr (b_o,B_STACK_REGISTER,1+c_fp_parameter_n-14);
+					i_word_i (0xFC000018 | ((1+c_fp_parameter_n) << 21) | ((1+c_fp_parameter_n) << 11)); // frsp frp,frp
+				} else
+					error_s ("Passing single precision argument in fp position > 13 not implemented (in '%s')",c_function_name);
+				++c_fp_parameter_n;
+				b_o+=8;
+				break;
+# endif
 			case 'R':
 # ifdef G_POWER
-				i_fmove_fr_fr (1-14,0);
+#  ifdef LINUX_ELF
+				if (c_fp_parameter_n<8){
+#  else
+				if (c_fp_parameter_n<13){
+					c_parameter_n+=2;
+#  endif
+					i_fmove_id_fr (b_o,B_STACK_REGISTER,1+c_fp_parameter_n-14);
+				} else {
+#  ifdef LINUX_ELF
+					error_s ("Passing more than 8 fp registers not implemented (in '%s')",c_function_name);
+#  else
+					i_move_id_r (b_o,B_STACK_REGISTER,REGISTER_A3);
+					i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
+					i_move_id_r (b_o+4,B_STACK_REGISTER,REGISTER_A3);
+					i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
+#  endif
+				}
+				++c_fp_parameter_n;
+# else
+				if (c_parameter_n<N_C_PARAMETER_REGISTERS)
+					i_move_id_r (b_o,B_STACK_REGISTER,C_PARAMETER_REGISTER_0+c_parameter_n++);
+				else {
+					i_move_id_r (b_o,B_STACK_REGISTER,REGISTER_A3);
+					i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
+				}
+				if (c_parameter_n<N_C_PARAMETER_REGISTERS)
+					i_move_id_r (b_o+4,B_STACK_REGISTER,C_PARAMETER_REGISTER_0+c_parameter_n++);
+				else {
+					i_move_id_r (b_o+4,B_STACK_REGISTER,REGISTER_A3);
+					i_move_r_id (REGISTER_A3,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n++)<<2,SP_REGISTER);
+				}
 # endif
-				begin_new_basic_block();
-				init_b_stack (2,r_vector);
+				b_o+=8;
+				break;
+			case 'S':
+				a_o-=STACK_ELEMENT_SIZE;
+				ccall_load_string_or_array_offset (4,c_parameter_n,a_o);
+				++c_parameter_n;
+				break;
+			case 's':
+				a_o-=STACK_ELEMENT_SIZE;
+				ccall_load_string_or_array_offset (8,c_parameter_n,a_o);
+				++c_parameter_n;
+				break;
+			case 'A':
+				a_o-=STACK_ELEMENT_SIZE;
+				ccall_load_string_or_array_offset (12,c_parameter_n,a_o);
+				++c_parameter_n;
+				break;
+			case 'F':
+			case 'O':
+				if (clean_b_register_parameter_n < n_clean_b_register_parameters){
+					int clean_b_reg_n;
+					
+					clean_b_reg_n=REGISTER_D0+n_extra_clean_b_register_parameters+n_clean_b_register_parameters-1-clean_b_register_parameter_n;
+
+					if (function_address_parameter=='O'){
+						if (c_parameter_n<N_C_PARAMETER_REGISTERS)
+							i_move_r_r (clean_b_reg_n,C_PARAMETER_REGISTER_0+c_parameter_n);
+						else
+							i_move_r_id (clean_b_reg_n,(FIRST_C_STACK_PARAMETER_WORD_OFFSET+c_parameter_n)<<2,SP_REGISTER);
+						++c_parameter_n;
+					}
+
+					function_address_reg=clean_b_reg_n;
+
+					while (l+1<length && (s[l+1]=='*' || s[l+1]=='[')){
+						int n;
+						
+						++l;
+						n=0;
+						
+						if (s[l]=='['){
+							++l;
+							while (l<length && (unsigned)(s[l]-'0')<(unsigned)10){
+								n=n*10+(s[l]-'0');
+								++l;
+							}
+						}
+						
+						i_move_id_r (n,clean_b_reg_n,clean_b_reg_n);
+					}
+
+
+					++clean_b_register_parameter_n;
+					break;
+				}
+			default:
+				error_s (ccall_error_string,c_function_name);
+		}
+	}
+# ifdef G_POWER
+	if (save_state_in_global_variables){
+		i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_A3);
+		i_move_r_id (A_STACK_POINTER,0,REGISTER_A3);
+		i_lea_l_i_r (saved_heap_p_label,0,REGISTER_A3);
+		i_move_r_id (HEAP_POINTER,0,REGISTER_A3);
+		i_move_r_id (REGISTER_D7,4,REGISTER_A3);
+	}
+
+	if (!function_address_parameter)
+		i_call_l (label,128);
+	else
+		i_call_r (function_address_reg,128);
+
+	if (save_state_in_global_variables){
+		i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_A3);
+		i_move_id_r (0,REGISTER_A3,A_STACK_POINTER);
+		i_lea_l_i_r (saved_heap_p_label,0,REGISTER_A3);
+		i_move_id_r (0,REGISTER_A3,HEAP_POINTER);
+		i_move_id_r (4,REGISTER_A3,REGISTER_D7);
+	}
+
+	begin_new_basic_block(); /* MTLR/MFLR optimization only finds IJSR at end of basic block */
+# else
+	if (!function_address_parameter)
+		i_call_l (label);
+	else
+		i_call_r (function_address_reg);
+# endif
+	}
+
+	if (a_offset!=0)
+		i_add_i_r (-a_offset,A_STACK_POINTER);
+# ifdef G_POWER
+	if (c_offset-(b_result_offset+a_result_offset)!=0)
+		i_add_i_r (c_offset-(b_result_offset+a_result_offset),B_STACK_POINTER);
+# else
+	if (b_offset-(b_result_offset+a_result_offset)!=0)
+		i_add_i_r (b_offset-(b_result_offset+a_result_offset),B_STACK_POINTER);
+# endif
+
+	for (l=first_pointer_result_index; l<length; ++l){
+		switch (s[l]){
+			case 'I':
+			case 'p':
+			case 'R':
 				break;
 			case 'S':
 				if (string_to_string_node_label==NULL)
 					string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
 
-				i_move_r_r (C_PARAMETER_REGISTER_0,REGISTER_A0);
-				i_sub_i_r (STACK_ELEMENT_SIZE,B_STACK_POINTER);
+				i_move_id_r (0,B_STACK_POINTER,REGISTER_A0);
 				i_jsr_l_id (string_to_string_node_label,0);
-
-				begin_new_basic_block();
-				init_a_stack (1);
+				i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
+				i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
 				break;
 			case 'V':
-				begin_new_basic_block();
 				break;
 			default:
 				error_s (ccall_error_string,c_function_name);
 		}
+	}
+	
+	switch (result){
+		case 'I':
+		case 'p':
+			i_move_r_r (C_PARAMETER_REGISTER_0,REGISTER_D0);
+			begin_new_basic_block();
+			init_b_stack (1,i_vector);
+			break;
+		case 'R':
+# ifdef G_POWER
+			i_fmove_fr_fr (1-14,0);
+# endif
+			begin_new_basic_block();
+			init_b_stack (2,r_vector);
+			break;
+		case 'S':
+			if (string_to_string_node_label==NULL)
+				string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
+
+			i_move_r_r (C_PARAMETER_REGISTER_0,REGISTER_A0);
+			i_sub_i_r (STACK_ELEMENT_SIZE,B_STACK_POINTER);
+			i_jsr_l_id (string_to_string_node_label,0);
+
+			begin_new_basic_block();
+			init_a_stack (1);
+			break;
+		case 'V':
+			begin_new_basic_block();
+			break;
+		default:
+			error_s (ccall_error_string,c_function_name);
+		}
+
 #elif defined (I486)
+
 # ifndef G_AI64 /* for I486 && ! G_AI64 */
 		{
 		int c_offset_before_pushing_arguments,function_address_reg;
-		
-		a_o=-b_result_offset-a_result_offset;
-		b_o=0;
-				
-		if (a_result_offset+b_result_offset>b_offset){
-			i_sub_i_r (a_result_offset+b_result_offset-b_offset,B_STACK_POINTER);
-			c_offset=a_result_offset+b_result_offset;
+		int b_out_and_ab_result_size;
+
+		b_out_and_ab_result_size = n_b_c_in_clean_out_parameters_size+a_result_offset+b_result_offset;
+
+		a_o = -b_out_and_ab_result_size;
+		b_o = -n_b_c_in_clean_out_parameters_size;
+
+		if (b_out_and_ab_result_size>b_offset){
+			i_sub_i_r (b_out_and_ab_result_size-b_offset,B_STACK_POINTER);
+			c_offset=b_out_and_ab_result_size;
 		}
 		
 		c_offset_before_pushing_arguments=c_offset;
@@ -3954,9 +4237,9 @@ void code_ccall (char *c_function_name,char *s,int length)
 					error_s (ccall_error_string,c_function_name);
 			}
 		}
-		
+
 		{
-			int last_register_parameter_index,reg_n;
+			int last_register_parameter_index,reg_n,a_out_offset,b_out_offset;
 			
 			last_register_parameter_index=-1;
 			
@@ -3973,6 +4256,9 @@ void code_ccall (char *c_function_name,char *s,int length)
 			reg_n=0;
 			a_o=-a_offset;
 			b_o=0;
+			a_out_offset=a_o;
+			b_out_offset=0;
+
 			for (l=min_index-1; l>=0; --l){
 				switch (s[l]){
 					case 'I':
@@ -4084,6 +4370,56 @@ void code_ccall (char *c_function_name,char *s,int length)
 							}
 							break;
 						}
+					case '>':
+					{
+						char c;
+
+						--l;
+						c = s[l];
+						if (c=='I' || c=='p'){
+							int parameter_reg_n;
+							
+							if (l<=last_register_parameter_index){
+								parameter_reg_n=REGISTER_D0+n_extra_clean_b_register_parameters+reg_n;
+								i_move_r_pd (parameter_reg_n,B_STACK_POINTER);
+								++reg_n;
+							} else {
+								parameter_reg_n=REGISTER_A0;
+								b_o-=STACK_ELEMENT_SIZE;
+								i_move_id_r (b_o+c_offset,B_STACK_POINTER,parameter_reg_n);
+								i_move_r_pd (parameter_reg_n,B_STACK_POINTER);
+							}
+							c_offset+=STACK_ELEMENT_SIZE;
+							b_out_offset-=STACK_ELEMENT_SIZE;
+							i_move_r_id (parameter_reg_n,b_out_offset+c_offset,B_STACK_POINTER);
+						} else {
+							int string_or_array_offset;
+							
+							switch (c){
+								case 'S':
+									string_or_array_offset=STACK_ELEMENT_SIZE;
+									break;
+								case 's':
+									string_or_array_offset=8;
+									break;
+								case 'A':
+									string_or_array_offset=12;
+									break;
+								default:
+									error_s (ccall_error_string,c_function_name);
+							}
+
+							i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
+							if (a_o!=a_out_offset)
+								i_move_r_id (REGISTER_A0,a_out_offset,A_STACK_POINTER);
+							i_add_i_r (string_or_array_offset,REGISTER_A0);
+							i_move_r_pd (REGISTER_A0,B_STACK_POINTER);
+							a_o+=STACK_ELEMENT_SIZE;
+							c_offset+=STACK_ELEMENT_SIZE;
+							a_out_offset+=STACK_ELEMENT_SIZE;
+						}
+						break;
+					}
 					default:
 						error_s (ccall_error_string,c_function_name);
 				}
@@ -4117,10 +4453,10 @@ void code_ccall (char *c_function_name,char *s,int length)
 		if (callee_pops_arguments)
 			c_offset=c_offset_before_pushing_arguments;
 		
-		if (a_offset!=0)
-			i_sub_i_r (a_offset,A_STACK_POINTER);
-		if (c_offset-(b_result_offset+a_result_offset)!=0)
-			i_add_i_r (c_offset-(b_result_offset+a_result_offset),B_STACK_POINTER);
+		if (a_offset-n_a_c_in_clean_out_parameters_size!=0)
+			i_sub_i_r (a_offset-n_a_c_in_clean_out_parameters_size,A_STACK_POINTER);
+		if (c_offset-b_out_and_ab_result_size!=0)
+			i_add_i_r (c_offset-b_out_and_ab_result_size,B_STACK_POINTER);
 
 		}
 		
@@ -4211,6 +4547,18 @@ void code_ccall (char *c_function_name,char *s,int length)
 			i_sub_i_r (a_result_offset+b_result_offset-b_offset,B_STACK_POINTER);
 			c_offset=a_result_offset+b_result_offset;
 		}
+
+#  ifdef THREAD64
+	if (save_state_in_global_variables){
+		if (tlsp_tls_index_label==NULL)
+			tlsp_tls_index_label=enter_label ("tlsp_tls_index",IMPORT_LABEL);
+#   ifndef LINUX_ELF
+		i_move_r_id (A_STACK_POINTER,SAVED_A_STACK_P_OFFSET,-4/*R9*/);
+		i_move_r_id (-7/*RDI*/,SAVED_HEAP_P_OFFSET,-4/*R9*/);
+		i_move_r_id (REGISTER_D7,SAVED_R15_OFFSET,-4/*R9*/);
+#   endif
+	}
+#  endif
 
 #  if defined (LINUX_ELF) || defined (MACH_O64) /* for I486 && G_AI64 && (LINUX_ELF || MACH_O64) */
 		{
@@ -4614,12 +4962,24 @@ void code_ccall (char *c_function_name,char *s,int length)
 		c_parameter_n=((a_offset+b_offset+a_result_offset+b_result_offset)>>3)+n_clean_b_register_parameters;
 
 		i_move_r_r (B_STACK_POINTER,REGISTER_RBP);
+#   ifdef THREAD64
+		if (!save_state_in_global_variables){
+			if (c_parameter_n>=4 && (c_parameter_n & 1)!=0){
+				i_sub_i_r (16+8,B_STACK_POINTER);
+				i_move_r_id (-4/*R9*/,8,B_STACK_POINTER);
+				i_or_i_r (8,B_STACK_POINTER);		
+			} else {
+				i_sub_i_r (16,B_STACK_POINTER);
+				i_move_r_id (-4/*R9*/,0,B_STACK_POINTER);
+				i_and_i_r (-16,B_STACK_POINTER);		
+			}
+		} else
+#   endif
 		if (c_parameter_n>=4 && (c_parameter_n & 1)!=0){
 			i_sub_i_r (8,B_STACK_POINTER);
 			i_or_i_r (8,B_STACK_POINTER);		
 		} else {
-			i_or_i_r (8,B_STACK_POINTER);		
-			i_sub_i_r (8,B_STACK_POINTER);
+			i_and_i_r (-16,B_STACK_POINTER);		
 		}
 
 		for (l=length-1; l>=first_pointer_result_index; --l){
@@ -4811,12 +5171,14 @@ void code_ccall (char *c_function_name,char *s,int length)
 			}
 		}
 
+#   ifndef THREAD64
 		if (save_state_in_global_variables){
 			i_move_r_l (-6/*RSI*/,saved_a_stack_p_label);
 			i_lea_l_i_r (saved_heap_p_label,0,-6/*RSI*/);
 			i_move_r_id (-7/*RDI*/,  0,-6/*RSI*/);
 			i_move_r_id (REGISTER_D7,8,-6/*RSI*/);
 		}
+#   endif
 
 		i_sub_i_r (32,B_STACK_POINTER);
 		if (!function_address_parameter)
@@ -4830,14 +5192,27 @@ void code_ccall (char *c_function_name,char *s,int length)
 			i_move_r_r (REGISTER_RBP,B_STACK_POINTER);
 		else
 			i_lea_id_r (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset),REGISTER_RBP,B_STACK_POINTER);	
+
+#   ifdef THREAD64
+		if (!save_state_in_global_variables)
+			i_move_id_r (-16,REGISTER_RBP,-4/*R9*/);
+#   endif
 #  endif
 		/* for I486 && G_AI64 */
 
 		if (save_state_in_global_variables){
+#ifdef THREAD64
+			instruction_l_r (ILDTLSP,tlsp_tls_index_label,-4/*R9*/);
+
+			i_move_id_r (SAVED_A_STACK_P_OFFSET,-4/*R9*/,A_STACK_POINTER);
+			i_move_id_r (SAVED_R15_OFFSET,-4/*R9*/,REGISTER_D7);
+			i_move_id_r (SAVED_HEAP_P_OFFSET,-4/*R9*/,-7/*RDI*/);
+#else
 			i_lea_l_i_r (saved_heap_p_label,0,-7/*RDI*/);
 			i_move_l_r (saved_a_stack_p_label,-6/*RSI*/);
 			i_move_id_r (8,-7/*RDI*/,REGISTER_D7);
 			i_move_id_r (0,-7/*RDI*/,-7/*RDI*/);
+#endif
 		}
 
 		if (callee_pops_arguments)
@@ -4983,17 +5358,21 @@ static void save_registers_before_clean_call (void)
 #  if defined (LINUX_ELF) || defined (MACH_O64)
 	i_move_r_r (-6/*RSI*/,3/*R11*/);
 #  endif
+#  ifndef THREAD64
 	i_move_l_r (saved_a_stack_p_label,-6/*RSI*/);
-
+#  endif
 	i_move_r_id (-7/*RDI*/,128,B_STACK_POINTER);
 #  if defined (LINUX_ELF) || defined (MACH_O64)
 	i_move_r_r (-7/*RDI*/,2/*R10*/);
 #  endif
+#  ifndef THREAD64
 	i_lea_l_i_r (saved_heap_p_label,0,-7/*RDI*/);
+#  endif
 	i_move_r_id ( 7/*R15*/,80,B_STACK_POINTER);
+#  ifndef THREAD64
 	i_move_id_r (8,-7/*RDI*/,REGISTER_D7);
 	i_move_id_r (0,-7/*RDI*/,-7/*RDI*/);
-
+#  endif
 	i_move_r_id ( 1/*RBX*/,120,B_STACK_POINTER);
 	i_move_r_id (-5/*RBP*/,112,B_STACK_POINTER);
 	i_move_r_id ( 4/*R12*/,104,B_STACK_POINTER);
@@ -5051,10 +5430,20 @@ static void restore_registers_after_clean_call (void)
 {
 #if defined (I486)
 # ifdef G_AI64
+
+#  ifdef THREAD64
+	if (tlsp_tls_index_label==NULL)
+		tlsp_tls_index_label=enter_label ("tlsp_tls_index",IMPORT_LABEL);
+
+	i_move_r_id (-6/*RSI*/,SAVED_A_STACK_P_OFFSET,-4/*R9*/);
+	i_move_r_id (-7/*RDI*/,SAVED_HEAP_P_OFFSET,-4/*R9*/);
+	i_move_r_id (REGISTER_D7,SAVED_R15_OFFSET,-4/*R9*/);
+#  else
 	i_move_r_l (-6/*RSI*/,saved_a_stack_p_label);
 	i_lea_l_i_r (saved_heap_p_label,0,-6/*RSI*/);
 	i_move_r_id (-7/*RDI*/,  0,-6/*RSI*/);
 	i_move_r_id (REGISTER_D7,8,-6/*RSI*/);
+#  endif
 
 	i_move_id_r (136,B_STACK_POINTER,-6/*RSI*/);
 	i_move_id_r (128,B_STACK_POINTER,-7/*RDI*/);
@@ -5134,11 +5523,16 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	int n_string_or_array_parameters,n_string_or_array_results;
 	int string_c_function_result,array_c_function_result,string_or_array_c_function_result;
 	int float_parameter_or_result;
+# ifdef THREAD64
+	struct basic_block *block_with_call;
+# endif
 
+#if !defined (THREAD64)
 	if (saved_heap_p_label==NULL)
 		saved_heap_p_label=enter_label ("saved_heap_p",IMPORT_LABEL);
 	if (saved_a_stack_p_label==NULL)
 		saved_a_stack_p_label=enter_label ("saved_a_stack_p",IMPORT_LABEL);
+#endif
 
 	n_integer_parameters=0;
 	n_float_parameters=0;
@@ -5530,6 +5924,10 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		}
 	}
 
+#ifdef THREAD64
+	block_with_call=last_block;
+#endif
+
 	code_d (n_string_or_array_parameters,n_integer_and_float_parameters,vector_p);
 
 #ifdef G_POWER
@@ -5732,6 +6130,77 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 #endif
 		b_offset+=end_basic_block_with_registers_and_return_b_stack_offset (a_stack_size,b_stack_size,
 							float_c_function_result ? r_vector : i_vector,N_ADDRESS_PARAMETER_REGISTERS);
+
+# ifdef THREAD64
+		{
+			/* hack to load r9, rsi, rdi and r15 before jmp or call */
+			struct instruction *instruction1,*instruction2,*instruction3,*instruction4,*jmp_or_call_instruction,*old_second_last_instruction;
+
+			/* LDTLSP tlsp_tls_index_label,r9 */
+
+			instruction1=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
+			instruction1->instruction_icode=ILDTLSP;
+			instruction1->instruction_arity=2;
+			instruction1->instruction_parameters[0].parameter_type=P_LABEL;
+			instruction1->instruction_parameters[0].parameter_data.l=tlsp_tls_index_label;
+			instruction1->instruction_parameters[1].parameter_type=P_REGISTER;
+			instruction1->instruction_parameters[1].parameter_data.i=-4/*R9*/;
+
+			jmp_or_call_instruction=block_with_call->block_last_instruction;
+			old_second_last_instruction=jmp_or_call_instruction->instruction_prev;
+
+			if (old_second_last_instruction==NULL)
+				block_with_call->block_instructions=instruction1;
+			else
+				old_second_last_instruction->instruction_next=instruction1;
+			instruction1->instruction_prev=old_second_last_instruction;
+
+			/* i_move_id_r (SAVED_A_STACK_P_OFFSET,R9,-6 */ /*RSI*/ /*); */
+
+			instruction2=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
+			instruction2->instruction_icode=IMOVE;
+			instruction2->instruction_arity=2;
+			instruction2->instruction_parameters[0].parameter_type=P_INDIRECT;
+			instruction2->instruction_parameters[0].parameter_offset=SAVED_A_STACK_P_OFFSET;
+			instruction2->instruction_parameters[0].parameter_data.i=-4/*R9*/;
+			instruction2->instruction_parameters[1].parameter_type=P_REGISTER;
+			instruction2->instruction_parameters[1].parameter_data.i=-6/*RSI*/;
+
+			instruction1->instruction_next=instruction2;
+			instruction2->instruction_prev=instruction1;
+
+			/* i_move_id_r (SAVED_R15_OFFSET,R9,REGISTER_D7); */
+
+			instruction3=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
+			instruction3->instruction_icode=IMOVE;
+			instruction3->instruction_arity=2;
+			instruction3->instruction_parameters[0].parameter_type=P_INDIRECT;
+			instruction3->instruction_parameters[0].parameter_offset=SAVED_R15_OFFSET;
+			instruction3->instruction_parameters[0].parameter_data.i=-4/*R9*/;
+			instruction3->instruction_parameters[1].parameter_type=P_REGISTER;
+			instruction3->instruction_parameters[1].parameter_data.i=REGISTER_D7;
+
+			instruction2->instruction_next=instruction3;
+			instruction3->instruction_prev=instruction2;
+
+			/* i_move_id_r (SAVED_HEAP_P_OFFSET,R9,-7 */ /*RDI*/ /*); */
+
+			instruction4=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
+			instruction4->instruction_icode=IMOVE;
+			instruction4->instruction_arity=2;
+			instruction4->instruction_parameters[0].parameter_type=P_INDIRECT;
+			instruction4->instruction_parameters[0].parameter_offset=SAVED_HEAP_P_OFFSET;
+			instruction4->instruction_parameters[0].parameter_data.i=-4/*R9*/;
+			instruction4->instruction_parameters[1].parameter_type=P_REGISTER;
+			instruction4->instruction_parameters[1].parameter_data.i=-7 /*RDI*/;
+
+			instruction3->instruction_next=instruction4;
+			instruction4->instruction_prev=instruction3;
+
+			instruction4->instruction_next=jmp_or_call_instruction;
+			jmp_or_call_instruction->instruction_prev=instruction4;
+		}
+# endif
 
 #if ! (defined (sparc) || defined (G_POWER))
 		if (b_offset!=0)
@@ -6218,7 +6687,7 @@ void init_cginstructions (void)
 	profile_ti_label=NULL;
 # endif
 #endif
-#if defined (I486) || defined (G_POWER)
+#if (defined (I486) && !defined (THREAD64)) || defined (G_POWER)
 	saved_heap_p_label=NULL;
 	saved_a_stack_p_label=NULL;
 #endif

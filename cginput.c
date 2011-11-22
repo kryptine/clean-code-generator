@@ -127,6 +127,10 @@ static void initialize_alpha_num_table()
 
 #define is_digit_character(c) ((unsigned)((c)-'0')<(unsigned)10)
 
+#define is_hexdigit_character(c) ((unsigned)((c)-'0')<(unsigned)10 || (unsigned)((c | 0x20)-'a')<(unsigned)6)
+
+#define is_octdigit_character(c) ((unsigned)((c)-'0')<(unsigned)8)
+
 static void initialize_file_parsing (VOID)
 {
 	line_number=1;
@@ -245,7 +249,7 @@ static int parse_clean_integer (CleanInt *integer_p)
 {
 	CleanInt integer;
 	int minus_sign;
-	
+
 	minus_sign=0;
 	if (last_char=='+' || last_char=='-'){
 		if (last_char=='-')
@@ -258,11 +262,31 @@ static int parse_clean_integer (CleanInt *integer_p)
 		
 	integer=last_char-'0';
 	last_char=getc (abc_file);
-	
-	while (is_digit_character (last_char)){
-		integer*=10;
-		integer+=last_char-'0';
+
+	if (last_char=='x' && integer==0){
 		last_char=getc (abc_file);
+		if (!is_hexdigit_character (last_char))
+			abc_parser_error_i ("Integer expected at line %d\n",line_number);
+		do {
+			integer<<=4;
+			integer+= last_char<='9' ? last_char-'0' : (last_char | 0x20)-('a'-10);
+			last_char=getc (abc_file);
+		} while (is_hexdigit_character (last_char));
+	} else if (last_char=='o' && integer==0){
+		last_char=getc (abc_file);
+		if (!is_octdigit_character (last_char))
+			abc_parser_error_i ("Integer expected at line %d\n",line_number);
+		do {
+			integer<<=3;
+			integer+= last_char-'0';
+			last_char=getc (abc_file);
+		} while (is_octdigit_character (last_char));
+	} else {
+		while (is_digit_character (last_char)){
+			integer*=10;
+			integer+=last_char-'0';
+			last_char=getc (abc_file);
+		}
 	}
 	
 	skip_spaces_and_tabs();
@@ -347,16 +371,68 @@ static char *parse_big_integer (char *string,int *string_length_p)
 	if (!is_digit_character (last_char))
 		abc_parser_error_i ("Integer expected at line %d\n",line_number);
 
-	do {
-		if (length<max_length)
-			string[length++]=last_char;
-		else {
-			max_length=max_length<<1;
-			string=resize_string (string,length,max_length);
-			string[length++]=last_char;
-		}
+	if (last_char=='0'){
+		string[length++]=last_char;
 		last_char=getc (abc_file);
-	} while (is_digit_character (last_char));
+
+		if (last_char=='x'){
+			string[length++]=last_char;
+			last_char=getc (abc_file);
+
+			if (!is_hexdigit_character (last_char))
+				abc_parser_error_i ("Integer expected at line %d\n",line_number);
+
+			do {
+				if (length<max_length)
+					string[length++]=last_char;
+				else {
+					max_length=max_length<<1;
+					string=resize_string (string,length,max_length);
+					string[length++]=last_char;
+				}
+				last_char=getc (abc_file);
+			} while (is_hexdigit_character (last_char));
+		} else if (last_char=='o'){
+			string[length++]=last_char;
+			last_char=getc (abc_file);
+
+			if (!is_octdigit_character (last_char))
+				abc_parser_error_i ("Integer expected at line %d\n",line_number);
+
+			do {
+				if (length<max_length)
+					string[length++]=last_char;
+				else {
+					max_length=max_length<<1;
+					string=resize_string (string,length,max_length);
+					string[length++]=last_char;
+				}
+				last_char=getc (abc_file);
+			} while (is_octdigit_character (last_char));
+		} else {
+			while (is_digit_character (last_char)){
+				if (length<max_length)
+					string[length++]=last_char;
+				else {
+					max_length=max_length<<1;
+					string=resize_string (string,length,max_length);
+					string[length++]=last_char;
+				}
+				last_char=getc (abc_file);
+			}
+		}
+	} else {
+		do {
+			if (length<max_length)
+				string[length++]=last_char;
+			else {
+				max_length=max_length<<1;
+				string=resize_string (string,length,max_length);
+				string[length++]=last_char;
+			}
+			last_char=getc (abc_file);
+		} while (is_digit_character (last_char));
+	}
 
 	if (length>=max_length){
 		++max_length;
@@ -515,8 +591,109 @@ static int parse_and_copy_digits()
 	return 1;
 }
 
+static int parse_hex_real (DOUBLE *real_p)
+{
+	int s1,s2;
+	unsigned int i1,i2;
+	
+	last_char=getc (abc_file);
+	if (!is_hexdigit_character (last_char))
+		abc_parser_error_i ("Hex digit expected in real at line %d\n",line_number);
+
+	while (last_char=='0')
+		last_char=getc (abc_file);
+		
+	i1=0;	
+	s1=0;
+	while (s1<7){
+		if (!is_hexdigit_character (last_char)){
+			*real_p=(double)i1;
+			return 1;
+		}
+		i1<<=4;
+		i1+=last_char<='9' ? last_char-'0' : (last_char | 0x20)-('a'-10);
+		++s1;
+		last_char=getc (abc_file);
+	}
+	
+	i2=0;	
+	s2=0;
+	while (s2<7){
+		if (!is_hexdigit_character (last_char)){
+			double r;
+			
+			r=(double)i1;
+			while (s2>=0){
+				r*=16.0;
+				--s2;
+			}
+			*real_p=r+(double)i2;
+			return 1;
+		}
+		i2<<=4;
+		i2+=last_char<='9' ? last_char-'0' : (last_char | 0x20)-('a'-10);
+		++s2;
+		last_char=getc (abc_file);
+	}
+
+	{
+	int extra_non_zero_char;
+	double p,r1;
+	char char14;
+
+	p=1.0;
+
+	r1=(double)i1*(double)0x10000000;
+
+	char14=last_char;
+	if (i1<0x2000000){
+		if (!is_hexdigit_character (last_char)){
+			*real_p=r1+(double)i2;
+			return 1;
+		}
+		p*=16.0;
+		last_char=getc (abc_file);
+	}
+	
+	while (last_char=='0'){
+		p*=16.0;
+		last_char=getc (abc_file);
+	}
+
+	extra_non_zero_char=0;
+	if (is_hexdigit_character (last_char)){
+		extra_non_zero_char=1;
+		do {
+			p*=16.0;
+			last_char=getc (abc_file);
+		} while (is_hexdigit_character (last_char));
+	}
+
+	/* round to 53 bits */
+	if (i1<0x2000000){
+		if (char14>'8' || (char14=='8' && !(extra_non_zero_char==0 && (i2 & 1)==0)))
+			++i2;
+	} else if (i1<0x4000000){
+		if ((i2 & 1)!=0 && !(extra_non_zero_char==0 && (i2 & 2)==0))
+			i2 += 2;
+		i2 &= -2;
+	} else if (i1<0x8000000){
+		if ((i2 & 2)>2 || ((i2 & 2)==2 && !(extra_non_zero_char==0 && (i2 & 4)==0)))
+			i2 += 4;
+		i2 &= -4;
+	} else {
+		if ((i2 & 4)>4 || ((i2 & 4)==4 && !(extra_non_zero_char==0 && (i2 & 8)==0)))
+			i2 += 8;
+		i2 &= -8;
+	}
+
+	*real_p=(r1+(double)i2)*p;
+	return 1;
+	}
+}
+
 static int parse_real (DOUBLE *real_p)
-{	
+{
 	real_string_length=0;
 
 	if (last_char=='+' || last_char=='-'){
@@ -525,8 +702,27 @@ static int parse_real (DOUBLE *real_p)
 		last_char=getc (abc_file);
 	}
 	
-	if (!parse_and_copy_digits())
-		return 0;
+	if (last_char=='0'){
+		next_real_character();
+		
+		if (last_char=='x'){
+			int r;
+
+			r=parse_hex_real (real_p);
+			
+			if (real_string[0]=='-')
+				*real_p = - *real_p;
+
+			skip_spaces_and_tabs();
+
+			return r;
+		}
+		
+		while (is_digit_character (last_char))
+			next_real_character();
+	} else
+		if (!parse_and_copy_digits())
+			return 0;
 	
 	if (last_char=='.'){
 		next_real_character();
@@ -2212,7 +2408,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("jmp_not_eqZ",	parse_instruction_z_a,		code_jmp_not_eqZ );
 	put_instruction_name ("jmp_true",		parse_instruction_a,		code_jmp_true );
 	put_instruction_name ("jsr",			parse_instruction_a,		code_jsr );
-	put_instruction_name ("jsr_ap",			parse_instruction_n,			code_jsr_ap );
+	put_instruction_name ("jsr_ap",			parse_instruction_n,		code_jsr_ap );
 	put_instruction_name ("jsr_eval",		parse_instruction_n,		code_jsr_eval );
 	put_instruction_name ("lnR",			parse_instruction,			code_lnR );
 	put_instruction_name ("load_i",			parse_instruction_i,		code_load_i );

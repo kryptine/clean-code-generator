@@ -3372,6 +3372,31 @@ static void w_as_rtsp_instruction (void)
 	w_as_newline();	
 }
 
+#ifdef THREAD64
+static void w_as_ldtlsp_instruction (struct instruction *instruction)
+{
+	int reg;
+
+	reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	
+	w_as_opcode ("mov");
+	w_as_register_comma (reg);
+	fprintf (assembly_file,"qword ptr ");
+	if (instruction->instruction_parameters[0].parameter_data.l->label_number!=0)
+		w_as_local_label (instruction->instruction_parameters[0].parameter_data.l->label_number);
+	else
+		w_as_label (instruction->instruction_parameters[0].parameter_data.l->label_name);
+	w_as_newline();
+		
+	w_as_opcode ("mov");
+	w_as_register_comma (reg);
+	fprintf (assembly_file,"qword ptr gs:[1480h+");
+	w_as_register (reg);
+	fprintf (assembly_file,"*8]");	
+	w_as_newline();
+}
+#endif
+
 static void w_as_instructions (register struct instruction *instruction)
 {
 	while (instruction!=NULL){
@@ -3657,6 +3682,11 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IRTSI:
 				w_as_rtsi_instruction (instruction);
 				break;
+#ifdef THREAD64
+			case ILDTLSP:
+				w_as_ldtlsp_instruction (instruction);
+				break;
+#endif
 			case IFTST:
 			default:
 				internal_error_in_function ("w_as_instructions");

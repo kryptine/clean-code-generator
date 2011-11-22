@@ -3444,6 +3444,28 @@ static void as_rtsi_instruction (struct instruction *instruction)
 	store_w (instruction->instruction_parameters[0].parameter_data.i);
 }
 
+#ifdef THREAD64
+static void as_ldtsp_instruction (struct instruction *instruction)
+{
+	int reg,reg_n;
+	
+	reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	
+	/* mov label,reg */
+	as_r_a (0213,reg,instruction->instruction_parameters[0].parameter_data.l);
+
+	reg_n=reg_num (reg);
+	
+	/* mov gs:[0x1480+reg*8],reg */
+	store_c (0x65); /* gs prefix */
+	store_c (0x48 | ((reg_n & 8)>>1) | ((reg_n & 8)>>2));
+	store_c (0213);
+	store_c (4 | ((reg_n & 7)<<3));
+	store_c (0305 | ((reg_n & 7)<<3));
+	store_l (0x1480);
+}
+#endif
+
 static void as_f_r (int code1,int code2,int reg1,int reg2)
 {
 	store_c (code1);
@@ -4522,6 +4544,11 @@ static void as_instructions (struct instruction *instruction)
 			case IRTSI:
 				as_rtsi_instruction (instruction);
 				break;
+#ifdef THREAD64
+			case ILDTLSP:
+				as_ldtsp_instruction (instruction);
+				break;
+#endif
 			default:
 				internal_error_in_function ("as_instructions");
 		}
