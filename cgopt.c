@@ -421,7 +421,10 @@ static int get_argument_size (int instruction_code)
 IF_G_RISC (case IADDI: case ILSLI:)
 IF_G_SPARC (case IADDO: case ISUBO: )
 #ifdef I486
-		case IDIVI:		case IREMI:		case IREMU:		case IMULUD:	case IDIVDU:
+		case IDIVI:		case IREMI:		case IREMU:
+# ifndef THREAD32
+		case IMULUD:	case IDIVDU:
+# endif
 		case IFLOORDIV:	case IMOD:
 #endif
 #if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
@@ -674,10 +677,16 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 					instruction->instruction_icode!=IMOVEM &&
 #endif
 #ifdef I486
+# ifdef THREAD32
+					instruction->instruction_icode!=IDIV &&
+					instruction->instruction_icode!=IDIVU &&
+# endif
 					instruction->instruction_icode!=IDIVI &&
 					instruction->instruction_icode!=IREMI &&
 					instruction->instruction_icode!=IREMU &&
+# ifndef THREAD32
 					instruction->instruction_icode!=IDIVDU &&
+# endif
 					instruction->instruction_icode!=IASR_S &&
 					instruction->instruction_icode!=ILSL_S &&
 					instruction->instruction_icode!=ILSR_S &&
@@ -916,10 +925,17 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 	
 		switch (instruction->instruction_arity){
 			default:
-				if (instruction->instruction_icode!=IDIVI && 
+				if (
+# ifdef THREAD32
+					instruction->instruction_icode!=IDIV &&
+					instruction->instruction_icode!=IDIVU &&
+# endif
+					instruction->instruction_icode!=IDIVI &&
 					instruction->instruction_icode!=IREMI &&
 					instruction->instruction_icode!=IREMU &&
+# ifndef THREAD32
 					instruction->instruction_icode!=IDIVDU &&
+# endif
 					instruction->instruction_icode!=IASR_S &&
 					instruction->instruction_icode!=ILSL_S &&
 					instruction->instruction_icode!=ILSR_S &&
@@ -1155,7 +1171,7 @@ void optimize_heap_pointer_increment (struct basic_block *block,int offset_from_
 							internal_error_in_function ("optimize_heap_pointer_increment");
 						}
 					}
-					continue;				
+					continue;
 				case IFMOVE:
 					/* can be optimized, not yet implemented
 					if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT &&
@@ -1577,11 +1593,20 @@ IF_G_POWER ( case IUMULH: )
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
-			case IDIV:	case IREM:	case IDIVU:	case IREMU:	case IMULUD:
+			case IDIV:	case IREM:	case IDIVU:	case IREMU:
+# ifdef THREAD32
+				use_parameter (&instruction->instruction_parameters[1]);
+				use_parameter (&instruction->instruction_parameters[0]);
+				define_parameter (&instruction->instruction_parameters[2]);
+				break;
+# endif
+# ifndef THREAD32
+			case IMULUD:
 				define_scratch_register();
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
+# endif
 			case IMOVE:
 				if ((instruction->instruction_parameters[0].parameter_type==P_INDIRECT ||
 					 instruction->instruction_parameters[0].parameter_type==P_INDEXED) &&
@@ -1594,11 +1619,14 @@ IF_G_POWER ( case IUMULH: )
 #endif
 #ifdef I486
 			case IDIVI:		case IREMI:
-# ifdef I486_USE_SCRATCH_REGISTER
+# if defined (I486_USE_SCRATCH_REGISTER) && !defined (THREAD32)
 				define_scratch_register();
 # endif
 				use_parameter (&instruction->instruction_parameters[1]);
 				define_parameter (&instruction->instruction_parameters[2]);
+# ifdef THREAD32
+				define_parameter (&instruction->instruction_parameters[3]);
+# endif
 				break;
 #endif
 			case IFMOVE:	case IFMOVEL:	case ILEA:		
@@ -1691,7 +1719,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
 #endif
-#ifdef I486
+#if defined (I486) && !defined (THREAD32)
 			case IDIVDU:
 # ifdef I486_USE_SCRATCH_REGISTER
 				define_scratch_register();
@@ -2741,7 +2769,7 @@ static void move_2_register (	int reg_n,int real_reg_n,int use_flag,
 	reg_uses[reg_n].reg=real_reg_n;
 	
 	reg_alloc[real_reg_n].altered=reg_alloc[old_real_reg_n].altered;
-	
+
 	if (use_flag!=DEF)
 		insert_move (old_real_reg_n,real_reg_n,register_flag);
 }
@@ -3836,7 +3864,7 @@ static void use_scratch_register (void)
 {
 	int reg,real_reg_n,instruction_n;
 	struct scratch_register_next_uses *scratch_register_next_use;
-	
+
 	scratch_register_next_use=scratch_register_next_uses;
 	scratch_register_next_uses=scratch_register_next_use->scratch_register_next;
 	
@@ -3873,6 +3901,11 @@ static void allocate_registers (struct basic_block *basic_block)
 	previous_instruction=NULL;
 	
 	instruction=basic_block->block_instructions;
+
+#ifdef THREAD32
+	allocate_scratch_register = basic_block->block_n_new_heap_cells==0;
+#endif
+
 	while (instruction!=NULL){
 		switch (instruction->instruction_icode){
 			case IADD:	case IAND:
@@ -3898,15 +3931,29 @@ IF_G_POWER ( case IUMULH: )
 				break;
 #ifdef I486_USE_SCRATCH_REGISTER
 			case IASR:	case ILSL:	case ILSR:	case IROTL:	case IROTR:
-				if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
+				if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE){
 					use_scratch_register();
-				instruction_use_2 (instruction,USE_DEF);
-				allocate_scratch_register=1;
+					instruction_use_2 (instruction,USE_DEF);
+					allocate_scratch_register=1;
+				} else
+					instruction_use_2 (instruction,USE_DEF);
 				break;
 			case IDIV:	case IREM:	case IDIVU:	case IREMU:
+# ifndef THREAD32
 				use_scratch_register();
 				instruction_use_2 (instruction,USE_DEF);
 				allocate_scratch_register=1;
+# else
+				if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
+					use_3_same_type_registers
+						(&instruction->instruction_parameters[0].parameter_data.reg,USE,
+						 &instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,
+						 &instruction->instruction_parameters[2].parameter_data.reg,DEF,D_REGISTER);
+				else
+					use_2_same_type_registers
+						(&instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,
+						 &instruction->instruction_parameters[2].parameter_data.reg,DEF,D_REGISTER);
+#  endif
 				break;
 #endif
 			case ICMP:
@@ -3994,7 +4041,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 			case IEXG:
 				instruction_usedef_usedef (instruction);
 				break;
-#ifdef I486
+#if defined (I486) && !defined (THREAD32)
 			case IMULUD:
 # ifdef I486_USE_SCRATCH_REGISTER
 				use_scratch_register();
@@ -4033,14 +4080,21 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #endif
 #ifdef I486
 			case IDIVI:	case IREMI:
-# ifdef I486_USE_SCRATCH_REGISTER
+# ifndef THREAD32
+#  ifdef I486_USE_SCRATCH_REGISTER
 				use_scratch_register();
-# endif
-				register_use_2 
+#  endif
+				register_use_2
 					(&instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,
 					 &instruction->instruction_parameters[2].parameter_data.reg,DEF);
-# ifdef I486_USE_SCRATCH_REGISTER
+#  ifdef I486_USE_SCRATCH_REGISTER
 				allocate_scratch_register=1;
+#  endif
+# else
+				use_3_same_type_registers
+					(&instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,
+					 &instruction->instruction_parameters[2].parameter_data.reg,DEF,
+					 &instruction->instruction_parameters[3].parameter_data.reg,DEF,D_REGISTER);
 # endif
 				break;
 #endif
@@ -4052,7 +4106,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				instruction_bmove_use_use_use (instruction);
 				break;
 #endif
-#ifdef I486
+#if defined (I486) && !defined (THREAD32)
 			case IDIVDU:
 # ifdef I486_USE_SCRATCH_REGISTER
 				use_scratch_register();
@@ -4187,7 +4241,7 @@ int do_register_allocation
 		end_d_registers &= ~((unsigned)(2|1)<<d_reg_num (REGISTER_D2));
 	}
 #endif
-	
+
 	end_a_registers |= ((unsigned)1<<a_reg_num (A_STACK_POINTER)) |
 					   ((unsigned)1<<a_reg_num (B_STACK_POINTER)) |
 #ifndef I486
@@ -4199,7 +4253,16 @@ int do_register_allocation
 					   ((unsigned)1<<a_reg_num (REGISTER_A9)) |
 					   ((unsigned)1<<a_reg_num (REGISTER_A10)) |
 #endif
+#ifndef THREAD32
 					   ((unsigned)1<<a_reg_num (HEAP_POINTER));
+#else
+						0;
+#endif
+
+#ifdef THREAD32
+	if (basic_block->block_n_new_heap_cells!=0)
+		end_a_registers |= ((unsigned)1<<a_reg_num (HEAP_POINTER));
+#endif
 
 #ifdef NEW_R_ALLOC
 	r_reg_uses_block=(struct register_use*)memory_allocate ((highest_a_register+highest_d_register) * sizeof (struct register_use));

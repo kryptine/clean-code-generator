@@ -937,7 +937,7 @@ void i_call_r (int register_1,int frame_size)
 }
 #endif
 
-#ifdef I486
+#if defined (I486) && !defined (THREAD32)
 void i_divdu_r_r_r (int register_1,int register_2,int register_3)
 {
 	struct instruction *instruction;
@@ -1332,9 +1332,10 @@ static void i_move_d_r (LABEL *descriptor,int arity,int register_1)
 												parameter_data.i=register_1);
 }
 
+#ifndef THREAD32
 void i_move_id_id (int offset_1,int register_1,int offset_2,int register_2)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction2 (IMOVE);
 	
@@ -1346,6 +1347,7 @@ void i_move_id_id (int offset_1,int register_1,int offset_2,int register_2)
 	instruction->instruction_parameters[1].parameter_offset=offset_2;
 	instruction->instruction_parameters[1].parameter_data.i=register_2;
 }
+#endif
 
 void i_move_id_r (int offset,int register_1,int register_2)
 {
@@ -1436,11 +1438,12 @@ void i_move_id_r (int offset,int register_1,int register_2)
 #endif
 
 #if defined (M68000) || defined (I486)
+# ifndef THREAD32
 static void i_move_id_x (int offset_1,int register_1,int offset_2,int register_2,int register_3)
 {
-	register struct instruction *instruction;
-	register struct index_registers *index_registers;
-	
+	struct instruction *instruction;
+	struct index_registers *index_registers;
+
 	instruction=i_new_instruction
 		(IMOVE,2,2*sizeof (struct parameter)+sizeof (struct index_registers));
 	index_registers=(struct index_registers *)&instruction->instruction_parameters[2];
@@ -1456,6 +1459,7 @@ static void i_move_id_x (int offset_1,int register_1,int offset_2,int register_2
 	index_registers->a_reg.r=register_2;
 	index_registers->d_reg.r=register_3;
 }
+# endif
 #endif
 
 void i_move_l_r (LABEL *label,int register_1)
@@ -1637,6 +1641,28 @@ void i_move_r_r (int register_1,int register_2)
 												parameter_data.i=register_2);
 }
 
+#ifdef THREAD32
+static void i_move_r_x (int register_1,int offset_2,int register_2,int register_3)
+{
+	struct instruction *instruction;
+	struct index_registers *index_registers;
+
+	instruction=i_new_instruction
+		(IMOVE,2,2*sizeof (struct parameter)+sizeof (struct index_registers));
+	index_registers=(struct index_registers *)&instruction->instruction_parameters[2];
+
+	instruction->instruction_parameters[0].parameter_type=P_REGISTER;
+	instruction->instruction_parameters[0].parameter_data.i=register_1;
+
+	instruction->instruction_parameters[1].parameter_type=P_INDEXED;
+	instruction->instruction_parameters[1].parameter_offset=offset_2;
+	instruction->instruction_parameters[1].parameter_data.ir=index_registers;
+	
+	index_registers->a_reg.r=register_2;
+	index_registers->d_reg.r=register_3;
+}
+#endif
+
 static void i_move_x_r (int offset,int register_1,int register_2,int register_3)
 {
 	struct instruction *instruction;
@@ -1657,10 +1683,11 @@ static void i_move_x_r (int offset,int register_1,int register_2,int register_3)
 	instruction->instruction_parameters[1].parameter_data.i=register_3;
 }
 
+#ifndef THREAD32
 static void i_move_x_id (int offset_1,int register_1,int register_2,int offset_2,int register_3)
 {
-	register struct instruction *instruction;
-	register struct index_registers *index_registers;
+	struct instruction *instruction;
+	struct index_registers *index_registers;
 	
 	instruction=i_new_instruction
 		(IMOVE,2,2*sizeof (struct parameter)+sizeof (struct index_registers));
@@ -1677,6 +1704,7 @@ static void i_move_x_id (int offset_1,int register_1,int register_2,int offset_2
 	instruction->instruction_parameters[1].parameter_offset=offset_2;
 	instruction->instruction_parameters[1].parameter_data.i=register_3;
 }
+#endif
 
 #if defined (M68000)
 static void i_move_x_pi (int offset,int register_1,int register_2,int register_3)
@@ -1779,7 +1807,7 @@ void i_movew_r_pd (int register_1,int register_2)
 }
 #endif
 
-#ifdef I486
+#if defined (I486) && !defined (THREAD32)
 void i_mulud_r_r (int register_1,int register_2)
 {
 	struct instruction *instruction;
@@ -2041,7 +2069,7 @@ static int get_free_register_number (register struct register_set *r_s_p)
 static void free_register_number (struct register_set *r_s_p,unsigned int reg_n)
 {
 	struct register_list *r_list;
-	register unsigned int bit_n;
+	unsigned int bit_n;
 	
 	if (reg_n<r_s_p->r_s_first_free)
 		r_s_p->r_s_first_free=reg_n;
@@ -2060,7 +2088,7 @@ static void free_register_number (struct register_set *r_s_p,unsigned int reg_n)
 static void allocate_register_number (struct register_set *r_s_p,unsigned int reg_n)
 {
 	struct register_list *r_list;
-	register unsigned int bit_n;
+	unsigned int bit_n;
 	
 	bit_n=reg_n;
 	r_list=&r_s_p->r_s_list;
@@ -2076,7 +2104,7 @@ static void allocate_register_number (struct register_set *r_s_p,unsigned int re
 static int try_allocate_register_number (int reg_n)
 {
 	struct register_list *r_list;
-	register unsigned int bit_n;
+	unsigned int bit_n;
 	
 	if (is_d_register (reg_n)){
 		r_list=&free_dregisters.r_s_list;
@@ -2100,8 +2128,8 @@ static int try_allocate_register_number (int reg_n)
 
 static int try_get_real_dregister_number (VOID)
 {
-	register struct register_list *r_list;
-	register unsigned int reg_n;
+	struct register_list *r_list;
+	unsigned int reg_n;
 	ULONG vector;
 	
 	reg_n=free_dregisters.r_s_first_free;
@@ -2334,7 +2362,7 @@ static void ad_to_parameter (ADDRESS *ad_p,struct parameter *parameter_p)
 }
 
 #if defined (FP_STACK_OPTIMIZATIONS) || defined (FMADD)
-#define FP_REG_LAST_USE 4
+# define FP_REG_LAST_USE 4
 #endif
 
 static int fad_to_parameter_without_freeing_fregister (ADDRESS *ad_p,struct parameter *parameter_p)
@@ -2444,6 +2472,35 @@ static void instruction_ad_id (int instruction_code,ADDRESS *ad_p,int offset,int
 	instruction->instruction_parameters[1].parameter_data.i=register_1;
 }
 
+static void i_move_ad_id (ADDRESS *ad_p,int offset,int register_1)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction2 (IMOVE);
+
+	ad_to_parameter (ad_p,&instruction->instruction_parameters[0]);
+
+#ifdef THREAD32
+	if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT ||
+		instruction->instruction_parameters[0].parameter_type==P_INDEXED){
+		int reg;
+
+		reg=get_dregister();
+
+		instruction->instruction_parameters[1].parameter_type=P_REGISTER;
+		instruction->instruction_parameters[1].parameter_data.i=reg;
+
+		i_move_r_id (reg,offset,register_1);
+		free_register (reg);
+		return;
+	}
+#endif
+
+	instruction->instruction_parameters[1].parameter_type=P_INDIRECT;
+	instruction->instruction_parameters[1].parameter_offset=offset;
+	instruction->instruction_parameters[1].parameter_data.i=register_1;
+}
+
 #ifdef G_POWER
 	static void i_move_ad_idu (ADDRESS *ad_p,int offset,int register_1)
 	{
@@ -2457,6 +2514,41 @@ static void instruction_ad_id (int instruction_code,ADDRESS *ad_p,int offset,int
 		instruction->instruction_parameters[1].parameter_offset=offset;
 		instruction->instruction_parameters[1].parameter_data.i=register_1;
 	}
+#endif
+
+#ifdef THREAD32
+static void i_move_ad_x (ADDRESS *ad_p,int offset,int register_1,int register_2)
+{
+	struct instruction *instruction;
+	struct index_registers *index_registers;
+	
+	instruction=i_new_instruction
+		(IMOVE,2,2*sizeof (struct parameter)+sizeof (struct index_registers));
+	index_registers=(struct index_registers *)&instruction->instruction_parameters[2];
+	
+	ad_to_parameter (ad_p,&instruction->instruction_parameters[0]);
+
+	if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT ||
+		instruction->instruction_parameters[0].parameter_type==P_INDEXED){
+		int reg;
+
+		reg=get_dregister();
+
+		instruction->instruction_parameters[1].parameter_type=P_REGISTER;
+		instruction->instruction_parameters[1].parameter_data.i=reg;
+
+		i_move_r_x (reg,offset,register_1,register_2);
+		free_register (reg);
+		return;
+	}
+
+	instruction->instruction_parameters[1].parameter_type=P_INDEXED;
+	instruction->instruction_parameters[1].parameter_offset=offset;
+	instruction->instruction_parameters[1].parameter_data.ir=index_registers;
+	
+	index_registers->a_reg.r=register_1;
+	index_registers->d_reg.r=register_2;
+}
 #endif
 
 #ifdef M68000
@@ -2543,7 +2635,7 @@ static void instruction_l (int instruction_code,LABEL *label)
 	instruction->instruction_parameters[0].parameter_data.l=label;
 }
 
-#if defined (THREAD64)
+#if defined (THREAD32) || defined (THREAD64)
 void instruction_l_r (int instruction_code,LABEL *label,int register_1)
 {
 	struct instruction *instruction;
@@ -2572,6 +2664,27 @@ static void instruction_ad_r_r (int instruction_code,ADDRESS *ad_p,int register_
 	S2 (instruction->instruction_parameters[2],	parameter_type=P_REGISTER,
 												parameter_data.i=register_2);
 }
+
+#ifdef THREAD32
+static void instruction_i_r_r_r (int instruction_code,int i,int register_1,int register_2,int register_3)
+{
+	struct instruction *instruction;
+
+	instruction=i_new_instruction (instruction_code,4,4*sizeof (struct parameter));
+	
+	S2 (instruction->instruction_parameters[0],	parameter_type=P_IMMEDIATE,
+												parameter_data.imm=i);
+	
+	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
+												parameter_data.i=register_1);
+	
+	S2 (instruction->instruction_parameters[2],	parameter_type=P_REGISTER,
+												parameter_data.i=register_2);
+
+	S2 (instruction->instruction_parameters[3],	parameter_type=P_REGISTER,
+												parameter_data.i=register_3);
+}
+#endif
 
 #ifdef I486
 static void instruction_r_r_r_i (int instruction_code,int register_1,int register_2,int register_3,int i)
@@ -2618,8 +2731,8 @@ void instruction_pd (int instruction_code,int register_1)
 
 static void instruction_ad_x (int instruction_code,ADDRESS *ad_p,int offset,int register_1,int register_2)
 {
-	register struct instruction *instruction;
-	register struct index_registers *index_registers;
+	struct instruction *instruction;
+	struct index_registers *index_registers;
 	
 	instruction=i_new_instruction
 		(instruction_code,2,2*sizeof (struct parameter)+sizeof (struct index_registers));
@@ -3206,7 +3319,7 @@ static void register_node (INSTRUCTION_GRAPH graph,int reg)
 		global_block.block_graph_d_register_parameter_node[d_reg_num (reg)]=graph;
 }
 
-static void float_register_node (register INSTRUCTION_GRAPH graph,int reg)
+static void float_register_node (INSTRUCTION_GRAPH graph,int reg)
 {
 	graph->instruction_code=GFREGISTER;
 	graph->instruction_parameters[0].i=reg;
@@ -3637,7 +3750,7 @@ static int linearize_not_condition (INSTRUCTION_GRAPH graph);
 static int linearize_condition (INSTRUCTION_GRAPH graph)
 {
 	int condition;
-	
+
 	switch (graph->instruction_code){
 		case GCMP_EQ:
 			condition=compare_node (graph,CEQ,CEQ);
@@ -3967,7 +4080,17 @@ static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH
 	if (ad_1.ad_mode==P_IMMEDIATE){
 		if (i_instruction_code==IDIVU || i_instruction_code==IREMU){
 			in_data_register (&ad_1);
+# ifndef THREAD32
 			instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);		
+# else
+			{
+			int tmp_reg;
+
+			tmp_reg=get_dregister();
+			instruction_ad_r_r (i_instruction_code,&ad_1,ad_2.ad_register,tmp_reg);
+			free_register (tmp_reg);
+			}
+# endif
 		} else {
 			CleanInt i;
 			
@@ -3980,27 +4103,65 @@ static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH
 				i=-i;
 
 			if ((i & (i-1))==0 && (i_instruction_code==IREM ? i>1 : i>0)){
+# ifndef THREAD32
 				instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
+# else
+				int tmp_reg;
+
+				tmp_reg=get_dregister();
+				instruction_ad_r_r (i_instruction_code,&ad_1,ad_2.ad_register,tmp_reg);
+				free_dregister (tmp_reg);
+# endif
 # ifndef G_A64
 			} else if (i>1 || (i<-1 && i!=0x80000000)){
 # else
 			} else if (i>1 || (i<-1 && i!=0x8000000000000000ll)){
 # endif
+# ifndef THREAD32
 				int tmp_reg;
 
 				tmp_reg=get_dregister();
 				instruction_ad_r_r (i_instruction_code==IDIV ? IDIVI : IREMI,&ad_1,ad_2.ad_register,tmp_reg);
 				free_dregister (tmp_reg);
+# else
+				int tmp_reg,tmp2_reg;
+
+				tmp_reg=get_dregister();
+				tmp2_reg=get_dregister();
+				instruction_i_r_r_r (i_instruction_code==IDIV ? IDIVI : IREMI,i,ad_2.ad_register,tmp_reg,tmp2_reg);
+				free_dregister (tmp2_reg);
+				free_dregister (tmp_reg);
+# endif
 			} else {
 				in_data_register (&ad_1);
+# ifndef THREAD32
 				instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
+# else
+				{
+				int tmp_reg;
+				
+				tmp_reg=get_dregister();
+				instruction_ad_r_r (i_instruction_code,&ad_1,ad_2.ad_register,tmp_reg);
+				free_dregister (tmp_reg);
+				}
+# endif
 			}
 		}
 	} else {
 		to_data_addressing_mode (&ad_1);
 		if (ad_1.ad_mode==P_INDEXED)
 			in_data_register (&ad_1);
+# ifndef THREAD32
 		instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
+# else
+		{
+		int tmp_reg;
+
+		tmp_reg=get_dregister();
+		instruction_ad_r_r (i_instruction_code,&ad_1,ad_2.ad_register,tmp_reg);
+		free_dregister (tmp_reg);
+		}
+# endif
 	}
 # else
 	instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
@@ -4219,7 +4380,8 @@ static void linearize_two_results_operator (INSTRUCTION_GRAPH result_graph,ADDRE
 	int reg_1,reg_2;
 	
 	graph=result_graph->instruction_parameters[0].p;
-	
+
+#ifndef THREAD32
 	if (graph->instruction_code==GMULUD){
 		INSTRUCTION_GRAPH graph_1,graph_2;
 
@@ -4256,7 +4418,9 @@ static void linearize_two_results_operator (INSTRUCTION_GRAPH result_graph,ADDRE
 		if (--*ad_3.ad_count_p==0)
 			free_register (ad_3.ad_register);
 		i_divdu_r_r_r (ad_3.ad_register,reg_1,reg_2);
-	} else if (graph->instruction_code==GADDDU){
+	} else
+#endif
+	if (graph->instruction_code==GADDDU){
 		ADDRESS ad_3,ad_4;
 
 		linearize_3_graphs (graph->instruction_parameters[0].p,&ad_1,
@@ -4746,9 +4910,22 @@ static void move_float_ad_id (ADDRESS *ad_p,int offset,int areg)
 				free_aregister (ad_p->ad_register);
 			} else {
 #endif
+#ifndef THREAD32
 				i_move_id_id (ad_p->ad_offset,ad_p->ad_register,offset,areg);
-#ifndef G_A64
+# ifndef G_A64
 				i_move_id_id (ad_p->ad_offset+4,ad_p->ad_register,offset+4,areg);
+# endif
+#else
+				{
+				int reg;
+
+				reg=get_dregister();
+				i_move_id_r (ad_p->ad_offset,ad_p->ad_register,reg);
+				i_move_r_id (reg,offset,areg);
+				i_move_id_r (ad_p->ad_offset+4,ad_p->ad_register,reg);
+				i_move_r_id (reg,offset+4,areg);
+				free_register (reg);
+				}
 #endif
 				if (--*ad_p->ad_count_p==0)
 					free_aregister (ad_p->ad_register);
@@ -4796,13 +4973,14 @@ static void move_float_ad_id (ADDRESS *ad_p,int offset,int areg)
 						return;
 					}
 #endif
+#ifndef THREAD32
 					i_move_x_id (i_ad_p->ad_offset,i_ad_p->ad_areg,i_ad_p->ad_dreg,offset,areg);
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_areg);
-#ifndef G_A64
-# if defined (M68000) || defined (I486)
+# ifndef G_A64
+#  if defined (M68000) || defined (I486)
 					i_move_x_id (i_ad_p->ad_offset+(4<<2),i_ad_p->ad_areg,i_ad_p->ad_dreg,offset+4,areg);
-# else
+#  else
 					{
 						int a_reg;
 
@@ -4811,14 +4989,41 @@ static void move_float_ad_id (ADDRESS *ad_p,int offset,int areg)
 						i_move_id_id (4,a_reg,offset+4,areg);
 						free_aregister (a_reg);
 					}
+#  endif
 # endif
+#else
+					{
+					int reg;
+
+					reg=get_dregister();
+					i_move_x_r (i_ad_p->ad_offset,i_ad_p->ad_areg,i_ad_p->ad_dreg,reg);
+					i_move_r_id (reg,offset,areg);
+					i_move_x_r (i_ad_p->ad_offset+(4<<2),i_ad_p->ad_areg,i_ad_p->ad_dreg,reg);
+					i_move_r_id (reg,offset+4,areg);
+					free_register (reg);
+					if (--*i_ad_p->ad_count_p==0)
+						free_aregister (i_ad_p->ad_areg);
+					}
 #endif
 					if (--*i_ad_p->ad_count_p2==0)
 						free_dregister (i_ad_p->ad_dreg);
 				} else {
+#ifndef THREAD32
 					i_move_id_id (i_ad_p->ad_offset,i_ad_p->ad_register,offset,areg);
-#ifndef G_A64
+# ifndef G_A64
 					i_move_id_id (i_ad_p->ad_offset+4,i_ad_p->ad_register,offset+4,areg);
+# endif
+#else
+					{
+					int reg;
+
+					reg=get_dregister();
+					i_move_id_r (i_ad_p->ad_offset,i_ad_p->ad_register,reg);
+					i_move_r_id (reg,offset,areg);
+					i_move_id_r (i_ad_p->ad_offset+4,i_ad_p->ad_register,reg);
+					i_move_r_id (reg,offset+4,areg);
+					free_register (reg);
+					}
 #endif
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_register);
@@ -4839,7 +5044,7 @@ static void move_float_ad_id (ADDRESS *ad_p,int offset,int areg)
 	}
 }
 
-static void linearize_load_graph (register INSTRUCTION_GRAPH load_graph)
+static void linearize_load_graph (INSTRUCTION_GRAPH load_graph)
 {
 	if (load_graph!=NULL){
 		if (load_graph->node_count>0){
@@ -4986,11 +5191,11 @@ static void linearize_create_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p,int
 #ifdef M68000
 				move_float_ad_pi (&ad_a[argument_number],HEAP_POINTER);
 #else
-#	ifdef G_POWER
+# ifdef G_POWER
 				move_float_ad_id (&ad_a[argument_number],heap_offset+4,HEAP_POINTER);
-#	else
+# else
 				move_float_ad_id (&ad_a[argument_number],heap_offset,HEAP_POINTER);
-#	endif
+# endif
 				heap_offset+=8;
 #endif
 #ifndef G_A64
@@ -5000,7 +5205,7 @@ static void linearize_create_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p,int
 #ifdef M68000
 				instruction_ad_pi (IMOVE,&ad_a[argument_number],HEAP_POINTER);
 #else
-#	ifdef G_POWER
+# ifdef G_POWER
 				if (ad_a[argument_number].ad_mode==P_STORE_HP_INSTRUCTION){
 					struct instruction *instruction;
 
@@ -5010,10 +5215,10 @@ static void linearize_create_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p,int
 						heap_pointer_offset_in_basic_block+heap_offset+STACK_ELEMENT_SIZE
 						-instruction->instruction_parameters[1].parameter_data.i;
 				} else
-					instruction_ad_id (IMOVE,&ad_a[argument_number],heap_offset+STACK_ELEMENT_SIZE,HEAP_POINTER);
-#	else
-				instruction_ad_id (IMOVE,&ad_a[argument_number],heap_offset,HEAP_POINTER);
-#	endif
+					i_move_ad_id (&ad_a[argument_number],heap_offset+STACK_ELEMENT_SIZE,HEAP_POINTER);
+# else
+				i_move_ad_id (&ad_a[argument_number],heap_offset,HEAP_POINTER);
+# endif
 				heap_offset+=STACK_ELEMENT_SIZE;
 #endif
 			}
@@ -5203,7 +5408,7 @@ linearize_store_create_operator (int offset,int stack_pointer,INSTRUCTION_GRAPH 
 						-instruction->instruction_parameters[1].parameter_data.i;
 				} else
 # endif
-				instruction_ad_id (IMOVE,&ad_a[argument_number],heap_offset,HEAP_POINTER);
+				i_move_ad_id (&ad_a[argument_number],heap_offset,HEAP_POINTER);
 				heap_offset+=STACK_ELEMENT_SIZE;
 #endif
 			}
@@ -5240,11 +5445,11 @@ static void linearize_fill_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		--n_arguments;
 	
 	ad_a=evaluate_arguments (graph->instruction_parameters,n_arguments);
-	
+
 	if (n_arguments==2 && graph->instruction_parameters[1].p!=NULL){
 		in_address_register (&ad_a[0]);
 		reg_1=reg_2=ad_a[0].ad_register;
-		instruction_ad_id (IMOVE,&ad_a[1],0-NODE_POINTER_OFFSET,reg_2);
+		i_move_ad_id (&ad_a[1],0-NODE_POINTER_OFFSET,reg_2);
 		if (--*ad_a[0].ad_count_p==0 && graph->node_count==0)
 			free_aregister (reg_2);
 	} else if (	n_arguments==3 && graph->instruction_parameters[1].p!=NULL 
@@ -5258,17 +5463,17 @@ static void linearize_fill_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			move_float_ad_id (&ad_a[1],0-NODE_POINTER_OFFSET,reg_2);
 		} else
 #ifdef G_A64
-			instruction_ad_id (IMOVE,&ad_a[1],0-NODE_POINTER_OFFSET,reg_2);
+			i_move_ad_id (&ad_a[1],0-NODE_POINTER_OFFSET,reg_2);
 
 		if (ad_a[2].ad_mode>=100){
 			ad_a[2].ad_mode-=100;
 			move_float_ad_id (&ad_a[2],STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,reg_2);
 		} else
-			instruction_ad_id (IMOVE,&ad_a[2],STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,reg_2);
+			i_move_ad_id (&ad_a[2],STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,reg_2);
 #else
 		{
-			instruction_ad_id (IMOVE,&ad_a[1],0-NODE_POINTER_OFFSET,reg_2);
-			instruction_ad_id (IMOVE,&ad_a[2],STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,reg_2);
+			i_move_ad_id (&ad_a[1],0-NODE_POINTER_OFFSET,reg_2);
+			i_move_ad_id (&ad_a[2],STACK_ELEMENT_SIZE-NODE_POINTER_OFFSET,reg_2);
 		}
 #endif
 		if (--*ad_a[0].ad_count_p==0 && graph->node_count==0)
@@ -5329,9 +5534,9 @@ static void linearize_fill_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 					if (argument_number!=n_arguments-1)
 						instruction_ad_pi (IMOVE,&ad_a[argument_number],reg_1);
 					else
-						instruction_ad_id (IMOVE,&ad_a[argument_number],0,reg_1);
+						i_move_ad_id (&ad_a[argument_number],0,reg_1);
 #else
-					instruction_ad_id (IMOVE,&ad_a[argument_number],offset,reg_1);
+					i_move_ad_id (&ad_a[argument_number],offset,reg_1);
 					offset+=STACK_ELEMENT_SIZE;
 #endif
 				}
@@ -5414,9 +5619,22 @@ static void move_float_ad_x (ADDRESS *ad_p,int offset,int areg,int dreg)
 				free_aregister (ad_p->ad_register);
 			} else {
 # endif
+# ifndef THREAD32
 				i_move_id_x (ad_p->ad_offset,ad_p->ad_register,offset,areg,dreg);
-# ifndef G_A64
+#  ifndef G_A64
 				i_move_id_x (ad_p->ad_offset+4,ad_p->ad_register,offset+(4<<2),areg,dreg);
+#  endif
+# else
+				{
+				int reg;
+				
+				reg=get_dregister();
+				i_move_id_r (ad_p->ad_offset,ad_p->ad_register,reg);
+				i_move_r_x (reg,offset,areg,dreg);
+				i_move_id_r (ad_p->ad_offset+4,ad_p->ad_register,reg);
+				i_move_r_x (reg,offset+(4<<2),areg,dreg);
+				free_register (reg);
+				}
 # endif
 				if (--*ad_p->ad_count_p==0)
 					free_aregister (ad_p->ad_register);
@@ -5483,7 +5701,7 @@ static void linearize_fill_r_operator (register INSTRUCTION_GRAPH graph,register
 	in_address_register (&ad_a[0]);
 	reg_2=ad_a[0].ad_register;
 	
-	instruction_ad_id (IMOVE,&ad_a[1],0,reg_2);
+	i_move_ad_id (&ad_a[1],0,reg_2);
 	move_float_ad_id (&ad_a[2],STACK_ELEMENT_SIZE,reg_2);
 	
 	if (graph->node_count==0)
@@ -5577,9 +5795,9 @@ static void linearize_store_fill_operator (INSTRUCTION_GRAPH s_graph,INSTRUCTION
 				if (argument_number!=n_arguments-1)
 					instruction_ad_pi (IMOVE,&ad_a[argument_number],reg_1);
 				else
-					instruction_ad_id (IMOVE,&ad_a[argument_number],0,reg_1);
+					i_move_ad_id (&ad_a[argument_number],0,reg_1);
 #else
-				instruction_ad_id (IMOVE,&ad_a[argument_number],offset,reg_1);
+				i_move_ad_id (&ad_a[argument_number],offset,reg_1);
 				offset+=STACK_ELEMENT_SIZE;
 #endif
 			}
@@ -5830,7 +6048,7 @@ static void linearize_fmovemi_operator (INSTRUCTION_GRAPH graph,register ADDRESS
 	ad_p->ad_count_p=&graph->node_count;
 }
 
-static void linearize_copy_operator (register INSTRUCTION_GRAPH graph,register ADDRESS *ad_p)
+static void linearize_copy_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	ADDRESS ad;
 	int areg_1,areg_2;
@@ -5853,9 +6071,24 @@ static void linearize_copy_operator (register INSTRUCTION_GRAPH graph,register A
 	i_move_pi_id (areg_1,4,areg_2);
 	i_move_pi_id (areg_1,8,areg_2);
 #else
+# ifndef THREAD32
 	i_move_id_id (0,areg_1,0,areg_2);
 	i_move_id_id (STACK_ELEMENT_SIZE,areg_1,STACK_ELEMENT_SIZE,areg_2);
 	i_move_id_id (2*STACK_ELEMENT_SIZE,areg_1,2*STACK_ELEMENT_SIZE,areg_2);
+# else
+	{
+	int reg;
+
+	reg=get_dregister();
+	i_move_id_r (0,areg_1,reg);
+	i_move_r_id (reg,0,areg_2);
+	i_move_id_r (STACK_ELEMENT_SIZE,areg_1,reg);
+	i_move_r_id (reg,STACK_ELEMENT_SIZE,areg_2);
+	i_move_id_r (2*STACK_ELEMENT_SIZE,areg_1,reg);
+	i_move_r_id (reg,2*STACK_ELEMENT_SIZE,areg_2);
+	free_register (reg);
+	}
+# endif
 #endif
 
 	if (--*ad.ad_count_p==0)
@@ -6643,7 +6876,7 @@ static void linearize_flow_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 #endif
 
 #ifdef G_A64
-static void linearize_tof_operator (INSTRUCTION_GRAPH graph,register ADDRESS *ad_p)
+static void linearize_tof_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	ADDRESS ad_1;
 
@@ -6651,7 +6884,7 @@ static void linearize_tof_operator (INSTRUCTION_GRAPH graph,register ADDRESS *ad
 
 	local_data_offset-=FLOAT_SIZE;
 
-	instruction_ad_id (IMOVE,&ad_1,local_data_offset,B_STACK_POINTER);
+	i_move_ad_id (&ad_1,local_data_offset,B_STACK_POINTER);
 
 	if (graph->node_count>1){
 		int freg;
@@ -6662,7 +6895,7 @@ static void linearize_tof_operator (INSTRUCTION_GRAPH graph,register ADDRESS *ad
 		ad_p->ad_mode=P_F_REGISTER;
 		ad_p->ad_register=freg;
 		ad_p->ad_count_p=&graph->node_count;
-		
+
 		float_register_node (graph,freg);
 	} else {
 		ad_p->ad_mode=P_INDIRECT;
@@ -6705,8 +6938,8 @@ static void linearize_fjoin_operator (INSTRUCTION_GRAPH graph,register ADDRESS *
 
 	local_data_offset-=FLOAT_SIZE;
 
-	instruction_ad_id (IMOVE,&ad_2,local_data_offset+4,B_STACK_POINTER);
-	instruction_ad_id (IMOVE,&ad_1,local_data_offset,B_STACK_POINTER);
+	i_move_ad_id (&ad_2,local_data_offset+4,B_STACK_POINTER);
+	i_move_ad_id (&ad_1,local_data_offset,B_STACK_POINTER);
 
 	if (graph->node_count>1){
 		int freg;
@@ -6732,7 +6965,7 @@ static void linearize_fjoin_operator (INSTRUCTION_GRAPH graph,register ADDRESS *
 static int float_compare_node (INSTRUCTION_GRAPH graph,int i_test_1,int i_test_2)
 {
 	ADDRESS ad_1,ad_2;
-		
+
 	linearize_float_graph (graph->instruction_parameters[0].p,&ad_1);
 	linearize_float_graph (graph->instruction_parameters[1].p,&ad_2);
 
@@ -7185,7 +7418,7 @@ static void linearize_two_float_results_operator (INSTRUCTION_GRAPH result_graph
 }
 #endif
 
-static void linearize_float_graph (register INSTRUCTION_GRAPH graph,register ADDRESS *ad_p)
+static void linearize_float_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	switch (graph->instruction_code){
 		case GFREGISTER:
@@ -7200,7 +7433,6 @@ static void linearize_float_graph (register INSTRUCTION_GRAPH graph,register ADD
 			ad_p->ad_count=1+1;
 			break;
 		case GFLOAD:
-		{
 			if (graph->node_count<=1){
 				ad_p->ad_mode=P_INDIRECT;
 				ad_p->ad_count_p=&ad_p->ad_count;
@@ -7223,7 +7455,6 @@ static void linearize_float_graph (register INSTRUCTION_GRAPH graph,register ADD
 				float_register_node (graph,reg_1);
 			}
 			return;
-		}
 		case GFLOAD_I:
 			if (graph->node_count<=1){
 				ad_p->ad_mode=P_F_IMMEDIATE;
@@ -7252,9 +7483,7 @@ static void linearize_float_graph (register INSTRUCTION_GRAPH graph,register ADD
 			if (graph->node_count<=1){
 				ad_p->ad_mode=P_INDIRECT;
 				ad_p->ad_offset=graph->instruction_parameters[0].i;
-				/* added 26-7-97 */
 				--graph->node_count;
-				/* */
 			} else {
 				int reg_1;
 				
@@ -7392,10 +7621,10 @@ static void linearize_fstore_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p);
 static void linearize_fstore_s_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p);
 #endif
 
-static void linearize_fstore_r_operator (register INSTRUCTION_GRAPH graph)
+static void linearize_fstore_r_operator (INSTRUCTION_GRAPH graph)
 {
 	INSTRUCTION_GRAPH *register_graph_1_p,*register_graph_2_p;
-	register int reg_1;
+	int reg_1;
 	ADDRESS ad_1;
 	
 	linearize_float_graph (graph->instruction_parameters[1].p,&ad_1);
@@ -7414,7 +7643,7 @@ static void linearize_fstore_r_operator (register INSTRUCTION_GRAPH graph)
 	}
 	
 	if (ad_1.ad_mode==P_F_REGISTER){
-		register int reg_2;
+		int reg_2;
 		
 		reg_2=ad_1.ad_register;
 		
@@ -7442,7 +7671,7 @@ static void linearize_fstore_r_operator (register INSTRUCTION_GRAPH graph)
 				*register_graph_2_p=graph;
 			} else {
 #endif
-			register int reg_2;
+			int reg_2;
 						
 			reg_2=get_fregister();
 			if ((unsigned)reg_2<(unsigned)N_FLOAT_PARAMETER_REGISTERS)
@@ -7474,15 +7703,12 @@ static void linearize_fstore_r_operator (register INSTRUCTION_GRAPH graph)
 	} else {
 		if (ad_1.ad_mode==P_INDIRECT)
 			--*ad_1.ad_count_p;
-		if (register_graph_1_p!=NULL && *register_graph_1_p!=NULL 
-			&& (*register_graph_1_p)->node_count>0)
-		{
-			register int reg_2;
+		if (register_graph_1_p!=NULL && *register_graph_1_p!=NULL && (*register_graph_1_p)->node_count>0){
+			int reg_2;
 		
 			reg_2=get_fregister();
 			if ((unsigned)reg_2<(unsigned)N_FLOAT_PARAMETER_REGISTERS)
-				register_graph_2_p=
-					&global_block.block_graph_f_register_parameter_node [reg_2];
+				register_graph_2_p=&global_block.block_graph_f_register_parameter_node [reg_2];
 			else
 				register_graph_2_p=NULL;
 			
@@ -7497,6 +7723,7 @@ static void linearize_fstore_r_operator (register INSTRUCTION_GRAPH graph)
 		}
 		if (ad_1.ad_mode==P_INDIRECT)
 			++*ad_1.ad_count_p;
+
 		instruction_ad_fr (IFMOVE,&ad_1,reg_1);
 	}
 	
@@ -7516,14 +7743,18 @@ static void linearize_create_r_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p,i
 
 #ifndef M68000
 # ifdef I486
+#  ifdef G_A64
+	if (offset_from_heap_register+(2<<3) >= 127){
+#  else
 	if (offset_from_heap_register+(3<<2) >= 127){
+#  endif
 # else
-#	ifdef G_POWER
+#  ifdef G_POWER
 	if (offset_from_heap_register+(3<<2) >= 32767){
 		heap_pointer_offset_in_basic_block+=offset_from_heap_register;
-#	else
+#  else
 	if (offset_from_heap_register+(3<<2) >= 4096){
-#	endif
+#  endif
 # endif
 		i_add_i_r (offset_from_heap_register,HEAP_POINTER);
 		IF_G_POWER (last_heap_pointer_update=last_instruction;) 
@@ -7558,10 +7789,10 @@ static void linearize_create_r_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p,i
 	move_float_ad_pi (&ad_2,HEAP_POINTER);
 #else
 #	ifdef G_POWER
-	instruction_ad_id (IMOVE,&ad_1,offset_from_heap_register+4,HEAP_POINTER);
+	i_move_ad_id (&ad_1,offset_from_heap_register+4,HEAP_POINTER);
 	move_float_ad_id (&ad_2,offset_from_heap_register+4+STACK_ELEMENT_SIZE,HEAP_POINTER);
 #	else
-	instruction_ad_id (IMOVE,&ad_1,offset_from_heap_register,HEAP_POINTER);
+	i_move_ad_id (&ad_1,offset_from_heap_register,HEAP_POINTER);
 	move_float_ad_id (&ad_2,offset_from_heap_register+STACK_ELEMENT_SIZE,HEAP_POINTER);
 #	endif
 # ifdef G_A64
@@ -8406,10 +8637,21 @@ static void linearize_store_x_operator (int i_instruction_code,INSTRUCTION_GRAPH
 	in_address_register (ad_p);
 
 	if (graph_3==NULL){
+#ifndef THREAD32
 		if (i_instruction_code!=IMOVE && ad_1.ad_mode!=P_IMMEDIATE)
 			in_data_register (&ad_1);
 
 		instruction_ad_id (i_instruction_code,&ad_1,offset>>2,ad_p->ad_register);
+#else
+		if (i_instruction_code==IMOVE){
+			i_move_ad_id (&ad_1,offset>>2,ad_p->ad_register);		
+		} else {
+			if (ad_1.ad_mode!=P_IMMEDIATE)
+				in_data_register (&ad_1);
+
+			instruction_ad_id (i_instruction_code,&ad_1,offset>>2,ad_p->ad_register);
+		}
+#endif
 #if defined (sparc) || defined (G_POWER)
 	} else if (offset!=0){
 		if (i_instruction_code!=IMOVE && ad_1.ad_mode!=P_IMMEDIATE)
@@ -8425,10 +8667,11 @@ static void linearize_store_x_operator (int i_instruction_code,INSTRUCTION_GRAPH
 			in_register (&ad_1);
 #endif
 
+#ifndef THREAD32
 		if (i_instruction_code!=IMOVE && ad_1.ad_mode!=P_IMMEDIATE
-#ifdef M68000
+# ifdef M68000
 			&& ad_1.ad_mode!=P_INDEXED
-#endif
+# endif
 			)
 			in_data_register (&ad_1);
 
@@ -8436,6 +8679,21 @@ static void linearize_store_x_operator (int i_instruction_code,INSTRUCTION_GRAPH
 			free_dregister (ad_3.ad_register);
 
 		instruction_ad_x (i_instruction_code,&ad_1,offset,ad_p->ad_register,ad_3.ad_register);
+#else
+		if (i_instruction_code==IMOVE){
+			i_move_ad_x (&ad_1,offset,ad_p->ad_register,ad_3.ad_register);
+			if (--*ad_3.ad_count_p==0)
+				free_dregister (ad_3.ad_register);
+		} else {
+			if (ad_1.ad_mode!=P_IMMEDIATE)
+				in_data_register (&ad_1);
+
+			if (--*ad_3.ad_count_p==0)
+				free_dregister (ad_3.ad_register);
+
+			instruction_ad_x (i_instruction_code,&ad_1,offset,ad_p->ad_register,ad_3.ad_register);
+		}
+#endif
 	}
 
 	if (graph->node_count>1){
@@ -8812,7 +9070,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			
 			linearize_load_graph (graph->instruction_parameters[3].p);
 						
-			instruction_ad_id (IMOVE,ad_p,offset,stack_pointer);
+			i_move_ad_id (ad_p,offset,stack_pointer);
 			return;
 		}
 		case GBEFORE0:
@@ -8914,7 +9172,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			return;
 		case GLOAD_B_X:
 			linearize_load_b_x_operator (graph,ad_p);
-			return;			
+			return;
 #ifdef G_AI64
 		case GLOAD_S_X:
 			linearize_load_s_x_operator (graph,ad_p,0);
@@ -9596,6 +9854,8 @@ static void show_parameter (struct parameter *parameter)
 		case P_POST_INCREMENT:
 			printf ("(A%d)+",a_reg_num (parameter->parameter_data.reg.r));	
 			break;
+#endif
+#if defined (M68000) || defined (I486)
 		case P_PRE_DECREMENT:
 			printf ("-(A%d)",a_reg_num (parameter->parameter_data.reg.r));
 			break;

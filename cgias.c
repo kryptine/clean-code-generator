@@ -869,7 +869,7 @@ static void as_id_r (int code,int offset,int reg1,int reg2)
 #define as_r_x(code,reg3,offset,index_registers) as_x_r(code,offset,index_registers,reg3)
 
 static void as_x_r (int code,int offset,struct index_registers *index_registers,int reg3)
-{	
+{
 	int reg1,reg2,shift;
 
 	reg1=index_registers->a_reg.r;
@@ -2127,6 +2127,9 @@ struct ms magic (int d)
 static void as_div_rem_i_instruction (struct instruction *instruction,int compute_remainder)
 {
 	int s_reg1,s_reg2,s_reg3,i,sd_reg,i_reg,tmp_reg,abs_i;
+#ifdef THREAD32
+	int tmp2_reg;
+#endif
 	struct ms ms;
 
 	if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
@@ -2147,6 +2150,7 @@ static void as_div_rem_i_instruction (struct instruction *instruction,int comput
 	sd_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 	tmp_reg=instruction->instruction_parameters[2].parameter_data.reg.r;
 
+#ifndef THREAD32
 	if (sd_reg==tmp_reg)
 		internal_error_in_function ("as_div_rem_i_instruction");		
 
@@ -2180,6 +2184,57 @@ static void as_div_rem_i_instruction (struct instruction *instruction,int comput
 		s_reg2=sd_reg;
 		i_reg=REGISTER_D0;
 	}
+#else
+	tmp2_reg=instruction->instruction_parameters[3].parameter_data.reg.r;
+
+	if (sd_reg==tmp_reg || sd_reg==tmp2_reg)
+		internal_error_in_function ("as_div_rem_i_instruction");		
+
+	if (sd_reg==REGISTER_A1){
+		if (tmp2_reg==REGISTER_D0){
+			s_reg2=tmp_reg;
+		} else {
+			if (tmp_reg!=REGISTER_D0)
+				as_move_r_r (REGISTER_D0,tmp_reg);
+			s_reg2=tmp2_reg;
+		}
+		as_move_r_r (REGISTER_A1,s_reg2);
+		s_reg1=REGISTER_A1;
+		i_reg=REGISTER_D0;
+	} else if (sd_reg==REGISTER_D0){
+		if (tmp2_reg==REGISTER_A1){
+			s_reg2=tmp_reg;
+		} else {
+			if (tmp_reg!=REGISTER_A1)
+				as_move_r_r (REGISTER_A1,tmp_reg);
+			s_reg2=tmp2_reg;
+		}
+		as_move_r_r (REGISTER_D0,s_reg2);
+		s_reg1=REGISTER_A1;
+		i_reg=REGISTER_A1;
+	} else {
+		if (tmp_reg==REGISTER_D0){
+			if (tmp2_reg!=REGISTER_A1)
+				as_move_r_r (REGISTER_A1,tmp2_reg);
+		} else if (tmp_reg==REGISTER_A1){
+			if (tmp2_reg!=REGISTER_D0)
+				as_move_r_r (REGISTER_D0,tmp2_reg);
+		} else {
+			if (tmp2_reg==REGISTER_D0){
+				as_move_r_r (REGISTER_A1,tmp_reg);
+			} else if (tmp2_reg==REGISTER_A1){
+				as_move_r_r (REGISTER_D0,tmp_reg);
+			} else {
+				as_move_r_r (REGISTER_D0,tmp2_reg);
+				as_move_r_r (REGISTER_A1,tmp_reg);
+			}
+		}
+
+		s_reg1=sd_reg;
+		s_reg2=sd_reg;
+		i_reg=REGISTER_D0;
+	}
+#endif
 
 	as_move_i_r (ms.m,i_reg);
 
@@ -2285,6 +2340,7 @@ static void as_div_rem_i_instruction (struct instruction *instruction,int comput
 			as_move_r_r (s_reg3,sd_reg);
 	}
 
+#ifndef THREAD32
 	if (sd_reg==REGISTER_A1){
 		if (tmp_reg!=REGISTER_D0)
 			as_move_r_r (tmp_reg,REGISTER_D0);
@@ -2301,8 +2357,35 @@ static void as_div_rem_i_instruction (struct instruction *instruction,int comput
 			as_move_r_r (tmp_reg,REGISTER_A1);			
 		}
 	}
+#else
+	if (sd_reg==REGISTER_A1){
+		if (tmp2_reg!=REGISTER_D0 && tmp_reg!=REGISTER_D0)
+			as_move_r_r (tmp_reg,REGISTER_D0);
+	} else if (sd_reg==REGISTER_D0){
+		if (tmp2_reg!=REGISTER_A1 && tmp_reg!=REGISTER_A1)
+			as_move_r_r (tmp_reg,REGISTER_A1);
+	} else {
+		if (tmp_reg==REGISTER_D0){
+			if (tmp2_reg!=REGISTER_A1)
+				as_move_r_r (tmp2_reg,REGISTER_A1);
+		} else if (tmp_reg==REGISTER_A1){
+			if (tmp2_reg!=REGISTER_D0)
+				as_move_r_r (tmp2_reg,REGISTER_D0);						
+		} else {
+			if (tmp2_reg==REGISTER_D0){
+				as_move_r_r (tmp_reg,REGISTER_A1);
+			} else if (tmp2_reg==REGISTER_A1){
+				as_move_r_r (tmp_reg,REGISTER_D0);
+			} else {
+				as_move_r_r (tmp2_reg,REGISTER_D0);			
+				as_move_r_r (tmp_reg,REGISTER_A1);
+			}
+		}
+	}
+#endif
 }
 
+#ifndef THREAD32
 static void as_div_instruction (struct instruction *instruction,int unsigned_div)
 {
 	int d_reg,opcode2;
@@ -2454,7 +2537,273 @@ static void as_div_instruction (struct instruction *instruction,int unsigned_div
 			as_move_r_r (REGISTER_O0,REGISTER_A1);
 	}
 }
+#else
+static void as_div_instruction (struct instruction *instruction,int unsigned_div)
+{
+	int d_reg,tmp_reg,opcode2;
 
+	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	tmp_reg=instruction->instruction_parameters[2].parameter_data.reg.r;
+
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE && unsigned_div==0){
+		int i,log2i;
+		
+		i=instruction->instruction_parameters[0].parameter_data.i;
+		
+		if (! ((i & (i-1))==0 && i>0)){
+			internal_error_in_function ("as_div_instruction");
+			return;
+		}
+		
+		if (i==1)
+			return;
+
+		log2i=0;
+		while (i>1){
+			i=i>>1;
+			++log2i;
+		}
+
+		as_move_r_r (d_reg,tmp_reg);
+
+		if (log2i==1){
+			as_sar_i_r (31,tmp_reg);
+
+			as_r_r (0053,tmp_reg,d_reg); /* sub */
+		} else {
+			as_sar_i_r (31,d_reg);
+
+			/* and */
+			if (d_reg==EAX)
+				store_c (045);
+			else
+				as_r (0201,040,d_reg);
+			store_l ((1<<log2i)-1);
+
+			as_r_r (0003,tmp_reg,d_reg); /* add */
+		}
+		
+		as_sar_i_r (log2i,d_reg);
+
+		return;
+	}
+
+	opcode2=unsigned_div ? 0060 : 0070;
+
+	switch (d_reg){
+		case REGISTER_D0:
+			if (tmp_reg==REGISTER_A1){
+				if (unsigned_div)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+		
+				/* idivl */
+				as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
+			} else {
+				as_move_r_r (REGISTER_A1,tmp_reg);
+		
+				if (unsigned_div)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+
+				/* idivl */
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER
+					&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
+				{
+					as_r (0367,opcode2,tmp_reg);
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT
+					&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
+				{
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,tmp_reg);
+				} else
+					as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
+				
+				as_move_r_r (tmp_reg,REGISTER_A1);
+			}
+			break;
+		case REGISTER_A1:
+			if (tmp_reg==REGISTER_D0){
+				as_move_r_r (REGISTER_A1,REGISTER_D0);
+		
+				if (unsigned_div)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+		
+				/* idivl */
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=REGISTER_D0;
+					
+					as_r (0367,opcode2,r);
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=REGISTER_D0;
+
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);					
+				} else
+					as_parameter (00367,opcode2,&instruction->instruction_parameters[0]);
+		
+				as_move_r_r (REGISTER_D0,REGISTER_A1);
+			} else {
+				as_move_r_r (REGISTER_D0,tmp_reg);
+				as_move_r_r (REGISTER_A1,REGISTER_D0);
+		
+				if (unsigned_div)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+		
+				/* idivl */
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=tmp_reg;
+					else if (r==REGISTER_A1)
+						r=REGISTER_D0;
+					
+					as_r (0367,opcode2,r);
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=tmp_reg;
+					else if (r==REGISTER_A1)
+						r=REGISTER_D0;
+
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);					
+				} else
+					as_parameter (00367,opcode2,&instruction->instruction_parameters[0]);
+		
+				as_move_r_r (REGISTER_D0,REGISTER_A1);
+				as_move_r_r (tmp_reg,REGISTER_D0);
+			}
+			break;
+		default:
+			if (tmp_reg==REGISTER_D0){
+				as_move_r_r (d_reg,REGISTER_D0);
+				as_move_r_r (REGISTER_A1,d_reg);
+
+				if (unsigned_div)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+		
+				/* idivl */
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_r (0367,opcode2,r);			
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);
+				} else
+					as_parameter (0367,0070,&instruction->instruction_parameters[0]);
+
+				as_move_r_r (d_reg,REGISTER_A1);
+				as_move_r_r (REGISTER_D0,d_reg);
+			} else if (tmp_reg==REGISTER_A1){
+				store_c (0x90+reg_num (d_reg));	/* xchg d_reg,D0 */
+		
+				if (unsigned_div)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+		
+				/* idivl */
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_r (0367,opcode2,r);			
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);
+				} else
+					as_parameter (0367,0070,&instruction->instruction_parameters[0]);
+
+				store_c (0x90+reg_num (d_reg)); /* xchg d_reg,D0 */
+			} else {
+				as_move_r_r (REGISTER_A1,tmp_reg);
+				store_c (0x90+reg_num (d_reg));	/* xchg d_reg,D0 */
+		
+				if (unsigned_div)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+
+				/* idivl */
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==REGISTER_A1)
+						r=tmp_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_r (0367,opcode2,r);			
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==REGISTER_A1)
+						r=tmp_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);
+				} else
+					as_parameter (0367,0070,&instruction->instruction_parameters[0]);
+
+				store_c (0x90+reg_num (d_reg)); /* xchg d_reg,D0 */
+				as_move_r_r (tmp_reg,REGISTER_A1);
+			}
+	}
+}
+#endif
+
+#ifndef THREAD32
 static void as_rem_instruction (struct instruction *instruction,int unsigned_rem)
 {
 	int d_reg,opcode2;
@@ -2620,6 +2969,283 @@ static void as_rem_instruction (struct instruction *instruction,int unsigned_rem
 			as_move_r_r (REGISTER_O0,REGISTER_A1);
 	}
 }
+#else
+static void as_rem_instruction (struct instruction *instruction,int unsigned_rem)
+{
+	int d_reg,tmp_reg,opcode2;
+
+	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	tmp_reg=instruction->instruction_parameters[2].parameter_data.reg.r;
+
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE && unsigned_rem==0){
+		int i,log2i;
+		
+		i=instruction->instruction_parameters[0].parameter_data.i;
+
+		if (i<0 && i!=0x80000000)
+			i=-i;
+		
+		if (! ((i & (i-1))==0 && i>1)){
+			internal_error_in_function ("as_rem_instruction");
+			return;
+		}
+				
+		log2i=0;
+		while (i>1){
+			i=i>>1;
+			++log2i;
+		}
+
+		as_move_r_r (d_reg,tmp_reg);
+
+		if (log2i==1){
+			/* and */
+			if (d_reg==EAX)
+				store_c (045);
+			else
+				as_r (0201,040,d_reg);
+			store_l (1);
+
+			as_sar_i_r (31,tmp_reg);
+
+			as_r_r (0063,tmp_reg,d_reg); /* xor */
+		} else {
+			as_sar_i_r (31,tmp_reg);
+
+			/* and */
+			if (tmp_reg==EAX)
+				store_c (045);
+			else
+				as_r (0201,040,tmp_reg);
+			store_l ((1<<log2i)-1);
+
+			as_r_r (0003,tmp_reg,d_reg); /* add */
+
+			/* and */
+			if (d_reg==EAX)
+				store_c (045);
+			else
+				as_r (0201,040,d_reg);
+			store_l ((1<<log2i)-1);
+		}
+
+		as_r_r (0053,tmp_reg,d_reg); /* sub */
+
+		return;
+	}
+
+	opcode2=unsigned_rem ? 0060 : 0070;
+
+	switch (d_reg){
+		case REGISTER_D0:
+			if (tmp_reg==REGISTER_A1){
+				if (unsigned_rem)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+
+				/* idivl */
+				as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
+
+				as_move_r_r (REGISTER_A1,REGISTER_D0);
+			} else {
+				as_move_r_r (REGISTER_A1,tmp_reg);
+
+				if (unsigned_rem)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+
+				/* idivl */
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER
+					&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
+				{
+					as_r (0367,opcode2,tmp_reg);
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT
+					&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
+				{
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,tmp_reg);
+				} else
+					as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
+
+				as_move_r_r (REGISTER_A1,REGISTER_D0);
+				as_move_r_r (tmp_reg,REGISTER_A1);
+			}
+			break;		
+		case REGISTER_A1:
+			if (tmp_reg==REGISTER_D0){
+				as_move_r_r (REGISTER_A1,REGISTER_D0);
+		
+				if (unsigned_rem)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+
+				/* idivl */	
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=REGISTER_D0;
+					
+					as_r (0367,opcode2,r);
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=REGISTER_D0;
+					
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);
+				} else
+					as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
+			} else {
+				as_move_r_r (REGISTER_D0,tmp_reg);
+				as_move_r_r (REGISTER_A1,REGISTER_D0);
+		
+				if (unsigned_rem)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+
+				/* idivl */	
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=tmp_reg;
+					else if (r==REGISTER_A1)
+						r=REGISTER_D0;
+					
+					as_r (0367,opcode2,r);
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=tmp_reg;
+					else if (r==REGISTER_A1)
+						r=REGISTER_D0;
+					
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);
+				} else
+					as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
+			
+				as_move_r_r (tmp_reg,REGISTER_D0);
+			}
+			break;
+		default:
+			if (tmp_reg==REGISTER_D0){
+				as_move_r_r (d_reg,REGISTER_D0);
+				as_move_r_r (REGISTER_A1,d_reg);
+
+				if (unsigned_rem)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+				/* idivl */
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_r (0367,opcode2,r);
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);				
+				} else
+					as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
+				
+				as_r_r (0207,d_reg,REGISTER_A1);	/* xchg */
+			} else if (tmp_reg==REGISTER_A1){
+				store_c (0x90+reg_num (d_reg)); /* xchg d_reg,D0 */
+		
+				if (unsigned_rem)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+				/* idivl */
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_r (0367,opcode2,r);
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);				
+				} else
+					as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
+
+				as_move_r_r (d_reg,REGISTER_D0);
+				as_move_r_r (REGISTER_A1,d_reg);
+			} else {
+				as_move_r_r (REGISTER_A1,tmp_reg);
+				store_c (0x90+reg_num (d_reg)); /* xchg d_reg,D0 */
+		
+				if (unsigned_rem)
+					as_r_r (0063,REGISTER_A1,REGISTER_A1);	/* xor */
+				else
+					store_c (0231);							/* cdq */
+				/* idivl */
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==REGISTER_A1)
+						r=tmp_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_r (0367,opcode2,r);
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==REGISTER_A1)
+						r=tmp_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					as_id (0367,opcode2,instruction->instruction_parameters[0].parameter_offset,r);				
+				} else
+					as_parameter (0367,opcode2,&instruction->instruction_parameters[0]);
+
+				as_move_r_r (d_reg,REGISTER_D0);
+				as_move_r_r (REGISTER_A1,d_reg);
+				as_move_r_r (tmp_reg,REGISTER_A1);
+			}
+	}
+}
+#endif
 
 static void as_2move_registers (int reg1,int reg2,int reg3)
 {
@@ -2634,6 +3260,7 @@ static void as_3move_registers (int reg1,int reg2,int reg3,int reg4)
 	as_move_r_r (reg1,reg2);
 }
 
+#ifndef THREAD32
 static void as_mulud_instruction (struct instruction *instruction)
 {
 	int reg_1,reg_2;
@@ -2711,12 +3338,14 @@ static void as_mulud_instruction (struct instruction *instruction)
 		as_2move_registers (REGISTER_O0,REGISTER_A1,reg_1);
 	}
 }
+#endif
 
 static void as_xchg_eax_r (int reg_1)
 {
 	store_c (0x90+reg_num (reg_1)); /* xchg reg_1,D0 */
 }
 
+#ifndef THREAD32
 static void as_divdu_instruction (struct instruction *instruction)
 {
 	int reg_1,reg_2,reg_3;
@@ -2833,6 +3462,7 @@ static void as_divdu_instruction (struct instruction *instruction)
 		}
 	}
 }
+#endif
 
 static void as_mul_shift_magic (int s)
 {
@@ -3329,6 +3959,27 @@ static void as_rtsi_instruction (struct instruction *instruction)
 	store_c (0xc2);
 	store_w (instruction->instruction_parameters[0].parameter_data.i);
 }
+
+#ifdef THREAD32
+static void as_ldtsp_instruction (struct instruction *instruction)
+{
+	int reg,reg_n;
+	
+	reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	
+	/* mov label,reg */
+	as_r_a (0213,reg,instruction->instruction_parameters[0].parameter_data.l);
+
+	reg_n=reg_num (reg);
+
+	/* mov fs:[0x0e10+reg*4],reg */
+	store_c (0x64); /* fs prefix */
+	store_c (0213);
+	store_c (4 | (reg_n<<3));
+	store_c (0205 | (reg_n<<3));
+	store_l (0x0e10);
+}
+#endif
 
 static void as_f_r (int code1,int code2,int freg)
 {
@@ -4589,8 +5240,9 @@ static void as_fmovel_instruction (struct instruction *instruction)
 {
 	if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
 		if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
-			LABEL *new_label;
 			int s_freg;
+#ifndef THREAD32
+			LABEL *new_label;
 			
 			new_label=allocate_memory_from_heap (sizeof (struct label));
 		
@@ -4606,12 +5258,22 @@ static void as_fmovel_instruction (struct instruction *instruction)
 			} else
 				as_f_a (0xdb,2,new_label); /* fist */
 			as_r_a (0x8b,instruction->instruction_parameters[1].parameter_data.reg.r,new_label);			
+#else
+		s_freg=instruction->instruction_parameters[0].parameter_data.reg.r;
+		if (s_freg!=0){
+			as_f_r (0xd9,0xc0,s_freg);		/* fld s_freg */		
+			as_f_id (0xdb,8,REGISTER_A4,3); /* fistp */
+		} else
+			as_f_id (0xdb,8,REGISTER_A4,2); /* fist */
+		as_id_r (0213,8,REGISTER_A4,instruction->instruction_parameters[1].parameter_data.reg.r); /* mov */
+#endif
 		} else
 			internal_error_in_function ("as_fmovel_instruction");
 	} else {
 		switch (instruction->instruction_parameters[0].parameter_type){
 			case P_REGISTER:
 			{
+#ifndef THREAD32
 				LABEL *new_label;
 				
 				new_label=allocate_memory_from_heap (sizeof (struct label));
@@ -4623,6 +5285,10 @@ static void as_fmovel_instruction (struct instruction *instruction)
 
 				as_r_a (0211,instruction->instruction_parameters[0].parameter_data.reg.r,new_label);
 				as_f_a (0xdb,0,new_label); /* fildl */
+#else
+				as_r_id (0211,instruction->instruction_parameters[0].parameter_data.reg.r,8,REGISTER_A4); /* mov */
+				as_f_id (0xdb,8,REGISTER_A4,0); /* fildl */
+#endif
 				break;
 			}
 			case P_INDIRECT:
@@ -4893,12 +5559,14 @@ static void as_instructions (struct instruction *instruction)
 			case ISBB:
 				as_sbb_instruction (instruction);
 				break;
+#ifndef THREAD32
 			case IMULUD:
 				as_mulud_instruction (instruction);
 				break;
 			case IDIVDU:
 				as_divdu_instruction (instruction);
 				break;
+#endif
 			case IFLOORDIV:
 				as_floordiv_mod_instruction (instruction,0);
 				break;
@@ -5039,6 +5707,11 @@ static void as_instructions (struct instruction *instruction)
 			case IFSINCOS:
 				as_fsincos_instruction (instruction);
 				break;
+#ifdef THREAD32
+			case ILDTLSP:
+				as_ldtsp_instruction (instruction);
+				break;
+#endif
 			default:
 				internal_error_in_function ("as_instructions");
 		}
@@ -5086,11 +5759,24 @@ static void as_garbage_collect_test (struct basic_block *block)
 		first_call_and_jump=new_call_and_jump;
 	last_call_and_jump=new_call_and_jump;
 
+#ifdef THREAD32
+	as_id_r (0213,0,REGISTER_A4,HEAP_POINTER); /* mov */
+#endif
+
 	if (n_cells<=8)
+#ifndef THREAD32
 		as_r_a (0073,HEAP_POINTER,end_heap_label); /* cmp */
+#else
+		as_id_r (0073,4,REGISTER_A4,HEAP_POINTER); /* cmp */
+#endif
 	else {
+#ifndef THREAD32
 		as_id_r (0215,(n_cells-8)<<2,HEAP_POINTER,REGISTER_O0); /* lea */
 		as_r_a (0073,REGISTER_O0,end_heap_label); /* cmp */
+#else
+		as_i_r2 (0201,0000,0005,(n_cells-8)<<2,HEAP_POINTER); /* add */
+		as_id_r (0073,4,REGISTER_A4,HEAP_POINTER); /* cmp */
+#endif
 	}
 
 	store_c (0x0f);
@@ -5104,6 +5790,11 @@ static void as_garbage_collect_test (struct basic_block *block)
 	new_call_and_jump->cj_jump.label_object_label=code_object_label;
 #endif
 	new_call_and_jump->cj_jump.label_offset=CURRENT_CODE_OFFSET;
+
+#ifdef THREAD32
+	if (n_cells>8)
+		as_id_r (0213,0,REGISTER_A4,HEAP_POINTER); /* mov */
+#endif
 }
 
 static void as_call_and_jump (struct call_and_jump *call_and_jump)
@@ -5947,7 +6638,7 @@ static void write_file_header_and_section_headers (void)
 				write_l (data_section_length);
 				write_l (0);
 				write_l (0);
-                write_l (object_label->object_section_align8 ? 8 : 4);
+				write_l (object_label->object_section_align8 ? 8 : 4);
 				write_l (0);
 
 				section_string_offset+=8+n_digits (object_label->object_label_section_n);

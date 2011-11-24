@@ -73,8 +73,6 @@ extern unsigned int end_a_registers,end_d_registers,end_f_registers;
 /* from cglin.c */
 extern int local_data_offset;
 
-#pragma segment Code4
-
 #define allocate_struct_from_heap(a) (struct a*)allocate_memory_from_heap(sizeof (struct a))
 
 INSTRUCTION_GRAPH s_get_a (int offset)
@@ -395,11 +393,11 @@ void init_b_stack (int b_stack_size,ULONG vector[])
 		register_graph=g_register (num_to_d_reg (number_of_data_register_parameters-1-n));
 		s_put_b_l (data_offsets[n],register_graph,register_graph);
 	}
-	
+
 	for (n=0; n<number_of_float_register_parameters; ++n){
 		INSTRUCTION_GRAPH register_graph,h_graph,l_graph;
-		register int offset;
-	
+		int offset;
+
 		register_graph=g_fregister (number_of_float_register_parameters-1-n);
 
 		offset=float_offsets[n];
@@ -513,7 +511,7 @@ void init_ab_stack (int a_stack_size,int b_stack_size,ULONG vector[])
 	
 	for (n=0; n<number_of_float_register_parameters; ++n){
 		INSTRUCTION_GRAPH register_graph,h_graph,l_graph;
-		register int offset;
+		int offset;
 	
 		register_graph=g_fregister (number_of_float_register_parameters-1-n);
 
@@ -704,8 +702,8 @@ int get_a_stack_size (VOID)
 
 static int count_b_stack_size (ULONG *vector_p[],struct b_stack *b_stack,int b_stack_top_offset)
 {
-	register struct b_stack *first_b_element,*b_element;
-	register int b_stack_size,offset,i;
+	struct b_stack *first_b_element,*b_element;
+	int b_stack_size,offset,i;
 	ULONG *vector;
 		
 	b_stack_size=0;
@@ -770,8 +768,8 @@ static int count_b_stack_size (ULONG *vector_p[],struct b_stack *b_stack,int b_s
 
 static int count_b_stack_size_2 (ULONG *vector_p[],struct b_stack *b_stack,int b_stack_top_offset)
 {
-	register struct b_stack *first_b_element,*b_element;
-	register int b_stack_size,offset,i;
+	struct b_stack *first_b_element,*b_element;
+	int b_stack_size,offset,i;
 	ULONG *vector;
 		
 	b_stack_size=0;
@@ -807,9 +805,9 @@ static int count_b_stack_size_2 (ULONG *vector_p[],struct b_stack *b_stack,int b
 	}
 		
 	b_element=first_b_element;
-		
+
 	for (i=0; i<b_stack_size; ){
-		register struct b_stack *next_b_element;
+		struct b_stack *next_b_element;
 		INSTRUCTION_GRAPH graph,next_graph;
 		
 #ifdef G_A64
@@ -851,8 +849,8 @@ int get_b_stack_size (ULONG *vector_p[])
 
 static void a_stack_load_register_values (int n_parameters,int n_address_parameter_registers)
 {
-	register struct a_stack **element_p;
-	register int parameter_n;
+	struct a_stack **element_p;
+	int parameter_n;
 	
 	if (n_parameters>n_address_parameter_registers)
 		n_parameters=n_address_parameter_registers;
@@ -1033,8 +1031,8 @@ static void b_stack_load_register_values (int n_parameters,ULONG vector[],int n_
 #endif
 								)
 {
-	register struct b_stack **element_p;
-	register int parameter_n;
+	struct b_stack **element_p;
+	int parameter_n;
 	int number_of_d_register_parameters,number_of_f_register_parameters_m_2;
 	
 #ifdef MORE_PARAMETER_REGISTERS
@@ -1055,7 +1053,7 @@ static void b_stack_load_register_values (int n_parameters,ULONG vector[],int n_
 		
 		while (*element_p!=NULL && (*element_p)->b_stack_offset<required_offset)
 			element_p=&(*element_p)->b_stack_next;
-		
+
 		if (!test_bit (vector,parameter_n)
 			?	number_of_d_register_parameters++ < n_data_parameter_registers
 #ifdef MORE_PARAMETER_REGISTERS
@@ -1068,7 +1066,7 @@ static void b_stack_load_register_values (int n_parameters,ULONG vector[],int n_
 #endif
 		{
 			if (*element_p!=NULL && (*element_p)->b_stack_offset==required_offset){
-				register struct b_stack *element;
+				struct b_stack *element;
 				
 				element=*element_p;
 				if (element->b_stack_flags & ELEMENT_MAY_BE_REMOVED && element->b_stack_graph==NULL){
@@ -1281,10 +1279,10 @@ static void b_stack_stores (int n_parameters,ULONG vector[],int n_data_parameter
 	
 	for (n=0; n<number_of_f_register_parameters; ++n)
 		if (f_graphs[n]!=NULL){
-			register int f_reg_n;
-		
+			int f_reg_n;
+
 			f_reg_n=number_of_f_register_parameters-1-n;
-		
+
 			end_f_registers |= ((unsigned)1<<f_reg_n);
 		
 			*f_graphs_p[n]=g_fstore_r (f_reg_n,f_graphs[n]);
@@ -1331,9 +1329,9 @@ static int set_basic_block_begin_d_registers
 #endif
 	 )
 {
-	register int offset,stack_displacement;
-	register int n_d_registers,n_f_registers,all_parameters_in_registers;
-	register int n_data_parameter_registers;
+	int offset,stack_displacement;
+	int n_d_registers,n_f_registers,all_parameters_in_registers;
+	int n_data_parameter_registers;
 	
 	n_data_parameter_registers =
 		(parallel_flag ? N_DATA_PARAMETER_REGISTERS-1 : N_DATA_PARAMETER_REGISTERS)
@@ -1365,8 +1363,8 @@ static int set_basic_block_begin_d_registers
 	all_parameters_in_registers=1;
 	
 	for (offset=0; offset<b_stack_size; ++offset){
-		register INSTRUCTION_GRAPH graph;
-			
+		INSTRUCTION_GRAPH graph;
+		
 		if (!test_bit (vector,offset)){
 			if (n_d_registers<=0)
 				all_parameters_in_registers=0;
@@ -1378,9 +1376,9 @@ static int set_basic_block_begin_d_registers
 				
 				while (*element_p!=NULL && (*element_p)->b_stack_offset<offset)
 					element_p=&(*element_p)->b_stack_next;
-								
+
 				if (*element_p!=NULL && (*element_p)->b_stack_offset==offset){
-					register struct b_stack *element;
+					struct b_stack *element;
 					
 					element=*element_p;
 					
@@ -1486,7 +1484,7 @@ static int set_basic_block_begin_d_registers
 					
 					element_p=&(*element_p)->b_stack_next;
 				} else {			
-					register struct b_stack *new_element;
+					struct b_stack *new_element;
 					
 					graph=g_new_node (GREGISTER,0,sizeof (union instruction_parameter));
 #ifdef MORE_PARAMETER_REGISTERS
@@ -1524,7 +1522,7 @@ static int set_basic_block_begin_d_registers
 			else {
 				INSTRUCTION_GRAPH r_graph;
 				int f_register_not_used_flag;
-				register struct b_stack *element;
+				struct b_stack *element;
 				
 				--n_f_registers;
 				
@@ -1681,7 +1679,7 @@ static int set_basic_block_begin_d_registers
 static void compute_b_load_offsets (register struct b_stack *b_element,int offset)
 {
 	for (; b_element!=NULL; b_element=b_element->b_stack_next){
-		register INSTRUCTION_GRAPH load_graph;
+		INSTRUCTION_GRAPH load_graph;
 		
 		load_graph=b_element->b_stack_load_graph;
 	
@@ -2879,7 +2877,7 @@ static void mark_stack_graphs_1
 						(b_element_1==NULL || b_element_1->b_stack_offset!=offset+1))
 #endif
 					{
-						register struct b_stack *new_element;
+						struct b_stack *new_element;
 						INSTRUCTION_GRAPH f_graph,l_graph,h_graph;
 					
 						/* printf ("%d# ",offset); */
@@ -2929,7 +2927,7 @@ static void mark_stack_graphs_1
 						b_element_2=next_b_element_2;
 #endif
 					} else {
-						register struct b_stack *new_element;
+						struct b_stack *new_element;
 						INSTRUCTION_GRAPH graph;
 		
 						/* printf ("%d ",offset); */
@@ -2972,7 +2970,7 @@ static void mark_stack_graphs_1
 				&& (b_element_1==NULL || b_element_1->b_stack_offset!=offset+1)
 				&&	mc68881_flag)
 			{
-				register struct b_stack *new_element;
+				struct b_stack *new_element;
 				INSTRUCTION_GRAPH f_graph,l_graph,h_graph;
 		
 				/* printf ("%d$# ",offset); */
@@ -3022,7 +3020,7 @@ static void mark_stack_graphs_1
 				++offset;
 #endif
 			} else {
-				register struct b_stack *new_element;
+				struct b_stack *new_element;
 				INSTRUCTION_GRAPH graph;
 	
 				/* printf ("%d$ ",offset); */
@@ -3242,7 +3240,12 @@ void linearize_stack_graphs (VOID)
 
 	if (graphs!=NULL){
 		calculate_and_linearize_graphs (n_elements,graphs);
-	
+
+#ifdef THREAD32
+		if (last_block->block_n_new_heap_cells!=0)
+			i_move_r_id (HEAP_POINTER,0,REGISTER_A4);
+#endif
+
 		memory_free (graphs);
 	} else
 		allocate_registers();
@@ -3319,6 +3322,11 @@ void linearize_stack_graphs_with_overflow_test (INSTRUCTION_GRAPH test_overflow_
 # else
 			i_add_i_r (offset_from_heap_register,HEAP_POINTER);
 # endif
+#endif
+
+#ifdef THREAD32
+		if (last_block->block_n_new_heap_cells!=0)
+			i_move_r_id (HEAP_POINTER,0,REGISTER_A4);
 #endif
 
 		memory_free (graphs);
@@ -3492,7 +3500,7 @@ int adjust_stack_pointers_without_altering_condition_codes (int float_condition,
 
 struct basic_block *allocate_empty_basic_block (VOID)
 {
-	register struct basic_block *block;
+	struct basic_block *block;
 	
 	block=(struct basic_block*)fast_memory_allocate (sizeof (struct basic_block));
 	block->block_next=NULL;
@@ -3753,7 +3761,7 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 
 static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 {
-	register struct block_graph *block_graph;
+	struct block_graph *block_graph;
 	struct basic_block *old_last_block;
 	struct instruction *block_instructions,*block_last_instruction;
 	int n_allocated_d_regs,n_allocated_f_regs,n_data_parameter_registers;
@@ -3805,7 +3813,7 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 #endif	
 	)
 		--end_b_stack_size;
-		
+	
 	a_stack_load_register_values (block_graph->block_graph_end_a_stack_size,N_ADDRESS_PARAMETER_REGISTERS);
 	b_stack_load_register_values (end_b_stack_size,block_graph->block_graph_end_stack_vector,n_data_parameter_registers
 #ifdef MORE_PARAMETER_REGISTERS
@@ -3826,7 +3834,7 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 	switch (block_graph->block_graph_kind){
 		case JSR_EVAL_BLOCK:
 		{
-			register int n,b_stack_size,n_data_parameter_registers;
+			int n,b_stack_size,n_data_parameter_registers;
 			
 			n_data_parameter_registers = parallel_flag ? N_DATA_PARAMETER_REGISTERS-1 : N_DATA_PARAMETER_REGISTERS;
 			
@@ -3893,7 +3901,7 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 #endif
 		case JSR_BLOCK:
 		{
-			register int b_offset;
+			int b_offset;
 			
 #if ! (defined (sparc) || defined (G_POWER))
 			b_offset=local_register_allocation_and_adjust_a_stack_pointer
@@ -4201,7 +4209,7 @@ void generate_code_for_previous_blocks (int jmp_jsr_or_rtn_flag)
 					(&block_graph->block_graph_end_stack_vector,
 					block_graph->block_graph_b_stack,
 					block_graph->block_graph_b_stack_top_offset);
-							
+
 				vector=block_graph->block_graph_end_stack_vector;
 
 				a_stack_size=optimize_jsr_eval (block_graph,a_stack_size,next_block_graph);
@@ -4210,7 +4218,7 @@ void generate_code_for_previous_blocks (int jmp_jsr_or_rtn_flag)
 					a_stack_size=N_ADDRESS_PARAMETER_REGISTERS;
 				block_graph->block_graph_end_a_stack_size=a_stack_size;
 				block_graph->block_graph_end_b_stack_size=b_stack_size;
-				
+
 				if (block_graph->block_graph_next!=NULL)
 					next_block_graph->block_graph_block->block_n_begin_a_parameter_registers=a_stack_size;
 				else

@@ -37,7 +37,7 @@
 #  endif
 # endif
 #endif
-#if defined (THREAD64)
+#if defined (THREAD32) || defined (THREAD64)
 # include "cgiconst.h"
 #endif
 #ifndef MACH_O64
@@ -64,7 +64,7 @@ LABEL *saved_heap_p_label,*saved_a_stack_p_label;
 #ifdef MACH_O
 LABEL *dyld_stub_binding_helper_p_label;
 #endif
-#if defined (THREAD64)
+#if defined (THREAD32) || defined (THREAD64)
 LABEL *tlsp_tls_index_label;
 #endif
 
@@ -3650,10 +3650,14 @@ static void ccall_load_string_or_array_offset (int offset,int c_parameter_n,int 
 }
 #endif
 
-#ifdef THREAD64
-# define SAVED_HEAP_P_OFFSET 24
-# define SAVED_R15_OFFSET 32
-# define SAVED_A_STACK_P_OFFSET 40
+#ifdef THREAD32
+# define SAVED_A_STACK_P_OFFSET 12
+#else
+# ifdef THREAD64
+#  define SAVED_HEAP_P_OFFSET 24
+#  define SAVED_R15_OFFSET 32
+#  define SAVED_A_STACK_P_OFFSET 40
+# endif
 #endif
 
 void code_ccall (char *c_function_name,char *s,int length)
@@ -4186,12 +4190,12 @@ void code_ccall (char *c_function_name,char *s,int length)
 			break;
 		default:
 			error_s (ccall_error_string,c_function_name);
-		}
+	}
 
 #elif defined (I486)
 
 # ifndef G_AI64 /* for I486 && ! G_AI64 */
-		{
+	{
 		int c_offset_before_pushing_arguments,function_address_reg;
 		int b_out_and_ab_result_size;
 
@@ -4436,8 +4440,12 @@ void code_ccall (char *c_function_name,char *s,int length)
 		}
 
 		if (save_state_in_global_variables){
+#  ifndef THREAD32
 			i_move_r_l (-4/*ESI*/,saved_a_stack_p_label);
 			i_move_r_l (-5/*EDI*/,saved_heap_p_label);
+#  else
+			i_move_r_id (A_STACK_POINTER,SAVED_A_STACK_P_OFFSET,-5/*EDI*/);
+#  endif
 		}
 
 		if (!function_address_parameter)
@@ -4446,8 +4454,12 @@ void code_ccall (char *c_function_name,char *s,int length)
 			i_jsr_r (function_address_reg);
 
 		if (save_state_in_global_variables){
+#  ifndef THREAD32
 			i_move_l_r (saved_a_stack_p_label,-4/*ESI*/);
 			i_move_l_r (saved_heap_p_label,-5/*EDI*/);
+#  else
+			i_move_id_r (SAVED_A_STACK_P_OFFSET,-5/*EDI*/,A_STACK_POINTER);
+#  endif
 		}
 
 		if (callee_pops_arguments)
@@ -5389,13 +5401,22 @@ static void save_registers_before_clean_call (void)
 #  endif
 # else
 	i_sub_i_r (20,B_STACK_POINTER);
-
+#  ifndef THREAD32
 	i_move_r_id (-4/*ESI*/,16,B_STACK_POINTER);
 	i_move_l_r (saved_a_stack_p_label,-4/*ESI*/);
 
 	i_move_r_id (-5/*EDI*/,12,B_STACK_POINTER);
 	i_move_l_r (saved_heap_p_label,-5/*EDI*/);
+#  else
+	if (tlsp_tls_index_label==NULL)
+		tlsp_tls_index_label=enter_label ("tlsp_tls_index",IMPORT_LABEL);
 
+	i_move_r_id (-5/*EDI*/,12,B_STACK_POINTER);
+	instruction_l_r (ILDTLSP,tlsp_tls_index_label,-5/*EDI*/);
+
+	i_move_r_id (-4/*ESI*/,16,B_STACK_POINTER);
+	i_move_id_r (SAVED_A_STACK_P_OFFSET,-5/*EDI*/,-4/*ESI*/);
+#  endif
 	i_move_r_id (1/*EBX*/,8,B_STACK_POINTER);
 	i_move_r_id (-1/*ECX*/,4,B_STACK_POINTER);
 	i_move_r_id (-3/*EBP*/,0,B_STACK_POINTER);
@@ -5464,12 +5485,17 @@ static void restore_registers_after_clean_call (void)
 #  endif
 	i_add_i_r (144,B_STACK_POINTER);
 # else
+#  ifndef THREAD32
 	i_move_r_l (-4/*ESI*/,saved_a_stack_p_label);
 	i_move_id_r (16,B_STACK_POINTER,-4/*ESI*/);
 
 	i_move_r_l (-5/*EDI*/,saved_heap_p_label);
 	i_move_id_r (12,B_STACK_POINTER,-5/*EDI*/);	
-
+#  else
+	i_move_r_id (-4/*ESI*/,SAVED_A_STACK_P_OFFSET,-5/*EDI*/);
+	i_move_id_r (16,B_STACK_POINTER,-4/*ESI*/);
+	i_move_id_r (12,B_STACK_POINTER,-5/*EDI*/);		
+#  endif
 	i_move_id_r (8,B_STACK_POINTER,1/*EBX*/);
 	i_move_id_r (4,B_STACK_POINTER,-1/*ECX*/);
 	i_move_id_r (0,B_STACK_POINTER,-3/*EBP*/);

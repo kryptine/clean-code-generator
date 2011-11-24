@@ -1660,6 +1660,9 @@ static void w_as_convert_float_condition_instruction (struct instruction *instru
 static void w_as_div_rem_i_instruction (struct instruction *instruction,int compute_remainder)
 {
 	int s_reg1,s_reg2,s_reg3,i,sd_reg,i_reg,tmp_reg,abs_i;
+#ifdef THREAD32
+	int tmp2_reg;
+#endif
 	struct ms ms;
 
 	if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
@@ -1680,6 +1683,7 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 	sd_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 	tmp_reg=instruction->instruction_parameters[2].parameter_data.reg.r;
 
+#ifndef THREAD32
 	if (sd_reg==tmp_reg)
 		internal_error_in_function ("w_as_div_rem_i_instruction");		
 
@@ -1715,6 +1719,61 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 		s_reg2=sd_reg;
 		i_reg=REGISTER_D0;
 	}
+#else
+	tmp2_reg=instruction->instruction_parameters[3].parameter_data.reg.r;
+
+	if (sd_reg==tmp_reg || sd_reg==tmp2_reg)
+		internal_error_in_function ("w_as_div_rem_i_instruction");		
+
+	if (sd_reg==REGISTER_A1){
+		if (tmp2_reg==REGISTER_D0){
+			s_reg2=tmp_reg;
+		} else {
+			if (tmp_reg!=REGISTER_D0)
+				w_as_movl_register_register_newline (REGISTER_D0,tmp_reg);
+			s_reg2=tmp2_reg;
+		}
+		
+		w_as_movl_register_register_newline (REGISTER_A1,s_reg2);
+		
+		s_reg1=sd_reg;
+		i_reg=REGISTER_D0;
+	} else if (sd_reg==REGISTER_D0){
+		if (tmp2_reg==REGISTER_A1){
+			s_reg2=tmp_reg;
+		} else {
+			if (tmp_reg!=REGISTER_A1)
+				w_as_movl_register_register_newline (REGISTER_A1,tmp_reg);			
+			s_reg2=tmp2_reg;
+		}
+
+		w_as_movl_register_register_newline (REGISTER_D0,s_reg2);
+
+		s_reg1=REGISTER_A1;
+		i_reg=REGISTER_A1;
+	} else {
+		if (tmp_reg==REGISTER_D0){
+			if (tmp2_reg!=REGISTER_A1)
+				w_as_movl_register_register_newline (REGISTER_A1,tmp2_reg);			
+		} else if (tmp_reg==REGISTER_A1){
+			if (tmp2_reg!=REGISTER_D0)
+				w_as_movl_register_register_newline (REGISTER_D0,tmp2_reg);						
+		} else {
+			if (tmp2_reg==REGISTER_D0){
+				w_as_movl_register_register_newline (REGISTER_A1,tmp_reg);
+			} else if (tmp2_reg==REGISTER_A1){
+				w_as_movl_register_register_newline (REGISTER_D0,tmp_reg);
+			} else {
+				w_as_movl_register_register_newline (REGISTER_D0,tmp2_reg);
+				w_as_movl_register_register_newline (REGISTER_A1,tmp_reg);
+			}
+		}
+		
+		s_reg1=sd_reg;
+		s_reg2=sd_reg;
+		i_reg=REGISTER_D0;
+	}
+#endif
 
 	w_as_opcode_movl();
 	w_as_immediate_register_newline (ms.m,i_reg);
@@ -1813,6 +1872,7 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 			w_as_movl_register_register_newline (s_reg3,sd_reg);
 	}
 
+#ifndef THREAD32
 	if (sd_reg==REGISTER_A1){
 		if (tmp_reg!=REGISTER_D0)
 			w_as_movl_register_register_newline (tmp_reg,REGISTER_D0);
@@ -1829,6 +1889,32 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 			w_as_movl_register_register_newline (tmp_reg,REGISTER_A1);			
 		}
 	}
+#else
+	if (sd_reg==REGISTER_A1){
+		if (tmp2_reg!=REGISTER_D0 && tmp_reg!=REGISTER_D0)
+			w_as_movl_register_register_newline (tmp_reg,REGISTER_D0);
+	} else if (sd_reg==REGISTER_D0){
+		if (tmp2_reg!=REGISTER_A1 && tmp_reg!=REGISTER_A1)
+			w_as_movl_register_register_newline (tmp_reg,REGISTER_A1);
+	} else {
+		if (tmp_reg==REGISTER_D0){
+			if (tmp2_reg!=REGISTER_A1)
+				w_as_movl_register_register_newline (tmp2_reg,REGISTER_A1);
+		} else if (tmp_reg==REGISTER_A1){
+			if (tmp2_reg!=REGISTER_D0)
+				w_as_movl_register_register_newline (tmp2_reg,REGISTER_D0);						
+		} else {
+			if (tmp2_reg==REGISTER_D0){
+				w_as_movl_register_register_newline (tmp_reg,REGISTER_A1);
+			} else if (tmp2_reg==REGISTER_A1){
+				w_as_movl_register_register_newline (tmp_reg,REGISTER_D0);
+			} else {
+				w_as_movl_register_register_newline (tmp2_reg,REGISTER_D0);			
+				w_as_movl_register_register_newline (tmp_reg,REGISTER_A1);
+			}
+		}
+	}
+#endif
 }
 
 static void w_as_sar_31_r (int reg_1)
@@ -1837,6 +1923,7 @@ static void w_as_sar_31_r (int reg_1)
 	w_as_immediate_register_newline (31,reg_1);
 }
 
+#ifndef THREAD32
 static void w_as_div_instruction (struct instruction *instruction,int unsigned_div)
 {
 	int d_reg;
@@ -2006,7 +2093,311 @@ static void w_as_div_instruction (struct instruction *instruction,int unsigned_d
 			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
 	}
 }
+#else
+static void w_as_div_instruction (struct instruction *instruction,int unsigned_div)
+{
+	int d_reg,tmp_reg;
 
+	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	tmp_reg=instruction->instruction_parameters[2].parameter_data.reg.r;
+
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+		int i,log2i;
+		
+		i=instruction->instruction_parameters[0].parameter_data.i;
+
+		if (unsigned_div==0 && (i & (i-1))==0 && i>0){
+			if (i==1)
+				return;
+			
+			log2i=0;
+			while (i>1){
+				i=i>>1;
+				++log2i;
+			}
+			
+			w_as_movl_register_register_newline (d_reg,tmp_reg);
+
+			if (log2i==1){
+				w_as_sar_31_r (tmp_reg);
+
+				w_as_opcode_register_register_newline ("sub",tmp_reg,d_reg);
+			} else {
+				w_as_sar_31_r (d_reg);
+
+				w_as_opcode ("and");
+				w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
+
+				w_as_opcode_register_register_newline ("add",tmp_reg,d_reg);
+			}
+			
+			w_as_opcode ("sar");
+			w_as_immediate_register_newline (log2i,d_reg);
+
+			return;
+		}
+		
+		internal_error_in_function ("w_as_div_instruction");
+		return;
+	}
+
+	switch (d_reg){
+		case REGISTER_D0:
+			if (tmp_reg==REGISTER_A1){
+				if (unsigned_div){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");			
+				}
+				w_as_parameter (&instruction->instruction_parameters[0]);
+				w_as_newline();
+			} else {
+				w_as_movl_register_register_newline (REGISTER_A1,REGISTER_O0);
+
+				if (unsigned_div){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");			
+				}
+				
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER
+					&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
+				{
+					w_as_scratch_register();
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT
+					&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
+					{
+						w_as_indirect (instruction->instruction_parameters[0].parameter_offset,REGISTER_O0);
+					} else
+						w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+			
+				w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
+			}
+			break;
+		case REGISTER_A1:
+			if (tmp_reg==REGISTER_D0){
+				w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
+		
+				if (unsigned_div){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");			
+				}
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=REGISTER_D0;
+					
+					w_as_register (r);
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=REGISTER_D0;
+
+					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);					
+				} else
+					w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+		
+				w_as_movl_register_register_newline (REGISTER_D0,REGISTER_A1);
+			} else {
+				w_as_movl_register_register_newline (REGISTER_D0,tmp_reg);
+		
+				w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
+		
+				if (unsigned_div){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");			
+				}
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=tmp_reg;
+					else if (r==REGISTER_A1)
+						r=REGISTER_D0;
+					
+					w_as_register (r);
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=tmp_reg;
+					else if (r==REGISTER_A1)
+						r=REGISTER_D0;
+
+					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);					
+				} else
+					w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+		
+				w_as_movl_register_register_newline (REGISTER_D0,REGISTER_A1);
+
+				w_as_movl_register_register_newline (tmp_reg,REGISTER_D0);
+			}
+			break;
+		default:
+			if (tmp_reg==REGISTER_D0){
+				w_as_movl_register_register_newline (d_reg,REGISTER_D0);
+				w_as_movl_register_register_newline (REGISTER_A1,d_reg);
+
+				if (unsigned_div){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");			
+				}
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					w_as_register (r);			
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);
+				} else
+					w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+
+				w_as_movl_register_register_newline (d_reg,REGISTER_A1);
+				w_as_movl_register_register_newline (REGISTER_D0,d_reg);
+			} else if (tmp_reg==REGISTER_A1){
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
+		
+				if (unsigned_div){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");			
+				}
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					w_as_register (r);			
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);
+				} else
+					w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+		
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
+			} else {
+				w_as_movl_register_register_newline (REGISTER_A1,tmp_reg);
+		
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
+		
+				if (unsigned_div){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");			
+				}
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==REGISTER_A1)
+						r=tmp_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					w_as_register (r);			
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+						int r;
+					
+						r=instruction->instruction_parameters[0].parameter_data.reg.r;
+						if (r==REGISTER_D0)
+							r=d_reg;
+						else if (r==REGISTER_A1)
+							r=tmp_reg;
+						else if (r==d_reg)
+							r=REGISTER_D0;
+					
+						w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);
+					} else
+						w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+		
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
+			
+				w_as_movl_register_register_newline (tmp_reg,REGISTER_A1);
+			}
+	}
+}
+#endif
+
+#ifndef THREAD32
 static void w_as_rem_instruction (struct instruction *instruction,int unsigned_rem)
 {
 	int d_reg;
@@ -2117,17 +2508,17 @@ static void w_as_rem_instruction (struct instruction *instruction,int unsigned_r
 				if (intel_asm)
 					fprintf (assembly_file,"dword ptr ");
 				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
-				int r;
+					int r;
 				
-				r=instruction->instruction_parameters[0].parameter_data.reg.r;
-				if (r==REGISTER_D0)
-					r=REGISTER_O0;
-				else if (r==REGISTER_A1)
-					r=REGISTER_D0;
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=REGISTER_O0;
+					else if (r==REGISTER_A1)
+						r=REGISTER_D0;
 				
-				w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);
-			} else
-				w_as_parameter (&instruction->instruction_parameters[0]);
+					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);
+				} else
+					w_as_parameter (&instruction->instruction_parameters[0]);
 			}
 			w_as_newline();
 
@@ -2161,19 +2552,19 @@ static void w_as_rem_instruction (struct instruction *instruction,int unsigned_r
 				if (intel_asm)
 					fprintf (assembly_file,"dword ptr ");
 				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
-				int r;
+					int r;
 				
-				r=instruction->instruction_parameters[0].parameter_data.reg.r;
-				if (r==REGISTER_D0)
-					r=d_reg;
-				else if (r==REGISTER_A1)
-					r=REGISTER_O0;
-				else if (r==d_reg)
-					r=REGISTER_D0;
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==REGISTER_A1)
+						r=REGISTER_O0;
+					else if (r==d_reg)
+						r=REGISTER_D0;
 				
-				w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);				
-			} else
-				w_as_parameter (&instruction->instruction_parameters[0]);
+					w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);				
+				} else
+					w_as_parameter (&instruction->instruction_parameters[0]);
 			}
 			w_as_newline();
 
@@ -2184,6 +2575,318 @@ static void w_as_rem_instruction (struct instruction *instruction,int unsigned_r
 			w_as_movl_register_register_newline (REGISTER_O0,REGISTER_A1);
 	}
 }
+#else
+static void w_as_rem_instruction (struct instruction *instruction,int unsigned_rem)
+{
+	int d_reg,tmp_reg;
+
+	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	tmp_reg=instruction->instruction_parameters[2].parameter_data.reg.r;
+
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE && unsigned_rem==0){
+		int i,log2i;
+		
+		i=instruction->instruction_parameters[0].parameter_data.i;
+		
+		if (i<0 && i!=0x80000000)
+			i=-i;
+		
+		if (! ((i & (i-1))==0 && i>1)){
+			internal_error_in_function ("w_as_rem_instruction");
+			return;
+		}
+				
+		log2i=0;
+		while (i>1){
+			i=i>>1;
+			++log2i;
+		}
+		
+		w_as_movl_register_register_newline (d_reg,tmp_reg);
+
+		if (log2i==1){
+			w_as_opcode ("and");
+			w_as_immediate_register_newline (1,d_reg);
+
+			w_as_sar_31_r (tmp_reg);
+
+			w_as_opcode_register_register_newline ("xor",tmp_reg,d_reg);
+		} else {
+			w_as_sar_31_r (tmp_reg);
+
+			w_as_opcode ("and");
+			w_as_immediate_register_newline ((1<<log2i)-1,tmp_reg);
+
+			w_as_opcode_register_register_newline ("add",tmp_reg,d_reg);
+
+			w_as_opcode ("and");
+			w_as_immediate_register_newline ((1<<log2i)-1,d_reg);
+		}
+		
+		w_as_opcode_register_register_newline ("sub",tmp_reg,d_reg);
+
+		return;
+	}
+
+	switch (d_reg){
+		case REGISTER_D0:
+			if (tmp_reg==REGISTER_A1){
+				if (unsigned_rem){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");
+				}
+
+				w_as_parameter (&instruction->instruction_parameters[0]);
+				w_as_newline();
+
+				w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
+			} else {
+				w_as_movl_register_register_newline (REGISTER_A1,tmp_reg);
+
+				if (unsigned_rem){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");
+				}
+
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER
+					&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
+				{
+					w_as_scratch_register();
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT
+					&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
+					{
+						w_as_indirect (instruction->instruction_parameters[0].parameter_offset,tmp_reg);
+					} else
+						w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+
+				w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
+
+				w_as_movl_register_register_newline (tmp_reg,REGISTER_A1);
+			}
+			break;		
+		case REGISTER_A1:
+			if (tmp_reg==REGISTER_D0){		
+				w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
+		
+				if (unsigned_rem){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");
+				}
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=REGISTER_D0;
+					
+					w_as_register (r);
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+						int r;
+					
+						r=instruction->instruction_parameters[0].parameter_data.reg.r;
+						if (r==REGISTER_A1)
+							r=REGISTER_D0;
+					
+						w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);
+					} else
+						w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+			} else {
+				w_as_movl_register_register_newline (REGISTER_D0,tmp_reg);
+		
+				w_as_movl_register_register_newline (REGISTER_A1,REGISTER_D0);
+		
+				if (unsigned_rem){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");
+				}
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=tmp_reg;
+					else if (r==REGISTER_A1)
+						r=REGISTER_D0;
+					
+					w_as_register (r);
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+						int r;
+					
+						r=instruction->instruction_parameters[0].parameter_data.reg.r;
+						if (r==REGISTER_D0)
+							r=tmp_reg;
+						else if (r==REGISTER_A1)
+							r=REGISTER_D0;
+					
+						w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);
+					} else
+						w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+
+				w_as_movl_register_register_newline (tmp_reg,REGISTER_D0);
+			}
+			break;
+		default:
+			if (tmp_reg==REGISTER_D0){
+				w_as_movl_register_register_newline (d_reg,REGISTER_D0);
+				w_as_movl_register_register_newline (REGISTER_A1,d_reg);
+		
+				if (unsigned_rem){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");
+				}
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_A1)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					w_as_register (r);
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+						int r;
+					
+						r=instruction->instruction_parameters[0].parameter_data.reg.r;
+						if (r==REGISTER_A1)
+							r=d_reg;
+						else if (r==d_reg)
+							r=REGISTER_D0;
+					
+						w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);				
+					} else
+						w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+
+				w_as_opcode_register_register_newline ("xchg",d_reg,REGISTER_A1);
+			} else if (tmp_reg==REGISTER_A1){
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
+		
+				if (unsigned_rem){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");
+				}
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					w_as_register (r);
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+						int r;
+					
+						r=instruction->instruction_parameters[0].parameter_data.reg.r;
+						if (r==REGISTER_D0)
+							r=d_reg;
+						else if (r==d_reg)
+							r=REGISTER_D0;
+					
+						w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);				
+					} else
+						w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+
+				w_as_movl_register_register_newline (d_reg,REGISTER_D0);
+
+				w_as_movl_register_register_newline (REGISTER_A1,d_reg);
+			} else {
+				w_as_movl_register_register_newline (REGISTER_A1,tmp_reg);
+
+				w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
+		
+				if (unsigned_rem){
+					w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);				
+					w_as_opcode (intel_asm ? "div" : "divl");
+				} else {
+					w_as_instruction_without_parameters ("cdq");
+					w_as_opcode (intel_asm ? "idiv" : "idivl");
+				}
+				if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
+					int r;
+					
+					r=instruction->instruction_parameters[0].parameter_data.reg.r;
+					if (r==REGISTER_D0)
+						r=d_reg;
+					else if (r==REGISTER_A1)
+						r=tmp_reg;
+					else if (r==d_reg)
+						r=REGISTER_D0;
+					
+					w_as_register (r);
+				} else {
+					if (intel_asm)
+						fprintf (assembly_file,"dword ptr ");
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+						int r;
+					
+						r=instruction->instruction_parameters[0].parameter_data.reg.r;
+						if (r==REGISTER_D0)
+							r=d_reg;
+						else if (r==REGISTER_A1)
+							r=tmp_reg;
+						else if (r==d_reg)
+							r=REGISTER_D0;
+					
+						w_as_indirect (instruction->instruction_parameters[0].parameter_offset,r);				
+					} else
+						w_as_parameter (&instruction->instruction_parameters[0]);
+				}
+				w_as_newline();
+
+				w_as_movl_register_register_newline (d_reg,REGISTER_D0);
+
+				w_as_movl_register_register_newline (REGISTER_A1,d_reg);
+
+				w_as_movl_register_register_newline (tmp_reg,REGISTER_A1);
+			}
+	}
+}
+#endif
 
 static void w_as_2movl_registers (int reg1,int reg2,int reg3)
 {
@@ -2198,6 +2901,7 @@ static void w_as_3movl_registers (int reg1,int reg2,int reg3,int reg4)
 	w_as_movl_register_register_newline (reg1,reg2);
 }
 
+#ifndef THREAD32
 static void w_as_mulud_instruction (struct instruction *instruction)
 {
 	int reg_1,reg_2;
@@ -2355,6 +3059,7 @@ static void w_as_divdu_instruction (struct instruction *instruction)
 		}
 	}
 }
+#endif
 
 static void w_as_or_r_r (int reg_1,int reg_2)
 {
@@ -2999,7 +3704,7 @@ static void fstpl_instruction (int reg0,struct instruction *instruction)
 
 											next_fp_instruction->instruction_parameters[0].parameter_flags=flags1;
 											next2_fp_instruction->instruction_parameters[0].parameter_flags=flags2;
-																						
+											
 											if (next2_fp_instruction->instruction_icode==IFSUB || next2_fp_instruction->instruction_icode==IFDIV)
 												next2_fp_instruction->instruction_parameters[1].parameter_flags ^= FP_REVERSE_SUB_DIV_OPERANDS;
 											
@@ -3017,7 +3722,7 @@ static void fstpl_instruction (int reg0,struct instruction *instruction)
 				}
 		}
 	}
-	
+
 	w_as_opcode ("fstp");
 	w_as_fp_register_newline (reg0+1);
 }
@@ -3200,7 +3905,7 @@ static void w_as_monadic_float_instruction (struct instruction *instruction,char
 		}
 		case P_INDIRECT:
 			if (!intel_asm)
-			w_as_opcode ("fldl");
+				w_as_opcode ("fldl");
 			else {
 				w_as_opcode ("fld");
 				fprintf (assembly_file,"qword ptr ");
@@ -3210,7 +3915,7 @@ static void w_as_monadic_float_instruction (struct instruction *instruction,char
 			break;
 		case P_INDEXED:
 			if (!intel_asm)
-			w_as_opcode ("fldl");
+				w_as_opcode ("fldl");
 			else {
 				w_as_opcode ("fld");
 				fprintf (assembly_file,"qword ptr ");
@@ -3635,7 +4340,9 @@ static struct instruction *w_as_fmoves_instruction (struct instruction *instruct
 	return instruction;
 }
 
+#ifndef THREAD32
 static int int_to_real_scratch_imported=0;
+#endif
 
 static void w_as_fmovel_instruction (struct instruction *instruction)
 {
@@ -3643,11 +4350,13 @@ static void w_as_fmovel_instruction (struct instruction *instruction)
 		if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
 			int s_freg;
 			
+#ifndef THREAD32
 			if (intel_asm && !int_to_real_scratch_imported){
 				w_as_opcode ("extrn");
 				fprintf (assembly_file,"%s:near\n","int_to_real_scratch");
 				int_to_real_scratch_imported=1;
 			}
+#endif
 
 			s_freg=instruction->instruction_parameters[0].parameter_data.reg.r;
 			if (s_freg!=0){
@@ -3660,7 +4369,11 @@ static void w_as_fmovel_instruction (struct instruction *instruction)
 				w_as_opcode (!intel_asm ? "fistl" : "fist");
 			if (intel_asm)
 				fprintf (assembly_file,"dword ptr ");
+#ifndef THREAD32
 			w_as_label ("int_to_real_scratch");
+#else
+			w_as_indirect (8,REGISTER_A4);
+#endif
 			w_as_newline();
 
 			w_as_opcode_movl();
@@ -3668,7 +4381,11 @@ static void w_as_fmovel_instruction (struct instruction *instruction)
 				w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
 				fprintf (assembly_file,"dword ptr ");
 			}
+#ifndef THREAD32
 			w_as_label ("int_to_real_scratch");
+#else
+			w_as_indirect (8,REGISTER_A4);
+#endif
 			if (!intel_asm)
 				w_as_comma_register (instruction->instruction_parameters[1].parameter_data.reg.r);
 			w_as_newline();
@@ -3677,18 +4394,23 @@ static void w_as_fmovel_instruction (struct instruction *instruction)
 	} else {
 		switch (instruction->instruction_parameters[0].parameter_type){
 			case P_REGISTER:
+#ifndef THREAD32
 				if (intel_asm && !int_to_real_scratch_imported){
 					w_as_opcode ("extrn");
 					fprintf (assembly_file,"%s:near\n","int_to_real_scratch");
 					int_to_real_scratch_imported=1;
 				}
-
+#endif
 				w_as_opcode_movl();
 				if (!intel_asm)
 					w_as_register_comma (instruction->instruction_parameters[0].parameter_data.reg.r);
 				else
 					fprintf (assembly_file,"dword ptr ");
+#ifndef THREAD32
 				w_as_label ("int_to_real_scratch");
+#else
+				w_as_indirect (8,REGISTER_A4);
+#endif
 				if (intel_asm)
 					w_as_comma_register (instruction->instruction_parameters[0].parameter_data.reg.r);
 				w_as_newline();
@@ -3817,6 +4539,42 @@ static void w_as_rtsp_instruction (void)
 	w_as_label ("profile_r");
 	w_as_newline();	
 }
+
+#ifdef THREAD32
+static void w_as_ldtlsp_instruction (struct instruction *instruction)
+{
+	int reg;
+
+	reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	
+	w_as_opcode ("mov");
+	if (intel_asm){
+		w_as_register_comma (reg);
+		fprintf (assembly_file,"dword ptr ");
+	}
+	if (instruction->instruction_parameters[0].parameter_data.l->label_number!=0)
+		w_as_local_label (instruction->instruction_parameters[0].parameter_data.l->label_number);
+	else
+		w_as_label (instruction->instruction_parameters[0].parameter_data.l->label_name);
+	if (!intel_asm)
+		w_as_comma_register (reg);
+	w_as_newline();
+
+	w_as_opcode ("mov");
+	if (intel_asm){
+		w_as_register_comma (reg);
+		fprintf (assembly_file,"dword ptr fs:[0x0e10+");
+		w_as_register (reg);
+		fprintf (assembly_file,"*4]");
+	} else {
+		fprintf (assembly_file,"fs:0x0e10(,");
+		w_as_register (reg);
+		fprintf (assembly_file,",4)");
+		w_as_comma_register (reg);
+	}
+	w_as_newline();
+}
+#endif
 
 static void w_as_instructions (register struct instruction *instruction)
 {
@@ -4004,12 +4762,14 @@ static void w_as_instructions (register struct instruction *instruction)
 			case ISBB:
 				w_as_dyadic_instruction (instruction,intel_asm ? "sbb" : "sbbl");
 				break;
+#ifndef THREAD32
 			case IMULUD:
 				w_as_mulud_instruction (instruction);
 				break;
 			case IDIVDU:
 				w_as_divdu_instruction (instruction);
 				break;
+#endif
 			case IFLOORDIV:
 				w_as_floordiv_mod_instruction (instruction,0);
 				break;
@@ -4150,6 +4910,11 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IFSINCOS:
 				w_as_fsincos_instruction (instruction);
 				break;
+#ifdef THREAD32
+			case ILDTLSP:
+				w_as_ldtlsp_instruction (instruction);
+				break;
+#endif
 			case IFTST:
 			default:
 				internal_error_in_function ("w_as_instructions");
@@ -4221,17 +4986,32 @@ static void w_as_garbage_collect_test (register struct basic_block *block)
 		first_call_and_jump=new_call_and_jump;
 	last_call_and_jump=new_call_and_jump;
 
+#ifdef THREAD32
+	w_as_opcode_movl();
+	if (intel_asm)
+		w_as_register_comma (HEAP_POINTER);
+	w_as_indirect (0,REGISTER_A4);
+	if (!intel_asm)
+		w_as_comma_register (HEAP_POINTER);
+	w_as_newline();
+#endif
+
 	if (n_cells<=8){
 		w_as_opcode (intel_asm ? "cmp" : "cmpl");
 		if (intel_asm){
 			w_as_register_comma (HEAP_POINTER);
 			fprintf (assembly_file,"dword ptr ");
 		}
+#ifndef THREAD32
 		fprintf (assembly_file,"end_heap");
+#else
+		w_as_indirect (4,REGISTER_A4);
+#endif
 		if (!intel_asm)
 			w_as_comma_register (HEAP_POINTER);
 		w_as_newline();	
 	} else {
+#ifndef THREAD32
 		w_as_opcode ("lea");
 		if (intel_asm)
 			w_as_scratch_register_comma();
@@ -4239,13 +5019,21 @@ static void w_as_garbage_collect_test (register struct basic_block *block)
 		if (!intel_asm)
 			w_as_comma_scratch_register();
 		w_as_newline();
+#else
+		w_as_opcode (intel_asm ? "add" : "addl");
+		w_as_immediate_register_newline ((n_cells-8)<<2,HEAP_POINTER);
+#endif
 
 		w_as_opcode (intel_asm ? "cmp" : "cmpl");
 		if (intel_asm){
 			w_as_scratch_register_comma();
 			fprintf (assembly_file,"dword ptr ");
 		}
+#ifndef THREAD32
 		fprintf (assembly_file,"end_heap");
+#else
+		w_as_indirect (4,REGISTER_A4);
+#endif
 		if (!intel_asm)
 			w_as_comma_scratch_register();
 		w_as_newline();		
@@ -4256,6 +5044,18 @@ static void w_as_garbage_collect_test (register struct basic_block *block)
 	w_as_newline ();
 	
 	w_as_define_internal_label (label_id_2);
+
+#ifdef THREAD32
+	if (n_cells>8){
+		w_as_opcode_movl();
+		if (intel_asm)
+			w_as_register_comma (HEAP_POINTER);
+		w_as_indirect (0,REGISTER_A4);
+		if (!intel_asm)
+			w_as_comma_register (HEAP_POINTER);
+		w_as_newline();
+	}
+#endif
 }
 
 static void w_as_call_and_jump (struct call_and_jump *call_and_jump)
@@ -4352,7 +5152,9 @@ void initialize_write_assembly (FILE *ass_file)
 	in_data_section=0;
 
 	first_call_and_jump=NULL;
+#ifndef THREAD32
 	int_to_real_scratch_imported=0;
+#endif
 
 	if (intel_asm){
 		w_as_opcode (".486");

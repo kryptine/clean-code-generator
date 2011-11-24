@@ -353,7 +353,10 @@ LABEL			*collect_0_label,*collect_1_label,*collect_2_label,
 				*eval_01_label,*eval_11_label,*eval_02_label,*eval_12_label,*eval_22_label,
 #endif
 #if defined (I486) && defined (GEN_OBJ) && !defined (G_AI64)
-				*collect_0l_label,*collect_1l_label,*collect_2l_label,*end_heap_label,
+				*collect_0l_label,*collect_1l_label,*collect_2l_label,
+# ifndef THREAD32
+				*end_heap_label,
+# endif
 #endif
 				*system_sp_label,*EMPTY_label;
 
@@ -699,7 +702,7 @@ void code_and (VOID)
 	graph_1=s_pop_b();
 	graph_2=s_get_b (0);
 	graph_3=g_and (graph_1,graph_2);
-	
+
 	s_put_b (0,graph_3);
 }
 
@@ -3963,7 +3966,7 @@ void code_jmp (char label_name[])
 		
 		if (mc68881_flag){
 			int parameter_n;
-									
+
 			for (parameter_n=0; parameter_n<b_stack_size; ++parameter_n)
 				if (test_bit (vector,parameter_n))
 					if (n_a_and_f_registers<N_FLOAT_PARAMETER_REGISTERS){
@@ -4221,8 +4224,15 @@ void code_jmp_eval_upd (VOID)
 #	else
 		i_move_r_id (REGISTER_D0,0,REGISTER_A0);
 #		ifdef I486
+#		 ifndef THREAD32
 			i_move_id_id (STACK_ELEMENT_SIZE,REGISTER_A1,STACK_ELEMENT_SIZE,REGISTER_A0);
 			i_move_id_id (2*STACK_ELEMENT_SIZE,REGISTER_A1,2*STACK_ELEMENT_SIZE,REGISTER_A0);
+#		 else
+			i_move_id_r (STACK_ELEMENT_SIZE,REGISTER_A1,REGISTER_A2);
+			i_move_r_id (REGISTER_A2,STACK_ELEMENT_SIZE,REGISTER_A0);
+			i_move_id_r (2*STACK_ELEMENT_SIZE,REGISTER_A1,REGISTER_A2);
+			i_move_r_id (REGISTER_A2,2*STACK_ELEMENT_SIZE,REGISTER_A0);
+#		 endif
 #		else
 			i_move_id_r (STACK_ELEMENT_SIZE,REGISTER_A1,REGISTER_D1);
 			i_move_id_r (2*STACK_ELEMENT_SIZE,REGISTER_A1,REGISTER_D2);
@@ -7506,7 +7516,7 @@ static void code_selectR (VOID)
 		g_fhighlow (graph_5,graph_6,graph_4);
 #endif
 	}
-	
+
 #ifndef G_A64
 	s_push_b (graph_6);
 #endif
@@ -9252,7 +9262,6 @@ void code_record (char record_label_name[],char type[],int a_size,int b_size,cha
 #ifdef GEN_OBJ
 	store_2_words_in_data_section (a_size+b_size+256,a_size);
 #endif
-
 	if (assembly_flag){
 		w_as_word_in_data_section (a_size+b_size+256);
 		w_as_word_in_data_section (a_size);
@@ -9616,7 +9625,6 @@ static LABEL *code_string_or_module (char label_name[],char string[],int string_
 	define_data_label (label);
 	store_abc_string_in_data_section (string,string_length);
 #endif
-	
 	if (assembly_flag)
 		w_as_abc_string_and_label_in_data_section (string,string_length,label_name);
 
@@ -9985,7 +9993,9 @@ void initialize_coding (VOID)
 	collect_0l_label=enter_label ("collect_0l",IMPORT_LABEL);
 	collect_1l_label=enter_label ("collect_1l",IMPORT_LABEL);
 	collect_2l_label=enter_label ("collect_2l",IMPORT_LABEL);
+# ifndef THREAD32
 	end_heap_label=enter_label ("end_heap",IMPORT_LABEL);
+# endif
 #endif
 #ifdef G_POWER
 	collect_00_label=enter_label ("collect_00",IMPORT_LABEL);
