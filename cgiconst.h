@@ -68,10 +68,7 @@ enum {
 #endif
 #if defined (I486)
 	,IADC ,ISBB, IRTSI
-	,IDIVI, IREMI, IREMU, IFLOORDIV, IMOD, IMULUD
-# ifndef THREAD32
-	,IDIVDU
-# endif
+	,IDIVI, IREMI, IREMU, IFLOORDIV, IMOD, IMULUD, IDIVDU
 	,IFLOADS, IFMOVES
 #endif
 #if defined (I486) || defined (G_POWER)

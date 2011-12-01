@@ -937,7 +937,7 @@ void i_call_r (int register_1,int frame_size)
 }
 #endif
 
-#if defined (I486) && !defined (THREAD32)
+#ifdef I486
 void i_divdu_r_r_r (int register_1,int register_2,int register_3)
 {
 	struct instruction *instruction;
@@ -4429,9 +4429,7 @@ static void linearize_two_results_operator (INSTRUCTION_GRAPH result_graph,ADDRE
 # else
 		i_mulud_r_r (reg_1,reg_2);
 # endif
-	} else
-#ifndef THREAD32
-	if (graph->instruction_code==GDIVDU){
+	} else if (graph->instruction_code==GDIVDU){
 		ADDRESS ad_3;
 
 		linearize_3_graphs (graph->instruction_parameters[0].p,&ad_1,
@@ -4447,9 +4445,7 @@ static void linearize_two_results_operator (INSTRUCTION_GRAPH result_graph,ADDRE
 		if (--*ad_3.ad_count_p==0)
 			free_register (ad_3.ad_register);
 		i_divdu_r_r_r (ad_3.ad_register,reg_1,reg_2);
-	} else
-#endif
-	if (graph->instruction_code==GADDDU){
+	} else if (graph->instruction_code==GADDDU){
 		ADDRESS ad_3,ad_4;
 
 		linearize_3_graphs (graph->instruction_parameters[0].p,&ad_1,

@@ -3379,15 +3379,103 @@ static void as_xchg_eax_r (int reg_1)
 	store_c (0x90+reg_num (reg_1)); /* xchg reg_1,D0 */
 }
 
-#ifndef THREAD32
+static void as_xchg (int r1,int r2)
+{
+	if (r1==REGISTER_D0)
+		store_c (0x90+reg_num (r2)); /* xchg r,D0 */
+	else if (r2==REGISTER_D0)
+		store_c (0x90+reg_num (r1)); /* xchg r,D0 */
+	else
+		as_r_r (0207,r1,r2);
+}
+
 static void as_divdu_instruction (struct instruction *instruction)
 {
 	int reg_1,reg_2,reg_3;
-	
+
 	reg_1=instruction->instruction_parameters[0].parameter_data.reg.r;
 	reg_2=instruction->instruction_parameters[1].parameter_data.reg.r;
 	reg_3=instruction->instruction_parameters[2].parameter_data.reg.r;
 
+	/* reg_2:reg_3/reg_1, quotient in reg3, remainder in reg_2 */
+
+#ifdef THREAD32
+	if (reg_3==REGISTER_D0){
+		if (reg_2==REGISTER_A1)
+			as_r (0367,0060,reg_1); /* div */
+		else {
+			as_xchg (REGISTER_A1,reg_2);
+			if (reg_1==reg_2)
+				as_r (0367,0060,REGISTER_A1); /* div */
+			else if (reg_1==REGISTER_A1)
+				as_r (0367,0060,reg_2); /* div */
+			else
+				as_r (0367,0060,reg_1); /* div */
+			as_xchg (REGISTER_A1,reg_2);
+		}
+	} else if (reg_3==REGISTER_A1){
+		as_xchg (REGISTER_D0,REGISTER_A1);
+		if (reg_2==REGISTER_D0){
+			if (reg_1==REGISTER_D0)
+				as_r (0367,0060,REGISTER_A1); /* div */			
+			else if (reg_1==REGISTER_A1)
+				as_r (0367,0060,REGISTER_D0); /* div */
+			else
+				as_r (0367,0060,reg_1); /* div */
+		} else {
+			as_xchg (REGISTER_A1,reg_2);
+			if (reg_1==reg_2)
+				as_r (0367,0060,REGISTER_A1); /* div */
+			else if (reg_1==REGISTER_D0)
+				as_r (0367,0060,reg_2); /* div */
+			else if (reg_1==REGISTER_A1)
+				as_r (0367,0060,REGISTER_D0); /* div */
+			else
+				as_r (0367,0060,reg_1); /* div */
+			as_xchg (REGISTER_A1,reg_2);
+		}
+		as_xchg (REGISTER_D0,REGISTER_A1);
+	} else {
+		if (reg_2==REGISTER_A1){
+			as_xchg (REGISTER_D0,reg_3);
+			if (reg_1==reg_3)
+				as_r (0367,0060,REGISTER_D0); /* div */
+			else if (reg_1==REGISTER_D0)
+				as_r (0367,0060,reg_3); /* div */
+			else
+				as_r (0367,0060,reg_1); /* div */
+			as_xchg (REGISTER_D0,reg_3);
+		} else if (reg_2==REGISTER_D0){
+			as_xchg (REGISTER_A1,REGISTER_D0);
+			as_xchg (REGISTER_D0,reg_3);
+			if (reg_1==reg_3)
+				as_r (0367,0060,REGISTER_D0); /* div */
+			else if (reg_1==REGISTER_D0)
+				as_r (0367,0060,REGISTER_A1); /* div */
+			else if (reg_1==REGISTER_A1)
+				as_r (0367,0060,reg_3); /* div */
+			else
+				as_r (0367,0060,reg_1); /* div */
+			as_xchg (REGISTER_D0,reg_3);
+			as_xchg (REGISTER_A1,REGISTER_D0);
+		} else {
+			as_xchg (REGISTER_D0,reg_3);
+			as_xchg (REGISTER_A1,reg_2);
+			if (reg_1==REGISTER_D0)
+				as_r (0367,0060,reg_3); /* div */
+			else if (reg_1==REGISTER_A1)
+				as_r (0367,0060,reg_2); /* div */
+			else if (reg_1==reg_3)
+				as_r (0367,0060,REGISTER_D0); /* div */
+			else if (reg_1==reg_2)
+				as_r (0367,0060,REGISTER_A1); /* div */
+			else
+				as_r (0367,0060,reg_1); /* div */					
+			as_xchg (REGISTER_A1,reg_2);
+			as_xchg (REGISTER_D0,reg_3);
+		}
+	}
+#else
 	if (reg_1==REGISTER_D0){
 		if (reg_3==REGISTER_D0){
 			if (reg_2==REGISTER_A1)
@@ -3495,8 +3583,8 @@ static void as_divdu_instruction (struct instruction *instruction)
 			as_xchg_eax_r (reg_3); /* xchg reg_3,D0 */
 		}
 	}
-}
 #endif
+}
 
 static void as_mul_shift_magic (int s)
 {
@@ -3970,12 +4058,7 @@ static void as_exg_instruction (struct instruction *instruction)
 	
 	r1=instruction->instruction_parameters[0].parameter_data.reg.r;
 	r2=instruction->instruction_parameters[1].parameter_data.reg.r;
-	if (r1==REGISTER_D0)
-		store_c (0x90+reg_num (r2)); /* xchg r,D0 */
-	else if (r2==REGISTER_D0)
-		store_c (0x90+reg_num (r1)); /* xchg r,D0 */
-	else
-		as_r_r (0207,r1,r2);
+	as_xchg (r1,r2);
 }
 
 static void as_neg_instruction (struct instruction *instruction)
@@ -5596,11 +5679,9 @@ static void as_instructions (struct instruction *instruction)
 			case IMULUD:
 				as_mulud_instruction (instruction);
 				break;
-#ifndef THREAD32
 			case IDIVDU:
 				as_divdu_instruction (instruction);
 				break;
-#endif
 			case IFLOORDIV:
 				as_floordiv_mod_instruction (instruction,0);
 				break;

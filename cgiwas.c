@@ -3015,7 +3015,6 @@ static void w_as_mulud_instruction (struct instruction *instruction)
 #endif
 }
 
-#ifndef THREAD32
 static void w_as_divdu_instruction (struct instruction *instruction)
 {
 	int reg_1,reg_2,reg_3;
@@ -3024,6 +3023,83 @@ static void w_as_divdu_instruction (struct instruction *instruction)
 	reg_2=instruction->instruction_parameters[1].parameter_data.reg.r;
 	reg_3=instruction->instruction_parameters[2].parameter_data.reg.r;
 
+#ifdef THREAD32
+	if (reg_3==REGISTER_D0){
+		if (reg_2==REGISTER_A1)
+			w_as_opcode_register_newline ("div",reg_1);
+		else {
+			w_as_opcode_register_register_newline ("xchg",REGISTER_A1,reg_2);
+			if (reg_1==reg_2)
+				w_as_opcode_register_newline ("div",REGISTER_A1);
+			else if (reg_1==REGISTER_A1)
+				w_as_opcode_register_newline ("div",reg_2);
+			else
+				w_as_opcode_register_newline ("div",reg_1);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_A1,reg_2);
+		}
+	} else if (reg_3==REGISTER_A1){
+		w_as_opcode_register_register_newline ("xchg",REGISTER_D0,REGISTER_A1);
+		if (reg_2==REGISTER_D0){
+			if (reg_1==REGISTER_D0)
+				w_as_opcode_register_newline ("div",REGISTER_A1);			
+			else if (reg_1==REGISTER_A1)
+				w_as_opcode_register_newline ("div",REGISTER_D0);
+			else
+				w_as_opcode_register_newline ("div",reg_1);
+		} else {
+			w_as_opcode_register_register_newline ("xchg",REGISTER_A1,reg_2);
+			if (reg_1==reg_2)
+				w_as_opcode_register_newline ("div",REGISTER_A1);
+			else if (reg_1==REGISTER_D0)
+				w_as_opcode_register_newline ("div",reg_2);
+			else if (reg_1==REGISTER_A1)
+				w_as_opcode_register_newline ("div",REGISTER_D0);
+			else
+				w_as_opcode_register_newline ("div",reg_1);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_A1,reg_2);
+		}
+		w_as_opcode_register_register_newline ("xchg",REGISTER_D0,REGISTER_A1);
+	} else {
+		if (reg_2==REGISTER_A1){
+			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_3);
+			if (reg_1==reg_3)
+				w_as_opcode_register_newline ("div",REGISTER_D0);
+			else if (reg_1==REGISTER_D0)
+				w_as_opcode_register_newline ("div",reg_3);
+			else
+				w_as_opcode_register_newline ("div",reg_1);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_3);
+		} else if (reg_2==REGISTER_D0){
+			w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_3);
+			if (reg_1==reg_3)
+				w_as_opcode_register_newline ("div",REGISTER_D0);
+			else if (reg_1==REGISTER_D0)
+				w_as_opcode_register_newline ("div",REGISTER_A1);
+			else if (reg_1==REGISTER_A1)
+				w_as_opcode_register_newline ("div",reg_3);
+			else
+				w_as_opcode_register_newline ("div",reg_1);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_3);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);
+		} else {
+			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_3);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_A1,reg_2);
+			if (reg_1==REGISTER_D0)
+				w_as_opcode_register_newline ("div",reg_3);
+			else if (reg_1==REGISTER_A1)
+				w_as_opcode_register_newline ("div",reg_2);
+			else if (reg_1==reg_3)
+				w_as_opcode_register_newline ("div",REGISTER_D0);
+			else if (reg_1==reg_2)
+				w_as_opcode_register_newline ("div",REGISTER_A1);
+			else
+				w_as_opcode_register_newline ("div",reg_1);					
+			w_as_opcode_register_register_newline ("xchg",REGISTER_A1,reg_2);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,reg_3);
+		}
+	}
+#else
 	if (reg_1==REGISTER_D0){
 		if (reg_3==REGISTER_D0){
 			if (reg_2==REGISTER_A1)
@@ -3131,8 +3207,8 @@ static void w_as_divdu_instruction (struct instruction *instruction)
 			w_as_opcode_register_register_newline ("xchg",reg_3,REGISTER_D0);
 		}
 	}
-}
 #endif
+}
 
 static void w_as_or_r_r (int reg_1,int reg_2)
 {
@@ -4838,11 +4914,9 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IMULUD:
 				w_as_mulud_instruction (instruction);
 				break;
-#ifndef THREAD32
 			case IDIVDU:
 				w_as_divdu_instruction (instruction);
 				break;
-#endif
 			case IFLOORDIV:
 				w_as_floordiv_mod_instruction (instruction,0);
 				break;

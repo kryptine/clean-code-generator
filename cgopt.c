@@ -421,10 +421,7 @@ static int get_argument_size (int instruction_code)
 IF_G_RISC (case IADDI: case ILSLI:)
 IF_G_SPARC (case IADDO: case ISUBO: )
 #ifdef I486
-		case IDIVI:		case IREMI:		case IREMU:		case IMULUD:
-# ifndef THREAD32
-		case IDIVDU:
-# endif
+		case IDIVI:		case IREMI:		case IREMU:		case IMULUD:	case IDIVDU:
 		case IFLOORDIV:	case IMOD:
 #endif
 #if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
@@ -685,9 +682,7 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 					instruction->instruction_icode!=IDIVI &&
 					instruction->instruction_icode!=IREMI &&
 					instruction->instruction_icode!=IREMU &&
-# ifndef THREAD32
 					instruction->instruction_icode!=IDIVDU &&
-# endif
 					instruction->instruction_icode!=IASR_S &&
 					instruction->instruction_icode!=ILSL_S &&
 					instruction->instruction_icode!=ILSR_S &&
@@ -935,9 +930,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					instruction->instruction_icode!=IDIVI &&
 					instruction->instruction_icode!=IREMI &&
 					instruction->instruction_icode!=IREMU &&
-# ifndef THREAD32
 					instruction->instruction_icode!=IDIVDU &&
-# endif
 					instruction->instruction_icode!=IASR_S &&
 					instruction->instruction_icode!=ILSL_S &&
 					instruction->instruction_icode!=ILSR_S &&
@@ -1563,7 +1556,7 @@ static void store_next_uses (struct instruction *instruction)
 			case IROTL:	case IROTR:
 # endif
 #endif
-#if defined (I486) && !defined (I486_USE_SCRATCH_REGISTER) && !defined (THREAD32)
+#if defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)
 			case IMULUD:
 #endif
 #if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
@@ -1596,7 +1589,7 @@ IF_G_POWER ( case IUMULH: )
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
 			case IDIV:	case IREM:	case IDIVU:	case IREMU: case IMULUD:
-# ifdef THREAD32				
+# ifdef THREAD32
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				define_parameter (&instruction->instruction_parameters[2]);
@@ -1718,9 +1711,9 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
 #endif
-#if defined (I486) && !defined (THREAD32)
+#ifdef I486
 			case IDIVDU:
-# ifdef I486_USE_SCRATCH_REGISTER
+# if defined (I486_USE_SCRATCH_REGISTER) && !defined (THREAD32)
 				define_scratch_register();
 # endif
 				use_parameter (&instruction->instruction_parameters[2]);
@@ -4040,7 +4033,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 			case IEXG:
 				instruction_usedef_usedef (instruction);
 				break;
-#if defined (I486)
+#ifdef I486
 			case IMULUD:
 # ifdef THREAD32
 				use_3_same_type_registers
@@ -4112,16 +4105,16 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				instruction_bmove_use_use_use (instruction);
 				break;
 #endif
-#if defined (I486) && !defined (THREAD32)
+#ifdef I486
 			case IDIVDU:
-# ifdef I486_USE_SCRATCH_REGISTER
+# if defined (I486_USE_SCRATCH_REGISTER) && !defined (THREAD32)
 				use_scratch_register();
 # endif
 				use_3_same_type_registers
 					(&instruction->instruction_parameters[0].parameter_data.reg,USE,
 					 &instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,
 					 &instruction->instruction_parameters[2].parameter_data.reg,USE_DEF,D_REGISTER);
-# ifdef I486_USE_SCRATCH_REGISTER
+# if defined (I486_USE_SCRATCH_REGISTER) && !defined (THREAD32)
 				allocate_scratch_register=1;
 # endif
 				break;
