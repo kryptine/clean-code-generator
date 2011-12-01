@@ -1807,18 +1807,31 @@ void i_movew_r_pd (int register_1,int register_2)
 }
 #endif
 
-#if defined (I486) && !defined (THREAD32)
+#ifdef I486
+# ifdef THREAD32
+void i_mulud_r_r_r (int register_1,int register_2,int register_3)
+# else
 void i_mulud_r_r (int register_1,int register_2)
+#endif
 {
 	struct instruction *instruction;
 	
+# ifdef THREAD32
+	instruction=i_new_instruction3 (IMULUD);
+# else
 	instruction=i_new_instruction2 (IMULUD);
+# endif
 	
 	S2 (instruction->instruction_parameters[0],	parameter_type=P_REGISTER,
 												parameter_data.i=register_1);
-	
+
 	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
 												parameter_data.i=register_2);
+
+# ifdef THREAD32
+	S2 (instruction->instruction_parameters[2],	parameter_type=P_REGISTER,
+												parameter_data.i=register_3);
+# endif
 }
 #endif
 
@@ -4381,7 +4394,6 @@ static void linearize_two_results_operator (INSTRUCTION_GRAPH result_graph,ADDRE
 	
 	graph=result_graph->instruction_parameters[0].p;
 
-#ifndef THREAD32
 	if (graph->instruction_code==GMULUD){
 		INSTRUCTION_GRAPH graph_1,graph_2;
 
@@ -4401,8 +4413,25 @@ static void linearize_two_results_operator (INSTRUCTION_GRAPH result_graph,ADDRE
 
 		reg_1=ad_1.ad_register;
 		reg_2=ad_2.ad_register;
+# ifdef THREAD32
+		{
+			int tmp_reg;
+
+			if (try_allocate_register_number (REGISTER_D0))
+				tmp_reg=REGISTER_D0;
+			else if (try_allocate_register_number (REGISTER_A1))
+				tmp_reg=REGISTER_A1;
+			else
+				tmp_reg=get_dregister();
+			i_mulud_r_r_r (reg_1,reg_2,tmp_reg);
+			free_register (tmp_reg);
+		}
+# else
 		i_mulud_r_r (reg_1,reg_2);
-	} else if (graph->instruction_code==GDIVDU){
+# endif
+	} else
+#ifndef THREAD32
+	if (graph->instruction_code==GDIVDU){
 		ADDRESS ad_3;
 
 		linearize_3_graphs (graph->instruction_parameters[0].p,&ad_1,

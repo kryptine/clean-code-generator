@@ -3260,15 +3260,17 @@ static void as_3move_registers (int reg1,int reg2,int reg3,int reg4)
 	as_move_r_r (reg1,reg2);
 }
 
-#ifndef THREAD32
 static void as_mulud_instruction (struct instruction *instruction)
 {
 	int reg_1,reg_2;
-	
+#ifdef THREAD32
+	int reg_3;
+#endif
+
 	reg_1=instruction->instruction_parameters[0].parameter_data.reg.r;
 	reg_2=instruction->instruction_parameters[1].parameter_data.reg.r;
 
-#if 0
+#ifdef THREAD32
 	reg_3=instruction->instruction_parameters[2].parameter_data.reg.r;
 
 	if (reg_3==REGISTER_D0){
@@ -3303,8 +3305,40 @@ static void as_mulud_instruction (struct instruction *instruction)
 		}
 		return;
 	}
-#endif
 
+	if (reg_2==REGISTER_D0){
+		if (reg_1==REGISTER_A1)
+			as_r (0367,040,reg_1); /* mul */
+		else {
+			as_move_r_r (REGISTER_A1,reg_3);
+			as_r (0367,040,reg_1); /* mul */
+			as_2move_registers (reg_3,REGISTER_A1,reg_1);
+		}
+	} else if (reg_1==REGISTER_A1){
+		as_2move_registers (reg_2,REGISTER_D0,reg_3);
+		as_r (0367,040,reg_1); /* mul */
+		as_2move_registers (reg_3,REGISTER_D0,reg_2);
+	} else if (reg_1==REGISTER_D0){
+		if (reg_2==REGISTER_A1){
+			as_r (0367,040,REGISTER_A1); /* mul */
+			store_c (0x90+reg_num (REGISTER_A1)); /* xchg A1,D0 */
+		} else {
+			as_move_r_r (REGISTER_A1,reg_3);
+			as_r (0367,040,reg_2); /* mul */
+			as_3move_registers (reg_3,REGISTER_A1,REGISTER_D0,reg_2);
+		}
+	} else if (reg_2==REGISTER_A1){
+		as_2move_registers (reg_2,REGISTER_D0,reg_3);
+		as_r (0367,040,reg_1); /* mul */
+		as_3move_registers (reg_3,REGISTER_D0,REGISTER_A1,reg_1);
+	} else {
+		store_c (0x90+reg_num (reg_2)); /* xchg reg_2,D0 */
+		as_move_r_r (REGISTER_A1,reg_3);
+		as_r (0367,040,reg_1); /* mul */
+		store_c (0x90+reg_num (reg_2)); /* xchg reg_2,D0 */
+		as_2move_registers (reg_3,REGISTER_A1,reg_1);
+	}
+#else
 	if (reg_2==REGISTER_D0){
 		if (reg_1==REGISTER_A1)
 			as_r (0367,040,reg_1); /* mul */
@@ -3337,8 +3371,8 @@ static void as_mulud_instruction (struct instruction *instruction)
 		store_c (0x90+reg_num (reg_2)); /* xchg reg_2,D0 */
 		as_2move_registers (REGISTER_O0,REGISTER_A1,reg_1);
 	}
-}
 #endif
+}
 
 static void as_xchg_eax_r (int reg_1)
 {
@@ -5559,10 +5593,10 @@ static void as_instructions (struct instruction *instruction)
 			case ISBB:
 				as_sbb_instruction (instruction);
 				break;
-#ifndef THREAD32
 			case IMULUD:
 				as_mulud_instruction (instruction);
 				break;
+#ifndef THREAD32
 			case IDIVDU:
 				as_divdu_instruction (instruction);
 				break;

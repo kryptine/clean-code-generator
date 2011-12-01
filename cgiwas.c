@@ -2901,14 +2901,85 @@ static void w_as_3movl_registers (int reg1,int reg2,int reg3,int reg4)
 	w_as_movl_register_register_newline (reg1,reg2);
 }
 
-#ifndef THREAD32
 static void w_as_mulud_instruction (struct instruction *instruction)
 {
 	int reg_1,reg_2;
+#ifdef THREAD32
+	int reg_3;
+#endif
 	
 	reg_1=instruction->instruction_parameters[0].parameter_data.reg.r;
 	reg_2=instruction->instruction_parameters[1].parameter_data.reg.r;
 
+#ifdef THREAD32
+	reg_3=instruction->instruction_parameters[2].parameter_data.reg.r;
+
+	if (reg_3==REGISTER_D0){
+		if (reg_1==REGISTER_A1){
+			w_as_movl_register_register_newline (reg_2,REGISTER_D0);
+			w_as_opcode_register_newline ("mul",reg_1);
+			w_as_movl_register_register_newline (REGISTER_D0,reg_2);
+		} else if (reg_2==REGISTER_A1){
+			w_as_movl_register_register_newline (reg_2,REGISTER_D0);
+			w_as_opcode_register_newline ("mul",reg_1);
+			w_as_2movl_registers (REGISTER_D0,REGISTER_A1,reg_1);
+		} else {
+			w_as_2movl_registers (REGISTER_A1,reg_2,REGISTER_D0);
+			w_as_opcode_register_newline ("mul",reg_1);
+			w_as_3movl_registers (REGISTER_D0,reg_2,REGISTER_A1,reg_1);
+		}
+		return;
+	}
+
+	if (reg_3==REGISTER_A1){
+		if (reg_2==REGISTER_D0){
+			w_as_opcode_register_newline ("mul",reg_1);
+			w_as_movl_register_register_newline (REGISTER_A1,reg_1);
+		} else if (reg_1==REGISTER_D0){
+			w_as_opcode_register_newline ("mul",reg_2);
+			w_as_2movl_registers (REGISTER_A1,REGISTER_D0,reg_2);
+		} else {
+			w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_D0);
+			w_as_opcode_register_newline ("mul",reg_1);
+			w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_D0);
+			w_as_movl_register_register_newline (REGISTER_A1,reg_1);
+		}
+		return;
+	}
+
+	if (reg_2==REGISTER_D0){
+		if (reg_1==REGISTER_A1){
+			w_as_opcode_register_newline ("mul",reg_1);
+		} else {
+			w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+			w_as_opcode_register_newline ("mul",reg_1);
+			w_as_2movl_registers (reg_3,REGISTER_A1,reg_1);
+		}
+	} else if (reg_1==REGISTER_A1){
+		w_as_2movl_registers (reg_2,REGISTER_D0,reg_3);
+		w_as_opcode_register_newline ("mul",reg_1);
+		w_as_2movl_registers (reg_3,REGISTER_D0,reg_2);
+	} else if (reg_1==REGISTER_D0){
+		if (reg_2==REGISTER_A1){
+			w_as_opcode_register_newline ("mul",REGISTER_A1);
+			w_as_opcode_register_register_newline ("xchg",REGISTER_A1,REGISTER_D0);
+		} else {
+			w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+			w_as_opcode_register_newline ("mul",reg_2);
+			w_as_3movl_registers (reg_3,REGISTER_A1,REGISTER_D0,reg_2);
+		}
+	} else if (reg_2==REGISTER_A1){
+		w_as_2movl_registers (reg_2,REGISTER_D0,reg_3);		
+		w_as_opcode_register_newline ("mul",reg_1);
+		w_as_3movl_registers (reg_3,REGISTER_D0,REGISTER_A1,reg_1);
+	} else {
+		w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_D0);
+		w_as_movl_register_register_newline (REGISTER_A1,reg_3);
+		w_as_opcode_register_newline ("mul",reg_1);
+		w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_D0);
+		w_as_2movl_registers (reg_3,REGISTER_A1,reg_1);
+	}
+#else
 	if (reg_2==REGISTER_D0){
 		if (reg_1==REGISTER_A1){
 			w_as_opcode_register_newline ("mul",reg_1);
@@ -2941,8 +3012,10 @@ static void w_as_mulud_instruction (struct instruction *instruction)
 		w_as_opcode_register_register_newline ("xchg",reg_2,REGISTER_D0);
 		w_as_2movl_registers (REGISTER_O0,REGISTER_A1,reg_1);
 	}
+#endif
 }
 
+#ifndef THREAD32
 static void w_as_divdu_instruction (struct instruction *instruction)
 {
 	int reg_1,reg_2,reg_3;
@@ -4762,10 +4835,10 @@ static void w_as_instructions (register struct instruction *instruction)
 			case ISBB:
 				w_as_dyadic_instruction (instruction,intel_asm ? "sbb" : "sbbl");
 				break;
-#ifndef THREAD32
 			case IMULUD:
 				w_as_mulud_instruction (instruction);
 				break;
+#ifndef THREAD32
 			case IDIVDU:
 				w_as_divdu_instruction (instruction);
 				break;

@@ -421,9 +421,9 @@ static int get_argument_size (int instruction_code)
 IF_G_RISC (case IADDI: case ILSLI:)
 IF_G_SPARC (case IADDO: case ISUBO: )
 #ifdef I486
-		case IDIVI:		case IREMI:		case IREMU:
+		case IDIVI:		case IREMI:		case IREMU:		case IMULUD:
 # ifndef THREAD32
-		case IMULUD:	case IDIVDU:
+		case IDIVDU:
 # endif
 		case IFLOORDIV:	case IMOD:
 #endif
@@ -497,18 +497,18 @@ static void insert_decrement_b_stack_pointer (struct instruction *next_instructi
 	instruction=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
 
 	instruction->instruction_arity=2;
-#ifdef M68000
+# ifdef M68000
 	instruction->instruction_icode=ISUB;
 
 	instruction->instruction_parameters[0].parameter_type=P_IMMEDIATE;
 	instruction->instruction_parameters[0].parameter_data.i=offset;
-#else
+# else
 	instruction->instruction_icode=ILEA;
 
 	instruction->instruction_parameters[0].parameter_type=P_INDIRECT;
 	instruction->instruction_parameters[0].parameter_offset=-offset;
 	instruction->instruction_parameters[0].parameter_data.reg.r=B_STACK_POINTER;
-#endif
+# endif
 
 	instruction->instruction_parameters[1].parameter_type=P_REGISTER;
 	instruction->instruction_parameters[1].parameter_data.i=B_STACK_POINTER;
@@ -680,6 +680,7 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 # ifdef THREAD32
 					instruction->instruction_icode!=IDIV &&
 					instruction->instruction_icode!=IDIVU &&
+					instruction->instruction_icode!=IMULUD &&
 # endif
 					instruction->instruction_icode!=IDIVI &&
 					instruction->instruction_icode!=IREMI &&
@@ -929,6 +930,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 # ifdef THREAD32
 					instruction->instruction_icode!=IDIV &&
 					instruction->instruction_icode!=IDIVU &&
+					instruction->instruction_icode!=IMULUD &&
 # endif
 					instruction->instruction_icode!=IDIVI &&
 					instruction->instruction_icode!=IREMI &&
@@ -1561,7 +1563,7 @@ static void store_next_uses (struct instruction *instruction)
 			case IROTL:	case IROTR:
 # endif
 #endif
-#if defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)
+#if defined (I486) && !defined (I486_USE_SCRATCH_REGISTER) && !defined (THREAD32)
 			case IMULUD:
 #endif
 #if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
@@ -1593,20 +1595,17 @@ IF_G_POWER ( case IUMULH: )
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
-			case IDIV:	case IREM:	case IDIVU:	case IREMU:
-# ifdef THREAD32
+			case IDIV:	case IREM:	case IDIVU:	case IREMU: case IMULUD:
+# ifdef THREAD32				
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
 				define_parameter (&instruction->instruction_parameters[2]);
-				break;
-# endif
-# ifndef THREAD32
-			case IMULUD:
+# else
 				define_scratch_register();
 				use_parameter (&instruction->instruction_parameters[1]);
 				use_parameter (&instruction->instruction_parameters[0]);
-				break;
 # endif
+				break;
 			case IMOVE:
 				if ((instruction->instruction_parameters[0].parameter_type==P_INDIRECT ||
 					 instruction->instruction_parameters[0].parameter_type==P_INDEXED) &&
@@ -4041,14 +4040,21 @@ IF_G_RISC (case IADDI: case ILSLI:)
 			case IEXG:
 				instruction_usedef_usedef (instruction);
 				break;
-#if defined (I486) && !defined (THREAD32)
+#if defined (I486)
 			case IMULUD:
-# ifdef I486_USE_SCRATCH_REGISTER
+# ifdef THREAD32
+				use_3_same_type_registers
+					(&instruction->instruction_parameters[0].parameter_data.reg,USE_DEF,
+					 &instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,
+					 &instruction->instruction_parameters[2].parameter_data.reg,DEF,D_REGISTER);
+# else
+#  ifdef I486_USE_SCRATCH_REGISTER
 				use_scratch_register();
-# endif
+#  endif
 				instruction_usedef_usedef (instruction);				
-# ifdef I486_USE_SCRATCH_REGISTER
+#  ifdef I486_USE_SCRATCH_REGISTER
 				allocate_scratch_register=1;
+#  endif
 # endif
 				break;
 #endif
