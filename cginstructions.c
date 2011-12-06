@@ -3609,7 +3609,7 @@ static void push_extra_clean_b_register_parameters (int n_extra_clean_b_register
 #endif
 }
 
-#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
+#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O) || defined (MACH_O64)
 static LABEL *enter_c_function_name_label (char *c_function_name)
 {
 	char label_name [202];
