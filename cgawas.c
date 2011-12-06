@@ -2127,13 +2127,13 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 			}
 		} else {
 			if (((int)i)==i){
-				w_as_opcode (intel_asm ? "imul" : "imull");
+				w_as_opcode (intel_asm ? "imul" : "imulq");
 				w_as_immediate_register_newline (i,REGISTER_A1);
 			} else {
 				w_as_opcode_movq();
 				w_as_immediate_register_newline (i,s_reg2);
 
-				w_as_opcode_register_register_newline (intel_asm ? "imul" : "imull",s_reg2,REGISTER_A1);
+				w_as_opcode_register_register_newline (intel_asm ? "imul" : "imulq",s_reg2,REGISTER_A1);
 			}
 
 			w_as_opcode_register_register_newline ("sub",REGISTER_A1,s_reg3);
