@@ -1930,12 +1930,12 @@ static void w_as_div_instruction (struct instruction *instruction,int unsigned_d
 
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
-	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE && unsigned_div==0){
 		int i,log2i;
 		
 		i=instruction->instruction_parameters[0].parameter_data.i;
 
-		if (unsigned_div==0 && (i & (i-1))==0 && i>0){
+		if ((i & (i-1))==0 && i>0){
 			if (i==1)
 				return;
 			

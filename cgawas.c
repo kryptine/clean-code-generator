@@ -2161,13 +2161,13 @@ static void w_as_div_rem_i_instruction (struct instruction *instruction,int comp
 	}
 }
 
-static void w_as_div_instruction (struct instruction *instruction)
+static void w_as_div_instruction (struct instruction *instruction,int unsigned_div)
 {
 	int d_reg;
 
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
-	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE && unsigned_div==0){
 		int_64 i;
 		int log2i;
 		
@@ -2222,9 +2222,14 @@ static void w_as_div_instruction (struct instruction *instruction)
 		case REGISTER_D0:
 			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_O0);
 	
-			w_as_instruction_without_parameters ("cqo");
-	
-			w_as_opcode (intel_asm ? "idiv" : "idivq");
+			if (unsigned_div){
+				w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);
+				w_as_opcode (intel_asm ? "div" : "divq");
+			} else {
+				w_as_instruction_without_parameters ("cqo");
+				w_as_opcode (intel_asm ? "idiv" : "idivq");
+			}
+
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER
 				&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
 			{
@@ -2248,9 +2253,14 @@ static void w_as_div_instruction (struct instruction *instruction)
 	
 			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_D0);
 	
-			w_as_instruction_without_parameters ("cqo");
-	
-			w_as_opcode (intel_asm ? "idiv" : "idivq");
+			if (unsigned_div){
+				w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);
+				w_as_opcode (intel_asm ? "div" : "divq");
+			} else {
+				w_as_instruction_without_parameters ("cqo");
+				w_as_opcode (intel_asm ? "idiv" : "idivq");
+			}
+
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
 				int r;
 				
@@ -2288,9 +2298,14 @@ static void w_as_div_instruction (struct instruction *instruction)
 	
 			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
 	
-			w_as_instruction_without_parameters ("cqo");
+			if (unsigned_div){
+				w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);
+				w_as_opcode (intel_asm ? "div" : "divq");
+			} else {
+				w_as_instruction_without_parameters ("cqo");
+				w_as_opcode (intel_asm ? "idiv" : "idivq");
+			}
 
-			w_as_opcode (intel_asm ? "idiv" : "idivq");
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
 				int r;
 				
@@ -2329,13 +2344,13 @@ static void w_as_div_instruction (struct instruction *instruction)
 	}
 }
 
-static void w_as_rem_instruction (struct instruction *instruction)
+static void w_as_rem_instruction (struct instruction *instruction,int unsigned_rem)
 {
 	int d_reg;
 
 	d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
 
-	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE){
+	if (instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE && unsigned_rem==0){
 		int log2i;
 		int_64 i;
 		
@@ -2398,9 +2413,14 @@ static void w_as_rem_instruction (struct instruction *instruction)
 		case REGISTER_D0:
 			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_O0);
 
-			w_as_instruction_without_parameters ("cqo");
+			if (unsigned_rem){
+				w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);
+				w_as_opcode (intel_asm ? "div" : "divq");
+			} else {
+				w_as_instruction_without_parameters ("cqo");
+				w_as_opcode (intel_asm ? "idiv" : "idivq");
+			}
 
-			w_as_opcode (intel_asm ? "idiv" : "idivq");
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER
 				&& instruction->instruction_parameters[0].parameter_data.reg.r==REGISTER_A1)
 			{
@@ -2427,9 +2447,14 @@ static void w_as_rem_instruction (struct instruction *instruction)
 	
 			w_as_movq_register_register_newline (REGISTER_A1,REGISTER_D0);
 	
-			w_as_instruction_without_parameters ("cqo");
-	
-			w_as_opcode (intel_asm ? "idiv" : "idivq");
+			if (unsigned_rem){
+				w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);
+				w_as_opcode (intel_asm ? "div" : "divq");
+			} else {
+				w_as_instruction_without_parameters ("cqo");
+				w_as_opcode (intel_asm ? "idiv" : "idivq");
+			}
+
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
 				int r;
 				
@@ -2465,9 +2490,14 @@ static void w_as_rem_instruction (struct instruction *instruction)
 
 			w_as_opcode_register_register_newline ("xchg",REGISTER_D0,d_reg);
 	
-			w_as_instruction_without_parameters ("cqo");
-	
-			w_as_opcode (intel_asm ? "idiv" : "idivq");
+			if (unsigned_rem){
+				w_as_opcode_register_register_newline ("xor",REGISTER_A1,REGISTER_A1);
+				w_as_opcode (intel_asm ? "div" : "divq");
+			} else {
+				w_as_instruction_without_parameters ("cqo");	
+				w_as_opcode (intel_asm ? "idiv" : "idivq");
+			}
+
 			if (instruction->instruction_parameters[0].parameter_type==P_REGISTER){
 				int r;
 				
@@ -3489,16 +3519,22 @@ static void w_as_instructions (register struct instruction *instruction)
 				w_as_dyadic_instruction (instruction,intel_asm ? "imul" : "imulq");
 				break;
 			case IDIV:
-				w_as_div_instruction (instruction);
+				w_as_div_instruction (instruction,0);
 				break;
 			case IDIVI:
 				w_as_div_rem_i_instruction (instruction,0);
 				break;
+			case IDIVU:
+				w_as_div_instruction (instruction,1);
+				break;
 			case IREM:
-				w_as_rem_instruction (instruction);
+				w_as_rem_instruction (instruction,0);
 				break;
 			case IREMI:
 				w_as_div_rem_i_instruction (instruction,1);
+				break;
+			case IREMU:
+				w_as_rem_instruction (instruction,1);
 				break;
 			case IAND:
 				w_as_dyadic_instruction (instruction,intel_asm ? "and" : "andq");
