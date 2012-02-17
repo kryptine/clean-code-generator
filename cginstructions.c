@@ -4587,6 +4587,19 @@ void code_ccall (char *c_function_name,char *s,int length)
 		n_c_fp_register_parameters = c_fp_parameter_n<=8 ? c_fp_parameter_n : 8;
 
 		i_move_r_r (B_STACK_POINTER,REGISTER_RBP);
+#   ifdef THREAD64
+		if (!save_state_in_global_variables){
+			if ((c_parameter_n-n_c_fp_register_parameters)>6 && ((c_parameter_n-n_c_fp_register_parameters) & 1)!=0){
+				i_sub_i_r (16+8,B_STACK_POINTER);
+				i_move_r_id (-4/*R9*/,8,B_STACK_POINTER);
+				i_or_i_r (8,B_STACK_POINTER);		
+			} else {
+				i_sub_i_r (16,B_STACK_POINTER);
+				i_move_r_id (-4/*R9*/,0,B_STACK_POINTER);
+				i_and_i_r (-16,B_STACK_POINTER);		
+			}
+		} else
+#   endif
 		if ((c_parameter_n-n_c_fp_register_parameters)>6 && ((c_parameter_n-n_c_fp_register_parameters) & 1)!=0){
 			i_sub_i_r (8,B_STACK_POINTER);
 			i_or_i_r (8,B_STACK_POINTER);		
@@ -4944,12 +4957,15 @@ void code_ccall (char *c_function_name,char *s,int length)
 				heap_pointer = a_stack_pointer!=REGISTER_D6 ? REGISTER_D6 : REGISTER_D5;
 				i_move_r_r (HEAP_POINTER,heap_pointer);
 			}
-		} else {
+		}
+#   ifndef THREAD64
+		else {
 			i_move_r_l (a_stack_pointer,saved_a_stack_p_label);
 			i_lea_l_i_r (saved_heap_p_label,0,a_stack_pointer);
 			i_move_r_id (heap_pointer,0,a_stack_pointer);
 			i_move_r_id (REGISTER_D7,8,a_stack_pointer);
 		}
+#   endif
 
 		if (!function_address_parameter)
 			i_jsr_l (label,0);
@@ -4964,6 +4980,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 		if (!save_state_in_global_variables){
 			i_move_r_r (a_stack_pointer,A_STACK_POINTER);
 			i_move_r_r (heap_pointer,HEAP_POINTER);
+			i_move_id_r (-16,REGISTER_RBP,-4/*R9*/);
 		}
 #  else /* for I486 && G_AI64 && ! (LINUX_ELF || MACHO_64) */
 		{
