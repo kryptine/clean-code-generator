@@ -5375,6 +5375,49 @@ extern struct instruction *last_instruction;
 extern LABEL *INT_label,*BOOL_label,*CHAR_label,*REAL_label;
 extern LABEL *cycle_in_spine_label,*reserve_label;
 void code_jsr_from_c_to_clean (char *label_name);
+
+static void load_constant_registers (void)
+{
+	/*
+		lea	a5,__cycle__in__spine
+		lea	int_reg,INT2
+		lea	char_reg,CHAR2
+		lea	real_reg,REAL2
+		lea	bool_reg,BOOL2
+	*/
+
+	if (INT_label==NULL)
+		INT_label=enter_label ("INT",IMPORT_LABEL | DATA_LABEL);
+	i_lea_l_i_r (INT_label,2,INT_REGISTER);
+	
+	if (CHAR_label==NULL)
+		CHAR_label=enter_label ("CHAR",IMPORT_LABEL | DATA_LABEL);
+	i_lea_l_i_r (CHAR_label,2,CHAR_REGISTER);	
+
+	if (REAL_label==NULL)
+		REAL_label=enter_label ("REAL",IMPORT_LABEL | DATA_LABEL);
+	i_lea_l_i_r (REAL_label,2,REAL_REGISTER);
+
+	if (BOOL_label==NULL)
+		BOOL_label=enter_label ("BOOL",IMPORT_LABEL | DATA_LABEL);
+	i_lea_l_i_r (BOOL_label,2,BOOL_REGISTER);
+	
+	if (!parallel_flag){
+		if (cycle_in_spine_label==NULL){
+			cycle_in_spine_label=enter_label ("__cycle__in__spine",IMPORT_LABEL | NODE_ENTRY_LABEL);
+			cycle_in_spine_label->label_arity=0;
+			cycle_in_spine_label->label_descriptor=EMPTY_label;
+		}
+		i_lea_l_i_r (cycle_in_spine_label,0,REGISTER_A5);
+	} else {
+		if (reserve_label==NULL){
+			reserve_label=enter_label ("__reserve",IMPORT_LABEL | NODE_ENTRY_LABEL);
+			reserve_label->label_arity=0;
+			reserve_label->label_descriptor=EMPTY_label;
+		}
+		i_lea_l_i_r (reserve_label,0,REGISTER_A5);
+	}
+}
 #endif
 
 static void save_registers_before_clean_call (void)
@@ -5545,6 +5588,79 @@ static void restore_registers_after_clean_call (void)
 	}
 #endif
 }
+
+#ifdef THREAD64
+static void insert_loads_of_r9_rsi_rdi_and_r15_before_call (struct basic_block *block_with_call)
+{
+	/* hack to load r9, rsi, rdi and r15 before jmp or call */
+	struct instruction *instruction1,*instruction2,*instruction3,*instruction4,*jmp_or_call_instruction,*old_second_last_instruction;
+
+	/* LDTLSP tlsp_tls_index_label,r9 */
+
+	instruction1=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
+	instruction1->instruction_icode=ILDTLSP;
+	instruction1->instruction_arity=2;
+	instruction1->instruction_parameters[0].parameter_type=P_LABEL;
+	instruction1->instruction_parameters[0].parameter_data.l=tlsp_tls_index_label;
+	instruction1->instruction_parameters[1].parameter_type=P_REGISTER;
+	instruction1->instruction_parameters[1].parameter_data.i=-4/*R9*/;
+
+	jmp_or_call_instruction=block_with_call->block_last_instruction;
+	old_second_last_instruction=jmp_or_call_instruction->instruction_prev;
+
+	if (old_second_last_instruction==NULL)
+		block_with_call->block_instructions=instruction1;
+	else
+		old_second_last_instruction->instruction_next=instruction1;
+	instruction1->instruction_prev=old_second_last_instruction;
+
+	/* i_move_id_r (SAVED_A_STACK_P_OFFSET,R9,-6 */ /*RSI*/ /*); */
+
+	instruction2=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
+	instruction2->instruction_icode=IMOVE;
+	instruction2->instruction_arity=2;
+	instruction2->instruction_parameters[0].parameter_type=P_INDIRECT;
+	instruction2->instruction_parameters[0].parameter_offset=SAVED_A_STACK_P_OFFSET;
+	instruction2->instruction_parameters[0].parameter_data.i=-4/*R9*/;
+	instruction2->instruction_parameters[1].parameter_type=P_REGISTER;
+	instruction2->instruction_parameters[1].parameter_data.i=-6/*RSI*/;
+
+	instruction1->instruction_next=instruction2;
+	instruction2->instruction_prev=instruction1;
+
+	/* i_move_id_r (SAVED_R15_OFFSET,R9,REGISTER_D7); */
+
+	instruction3=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
+	instruction3->instruction_icode=IMOVE;
+	instruction3->instruction_arity=2;
+	instruction3->instruction_parameters[0].parameter_type=P_INDIRECT;
+	instruction3->instruction_parameters[0].parameter_offset=SAVED_R15_OFFSET;
+	instruction3->instruction_parameters[0].parameter_data.i=-4/*R9*/;
+	instruction3->instruction_parameters[1].parameter_type=P_REGISTER;
+	instruction3->instruction_parameters[1].parameter_data.i=REGISTER_D7;
+
+	instruction2->instruction_next=instruction3;
+	instruction3->instruction_prev=instruction2;
+
+	/* i_move_id_r (SAVED_HEAP_P_OFFSET,R9,-7 */ /*RDI*/ /*); */
+
+	instruction4=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
+	instruction4->instruction_icode=IMOVE;
+	instruction4->instruction_arity=2;
+	instruction4->instruction_parameters[0].parameter_type=P_INDIRECT;
+	instruction4->instruction_parameters[0].parameter_offset=SAVED_HEAP_P_OFFSET;
+	instruction4->instruction_parameters[0].parameter_data.i=-4/*R9*/;
+	instruction4->instruction_parameters[1].parameter_type=P_REGISTER;
+	instruction4->instruction_parameters[1].parameter_data.i=-7 /*RDI*/;
+
+	instruction3->instruction_next=instruction4;
+	instruction4->instruction_prev=instruction3;
+
+	instruction4->instruction_next=jmp_or_call_instruction;
+	jmp_or_call_instruction->instruction_prev=instruction4;
+}
+#endif
+
 
 #ifdef I486
 # ifdef G_AI64
@@ -5793,6 +5909,14 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	if (n_string_or_array_parameters!=0){
 		int i,offset;
 
+# ifdef THREAD64
+		instruction_l_r (ILDTLSP,tlsp_tls_index_label,-4/*R9*/);
+
+		i_move_id_r (SAVED_A_STACK_P_OFFSET,-4/*R9*/,A_STACK_POINTER);
+		i_move_id_r (SAVED_R15_OFFSET,-4/*R9*/,REGISTER_D7);
+		i_move_id_r (SAVED_HEAP_P_OFFSET,-4/*R9*/,-7/*RDI*/);
+# endif
+
 # if defined (G_A64)
 		offset=((18+1+n_integer_parameters+n_string_or_array_parameters)<<STACK_ELEMENT_LOG_SIZE)+(n_float_parameters<<3);
 # else
@@ -5974,46 +6098,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	code_d (n_string_or_array_parameters,n_integer_and_float_parameters,vector_p);
 
 #ifdef G_POWER
-	/*
-		lea	a5,__cycle__in__spine
-		lea	int_reg,INT2
-		lea	char_reg,CHAR2
-		lea	real_reg,REAL2
-		lea	bool_reg,BOOL2
-	*/
-
-	if (INT_label==NULL)
-		INT_label=enter_label ("INT",IMPORT_LABEL | DATA_LABEL);
-	i_lea_l_i_r (INT_label,2,INT_REGISTER);
-	
-	if (CHAR_label==NULL)
-		CHAR_label=enter_label ("CHAR",IMPORT_LABEL | DATA_LABEL);
-	i_lea_l_i_r (CHAR_label,2,CHAR_REGISTER);	
-
-	if (REAL_label==NULL)
-		REAL_label=enter_label ("REAL",IMPORT_LABEL | DATA_LABEL);
-	i_lea_l_i_r (REAL_label,2,REAL_REGISTER);
-
-	if (BOOL_label==NULL)
-		BOOL_label=enter_label ("BOOL",IMPORT_LABEL | DATA_LABEL);
-	i_lea_l_i_r (BOOL_label,2,BOOL_REGISTER);
-	
-	if (!parallel_flag){
-		if (cycle_in_spine_label==NULL){
-			cycle_in_spine_label=enter_label ("__cycle__in__spine",IMPORT_LABEL | NODE_ENTRY_LABEL);
-			cycle_in_spine_label->label_arity=0;
-			cycle_in_spine_label->label_descriptor=EMPTY_label;
-		}
-		i_lea_l_i_r (cycle_in_spine_label,0,REGISTER_A5);
-	} else {
-		if (reserve_label==NULL){
-			reserve_label=enter_label ("__reserve",IMPORT_LABEL | NODE_ENTRY_LABEL);
-			reserve_label->label_arity=0;
-			reserve_label->label_descriptor=EMPTY_label;
-		}
-		i_lea_l_i_r (reserve_label,0,REGISTER_A5);
-	}
-
+	load_constant_registers();
 	code_jsr_from_c_to_clean (clean_function_label);
 #else
 	code_jsr (clean_function_label);
@@ -6175,74 +6260,8 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 							float_c_function_result ? r_vector : i_vector,N_ADDRESS_PARAMETER_REGISTERS);
 
 # ifdef THREAD64
-		{
-			/* hack to load r9, rsi, rdi and r15 before jmp or call */
-			struct instruction *instruction1,*instruction2,*instruction3,*instruction4,*jmp_or_call_instruction,*old_second_last_instruction;
-
-			/* LDTLSP tlsp_tls_index_label,r9 */
-
-			instruction1=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
-			instruction1->instruction_icode=ILDTLSP;
-			instruction1->instruction_arity=2;
-			instruction1->instruction_parameters[0].parameter_type=P_LABEL;
-			instruction1->instruction_parameters[0].parameter_data.l=tlsp_tls_index_label;
-			instruction1->instruction_parameters[1].parameter_type=P_REGISTER;
-			instruction1->instruction_parameters[1].parameter_data.i=-4/*R9*/;
-
-			jmp_or_call_instruction=block_with_call->block_last_instruction;
-			old_second_last_instruction=jmp_or_call_instruction->instruction_prev;
-
-			if (old_second_last_instruction==NULL)
-				block_with_call->block_instructions=instruction1;
-			else
-				old_second_last_instruction->instruction_next=instruction1;
-			instruction1->instruction_prev=old_second_last_instruction;
-
-			/* i_move_id_r (SAVED_A_STACK_P_OFFSET,R9,-6 */ /*RSI*/ /*); */
-
-			instruction2=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
-			instruction2->instruction_icode=IMOVE;
-			instruction2->instruction_arity=2;
-			instruction2->instruction_parameters[0].parameter_type=P_INDIRECT;
-			instruction2->instruction_parameters[0].parameter_offset=SAVED_A_STACK_P_OFFSET;
-			instruction2->instruction_parameters[0].parameter_data.i=-4/*R9*/;
-			instruction2->instruction_parameters[1].parameter_type=P_REGISTER;
-			instruction2->instruction_parameters[1].parameter_data.i=-6/*RSI*/;
-
-			instruction1->instruction_next=instruction2;
-			instruction2->instruction_prev=instruction1;
-
-			/* i_move_id_r (SAVED_R15_OFFSET,R9,REGISTER_D7); */
-
-			instruction3=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
-			instruction3->instruction_icode=IMOVE;
-			instruction3->instruction_arity=2;
-			instruction3->instruction_parameters[0].parameter_type=P_INDIRECT;
-			instruction3->instruction_parameters[0].parameter_offset=SAVED_R15_OFFSET;
-			instruction3->instruction_parameters[0].parameter_data.i=-4/*R9*/;
-			instruction3->instruction_parameters[1].parameter_type=P_REGISTER;
-			instruction3->instruction_parameters[1].parameter_data.i=REGISTER_D7;
-
-			instruction2->instruction_next=instruction3;
-			instruction3->instruction_prev=instruction2;
-
-			/* i_move_id_r (SAVED_HEAP_P_OFFSET,R9,-7 */ /*RDI*/ /*); */
-
-			instruction4=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
-			instruction4->instruction_icode=IMOVE;
-			instruction4->instruction_arity=2;
-			instruction4->instruction_parameters[0].parameter_type=P_INDIRECT;
-			instruction4->instruction_parameters[0].parameter_offset=SAVED_HEAP_P_OFFSET;
-			instruction4->instruction_parameters[0].parameter_data.i=-4/*R9*/;
-			instruction4->instruction_parameters[1].parameter_type=P_REGISTER;
-			instruction4->instruction_parameters[1].parameter_data.i=-7 /*RDI*/;
-
-			instruction3->instruction_next=instruction4;
-			instruction4->instruction_prev=instruction3;
-
-			instruction4->instruction_next=jmp_or_call_instruction;
-			jmp_or_call_instruction->instruction_prev=instruction4;
-		}
+		if (n_string_or_array_parameters==0)
+			insert_loads_of_r9_rsi_rdi_and_r15_before_call (block_with_call);
 # endif
 
 #if ! (defined (sparc) || defined (G_POWER))
