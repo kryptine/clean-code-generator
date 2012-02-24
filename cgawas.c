@@ -1102,14 +1102,15 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					return;
 				case P_LABEL:
 					w_as_opcode_movq();
-					if (intel_asm){
+					if (intel_asm)
 						w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
-						fprintf (assembly_file,"offset ");
-					}
 					if (instruction->instruction_parameters[0].parameter_data.l->label_number!=0)
 						w_as_local_label (instruction->instruction_parameters[0].parameter_data.l->label_number);
 					else
 						w_as_label (instruction->instruction_parameters[0].parameter_data.l->label_name);
+#ifdef MACH_O64
+					fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");
+#endif
 					break;
 				default:
 					internal_error_in_function ("w_as_move_instruction");
@@ -1359,12 +1360,14 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 				w_as_opcode_movq();
 				if (!intel_asm){
 					w_as_register_comma (instruction->instruction_parameters[0].parameter_data.reg.r);
-					fprintf (assembly_file,"offset ");
 				}
 				if (instruction->instruction_parameters[1].parameter_data.l->label_number!=0)
 					w_as_local_label (instruction->instruction_parameters[1].parameter_data.l->label_number);
 				else
 					w_as_label (instruction->instruction_parameters[1].parameter_data.l->label_name);
+#ifdef MACH_O64
+				fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");
+#endif
 				if (intel_asm)
 					w_as_comma_register (instruction->instruction_parameters[0].parameter_data.reg.r);
 				w_as_newline();
