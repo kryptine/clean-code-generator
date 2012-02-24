@@ -3650,13 +3650,23 @@ static void ccall_load_string_or_array_offset (int offset,int c_parameter_n,int 
 }
 #endif
 
+#if defined (THREAD64) && (defined (LINUX_ELF) || defined (MACH_O64))
+LABEL *pthread_getspecific_label=NULL;
+#endif
+
 #ifdef THREAD32
 # define SAVED_A_STACK_P_OFFSET 12
+# define STRING_tlsp_tls_index "tlsp_tls_index"
 #else
 # ifdef THREAD64
 #  define SAVED_HEAP_P_OFFSET 24
 #  define SAVED_R15_OFFSET 32
 #  define SAVED_A_STACK_P_OFFSET 40
+#  ifdef MACH_O64
+#   define STRING_tlsp_tls_index "_tlsp_tls_index"
+#  else
+#   define STRING_tlsp_tls_index "tlsp_tls_index"
+#  endif
 # endif
 #endif
 
@@ -4563,7 +4573,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 #  ifdef THREAD64
 	if (save_state_in_global_variables){
 		if (tlsp_tls_index_label==NULL)
-			tlsp_tls_index_label=enter_label ("tlsp_tls_index",IMPORT_LABEL);
+			tlsp_tls_index_label=enter_label (STRING_tlsp_tls_index,IMPORT_LABEL);
 #   ifndef LINUX_ELF
 		i_move_r_id (A_STACK_POINTER,SAVED_A_STACK_P_OFFSET,-4/*R9*/);
 		i_move_r_id (-7/*RDI*/,SAVED_HEAP_P_OFFSET,-4/*R9*/);
@@ -4971,6 +4981,38 @@ void code_ccall (char *c_function_name,char *s,int length)
 			i_jsr_l (label,0);
 		else
 			i_jsr_r (function_address_reg);
+
+#   ifdef THREAD64
+		if (save_state_in_global_variables){
+			if (tlsp_tls_index_label==NULL)
+				tlsp_tls_index_label=enter_label (STRING_tlsp_tls_index,IMPORT_LABEL);
+			if (pthread_getspecific_label==NULL)
+				pthread_getspecific_label=enter_label ("_pthread_getspecific",IMPORT_LABEL);
+
+			i_sub_i_r (16,B_STACK_POINTER);
+
+			switch (result){
+				case 'V':
+					i_move_l_r (tlsp_tls_index_label,-7/*RDI*/);
+					i_jsr_l (pthread_getspecific_label,0);
+					i_move_r_r (REGISTER_D0,-4/*R9*/);
+					break;
+				case 'R':
+					i_fmove_fr_id (0,0,B_STACK_POINTER);
+					i_move_l_r (tlsp_tls_index_label,-7/*RDI*/);
+					i_jsr_l (pthread_getspecific_label,0);
+					i_move_r_r (REGISTER_D0,-4/*R9*/);
+					i_fmove_id_fr (0,B_STACK_POINTER,0);
+					break;
+				default:
+					i_move_r_id (REGISTER_D0,0,B_STACK_POINTER);
+					i_move_l_r (tlsp_tls_index_label,-7/*RDI*/);
+					i_jsr_l (pthread_getspecific_label,0);
+					i_move_r_r (REGISTER_D0,-4/*R9*/);
+					i_move_id_r (0,B_STACK_POINTER,REGISTER_D0);
+			}
+		}
+#   endif
 		
 		if (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset)==0)
 			i_move_r_r (REGISTER_RBP,B_STACK_POINTER);
@@ -4981,6 +5023,17 @@ void code_ccall (char *c_function_name,char *s,int length)
 			i_move_r_r (a_stack_pointer,A_STACK_POINTER);
 			i_move_r_r (heap_pointer,HEAP_POINTER);
 			i_move_id_r (-16,REGISTER_RBP,-4/*R9*/);
+		} else {
+#   ifdef THREAD64
+			i_move_id_r (SAVED_A_STACK_P_OFFSET,-4/*R9*/,A_STACK_POINTER);
+			i_move_id_r (SAVED_R15_OFFSET,-4/*R9*/,REGISTER_D7);
+			i_move_id_r (SAVED_HEAP_P_OFFSET,-4/*R9*/,-7/*RDI*/);
+#   else
+			i_lea_l_i_r (saved_heap_p_label,0,-7/*RDI*/);
+			i_move_l_r (saved_a_stack_p_label,-6/*RSI*/);
+			i_move_id_r (8,-7/*RDI*/,REGISTER_D7);
+			i_move_id_r (0,-7/*RDI*/,-7/*RDI*/);
+#   endif
 		}
 #  else /* for I486 && G_AI64 && ! (LINUX_ELF || MACHO_64) */
 		{
@@ -5225,24 +5278,23 @@ void code_ccall (char *c_function_name,char *s,int length)
 #   ifdef THREAD64
 		if (!save_state_in_global_variables)
 			i_move_id_r (-16,REGISTER_RBP,-4/*R9*/);
-#   endif
-#  endif
-		/* for I486 && G_AI64 */
-
-		if (save_state_in_global_variables){
-#ifdef THREAD64
+		else {
 			instruction_l_r (ILDTLSP,tlsp_tls_index_label,-4/*R9*/);
 
 			i_move_id_r (SAVED_A_STACK_P_OFFSET,-4/*R9*/,A_STACK_POINTER);
 			i_move_id_r (SAVED_R15_OFFSET,-4/*R9*/,REGISTER_D7);
 			i_move_id_r (SAVED_HEAP_P_OFFSET,-4/*R9*/,-7/*RDI*/);
-#else
+		}
+#   else
+		if (save_state_in_global_variables){
 			i_lea_l_i_r (saved_heap_p_label,0,-7/*RDI*/);
 			i_move_l_r (saved_a_stack_p_label,-6/*RSI*/);
 			i_move_id_r (8,-7/*RDI*/,REGISTER_D7);
 			i_move_id_r (0,-7/*RDI*/,-7/*RDI*/);
-#endif
 		}
+#   endif
+#  endif
+		/* for I486 && G_AI64 */
 
 		if (callee_pops_arguments)
 			c_offset=c_offset_before_pushing_arguments;
@@ -5426,16 +5478,22 @@ static void save_registers_before_clean_call (void)
 # ifdef G_AI64
 	i_sub_i_r (144,B_STACK_POINTER);
 
-	i_move_r_id (-6/*RSI*/,136,B_STACK_POINTER);
 #  if defined (LINUX_ELF) || defined (MACH_O64)
+#   ifndef THREAD64
 	i_move_r_r (-6/*RSI*/,3/*R11*/);
+#   endif
+#  else
+	i_move_r_id (-6/*RSI*/,136,B_STACK_POINTER);
 #  endif
 #  ifndef THREAD64
 	i_move_l_r (saved_a_stack_p_label,-6/*RSI*/);
 #  endif
-	i_move_r_id (-7/*RDI*/,128,B_STACK_POINTER);
 #  if defined (LINUX_ELF) || defined (MACH_O64)
+#   ifndef THREAD64
 	i_move_r_r (-7/*RDI*/,2/*R10*/);
+#   endif
+#  else
+	i_move_r_id (-7/*RDI*/,128,B_STACK_POINTER);
 #  endif
 #  ifndef THREAD64
 	i_lea_l_i_r (saved_heap_p_label,0,-7/*RDI*/);
@@ -5469,7 +5527,7 @@ static void save_registers_before_clean_call (void)
 	i_move_l_r (saved_heap_p_label,-5/*EDI*/);
 #  else
 	if (tlsp_tls_index_label==NULL)
-		tlsp_tls_index_label=enter_label ("tlsp_tls_index",IMPORT_LABEL);
+		tlsp_tls_index_label=enter_label (STRING_tlsp_tls_index,IMPORT_LABEL);
 
 	i_move_r_id (-5/*EDI*/,12,B_STACK_POINTER);
 	instruction_l_r (ILDTLSP,tlsp_tls_index_label,-5/*EDI*/);
@@ -5514,7 +5572,7 @@ static void restore_registers_after_clean_call (void)
 
 #  ifdef THREAD64
 	if (tlsp_tls_index_label==NULL)
-		tlsp_tls_index_label=enter_label ("tlsp_tls_index",IMPORT_LABEL);
+		tlsp_tls_index_label=enter_label (STRING_tlsp_tls_index,IMPORT_LABEL);
 
 	i_move_r_id (-6/*RSI*/,SAVED_A_STACK_P_OFFSET,-4/*R9*/);
 	i_move_r_id (-7/*RDI*/,SAVED_HEAP_P_OFFSET,-4/*R9*/);
@@ -5526,8 +5584,10 @@ static void restore_registers_after_clean_call (void)
 	i_move_r_id (REGISTER_D7,8,-6/*RSI*/);
 #  endif
 
+#  if ! (defined (LINUX_ELF) || defined (MACH_O64))
 	i_move_id_r (136,B_STACK_POINTER,-6/*RSI*/);
 	i_move_id_r (128,B_STACK_POINTER,-7/*RDI*/);
+#  endif
 	i_move_id_r ( 80,B_STACK_POINTER, 7/*R15*/);
 
 	i_move_id_r (120,B_STACK_POINTER, 1/*RBX*/);
@@ -5593,8 +5653,12 @@ static void restore_registers_after_clean_call (void)
 static void insert_loads_of_r9_rsi_rdi_and_r15_before_call (struct basic_block *block_with_call)
 {
 	/* hack to load r9, rsi, rdi and r15 before jmp or call */
-	struct instruction *instruction1,*instruction2,*instruction3,*instruction4,*jmp_or_call_instruction,*old_second_last_instruction;
+# ifndef MACH_O64
+	struct instruction *instruction1;
+# endif
+	struct instruction *instruction2,*instruction3,*instruction4,*jmp_or_call_instruction,*old_second_last_instruction;
 
+# if !(defined (LINUX_ELF) || defined (MACH_O64))
 	/* LDTLSP tlsp_tls_index_label,r9 */
 
 	instruction1=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
@@ -5613,6 +5677,7 @@ static void insert_loads_of_r9_rsi_rdi_and_r15_before_call (struct basic_block *
 	else
 		old_second_last_instruction->instruction_next=instruction1;
 	instruction1->instruction_prev=old_second_last_instruction;
+# endif
 
 	/* i_move_id_r (SAVED_A_STACK_P_OFFSET,R9,-6 */ /*RSI*/ /*); */
 
@@ -5625,8 +5690,19 @@ static void insert_loads_of_r9_rsi_rdi_and_r15_before_call (struct basic_block *
 	instruction2->instruction_parameters[1].parameter_type=P_REGISTER;
 	instruction2->instruction_parameters[1].parameter_data.i=-6/*RSI*/;
 
+# if !(defined (LINUX_ELF) || defined (MACH_O64))
 	instruction1->instruction_next=instruction2;
 	instruction2->instruction_prev=instruction1;
+# else
+	jmp_or_call_instruction=block_with_call->block_last_instruction;
+	old_second_last_instruction=jmp_or_call_instruction->instruction_prev;
+
+	if (old_second_last_instruction==NULL)
+		block_with_call->block_instructions=instruction2;
+	else
+		old_second_last_instruction->instruction_next=instruction2;
+	instruction2->instruction_prev=old_second_last_instruction;
+# endif
 
 	/* i_move_id_r (SAVED_R15_OFFSET,R9,REGISTER_D7); */
 
@@ -5661,6 +5737,68 @@ static void insert_loads_of_r9_rsi_rdi_and_r15_before_call (struct basic_block *
 }
 #endif
 
+#if defined (THREAD64) && (defined (LINUX_ELF) || defined (MACH_O64))
+static void call_pthread_getspecific (int n_integer_parameters,int n_float_parameters)
+{
+	int float_parameter_n;
+
+	if (tlsp_tls_index_label==NULL)
+		tlsp_tls_index_label=enter_label (STRING_tlsp_tls_index,IMPORT_LABEL);
+	if (pthread_getspecific_label==NULL)
+		pthread_getspecific_label=enter_label ("_pthread_getspecific",IMPORT_LABEL);
+
+	if (n_float_parameters>8)
+		n_float_parameters=8;
+
+	switch (n_integer_parameters){
+		default: /* >=6 */
+			i_move_r_r (-4/*R9 */, 4/*R12*/);
+		case 5:
+			i_move_r_r (-3/*R8 */, 7/*R15*/);
+		case 4:
+			i_move_r_r (-1/*RCX*/, 6/*R14*/);
+		case 3:
+			i_move_r_r (-2/*RDX*/, 5/*R13*/);
+		case 2:
+			i_move_r_r (-6/*RSI*/,-5/*RBP*/);
+		case 1:
+			i_move_r_r (-7/*RDI*/, 1/*RBX*/);
+		case 0:
+			break;
+	}
+
+	i_sub_i_r (8+(n_float_parameters<<3),B_STACK_POINTER);
+
+	for (float_parameter_n=0; float_parameter_n<n_float_parameters; ++float_parameter_n)
+		i_fmove_fr_id (float_parameter_n,float_parameter_n<<3,B_STACK_POINTER);
+
+	i_move_l_r (tlsp_tls_index_label,-7/*RDI*/);
+	i_jsr_l (pthread_getspecific_label,0);
+
+	for (float_parameter_n=0; float_parameter_n<n_float_parameters; ++float_parameter_n)
+		i_fmove_id_fr (float_parameter_n<<3,B_STACK_POINTER,float_parameter_n);
+
+	i_move_r_r (REGISTER_D0,-4/*R9*/);
+
+	i_add_i_r (8+(n_float_parameters<<3),B_STACK_POINTER);
+
+	switch (n_integer_parameters){
+		default: /* >=6 */
+		case 5:
+			i_move_r_r ( 7/*R15*/,-3/*R8 */);
+		case 4:
+			i_move_r_r ( 6/*R14*/,-1/*RCX*/);
+		case 3:
+			i_move_r_r ( 5/*R13*/,-2/*RDX*/);
+		case 2:
+			i_move_r_r (-5/*RBP*/, 3/*R11*/);
+		case 1:
+			i_move_r_r ( 1/*RBX*/, 2/*R10*/);
+		case 0:
+			break;
+	}
+}
+#endif
 
 #ifdef I486
 # ifdef G_AI64
@@ -5821,7 +5959,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	n_integer_and_float_parameters=n_integer_parameters+n_float_parameters;
 #endif
 
-# if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (G_AI64) && !defined (LINUX_ELF)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
+# if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O) || defined (MACH_O64)
 	{
 		char label_name [202];
 
@@ -5871,6 +6009,10 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 
 	save_registers_before_clean_call();
 
+#if defined (THREAD64) && (defined (LINUX_ELF) || defined (MACH_O64))
+	call_pthread_getspecific (n_integer_parameters+n_string_or_array_parameters,n_float_parameters);
+#endif
+
 #if defined (G_AI64)
 	if (n_string_or_array_parameters!=0){
 		int register_n;
@@ -5910,8 +6052,9 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		int i,offset;
 
 # ifdef THREAD64
+#  if !(defined (LINUX_ELF) || defined (MACH_O64))
 		instruction_l_r (ILDTLSP,tlsp_tls_index_label,-4/*R9*/);
-
+#  endif
 		i_move_id_r (SAVED_A_STACK_P_OFFSET,-4/*R9*/,A_STACK_POINTER);
 		i_move_id_r (SAVED_R15_OFFSET,-4/*R9*/,REGISTER_D7);
 		i_move_id_r (SAVED_HEAP_P_OFFSET,-4/*R9*/,-7/*RDI*/);
@@ -6020,7 +6163,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 
 				register_n = (n_integer_and_float_parameters-1)-n;
 				if (s[first_parameter_index+register_n]!='R')
-#  ifdef LINUX_ELF
+#  if defined (LINUX_ELF) || defined (MACH_O64)
 				{
 					switch (register_n){
 						case 0: register_n= 2/*R10 was RDI*/; break;
@@ -6028,7 +6171,13 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 						case 2: register_n=-2/*RDX*/; break;
 						case 3: register_n=-1/*RCX*/; break;
 						case 4: register_n=-3/*R8*/; break;
-						case 5: register_n=-4/*R9*/; break;
+						case 5:
+#   ifndef THREAD64
+								register_n=-4/*R9*/;
+#   else
+								register_n= 4/*R12*/;
+#   endif
+								break;
 						default: error ("error in centry");
 					}
 					s_push_b (g_g_register (register_n));
