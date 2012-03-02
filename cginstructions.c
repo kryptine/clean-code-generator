@@ -3664,8 +3664,10 @@ LABEL *pthread_getspecific_label=NULL;
 #  define SAVED_A_STACK_P_OFFSET 40
 #  ifdef MACH_O64
 #   define STRING_tlsp_tls_index "_tlsp_tls_index"
+#   define STRING_pthread_getspecific "_pthread_getspecific"
 #  else
 #   define STRING_tlsp_tls_index "tlsp_tls_index"
+#   define STRING_pthread_getspecific "pthread_getspecific"
 #  endif
 # endif
 #endif
@@ -4987,7 +4989,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			if (tlsp_tls_index_label==NULL)
 				tlsp_tls_index_label=enter_label (STRING_tlsp_tls_index,IMPORT_LABEL);
 			if (pthread_getspecific_label==NULL)
-				pthread_getspecific_label=enter_label ("_pthread_getspecific",IMPORT_LABEL);
+				pthread_getspecific_label=enter_label (STRING_pthread_getspecific,IMPORT_LABEL);
 
 			i_sub_i_r (16,B_STACK_POINTER);
 
@@ -5745,7 +5747,7 @@ static void call_pthread_getspecific (int n_integer_parameters,int n_float_param
 	if (tlsp_tls_index_label==NULL)
 		tlsp_tls_index_label=enter_label (STRING_tlsp_tls_index,IMPORT_LABEL);
 	if (pthread_getspecific_label==NULL)
-		pthread_getspecific_label=enter_label ("_pthread_getspecific",IMPORT_LABEL);
+		pthread_getspecific_label=enter_label (STRING_pthread_getspecific,IMPORT_LABEL);
 
 	if (n_float_parameters>8)
 		n_float_parameters=8;
