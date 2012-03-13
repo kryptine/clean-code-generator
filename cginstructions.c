@@ -4576,11 +4576,10 @@ void code_ccall (char *c_function_name,char *s,int length)
 	if (save_state_in_global_variables){
 		if (tlsp_tls_index_label==NULL)
 			tlsp_tls_index_label=enter_label (STRING_tlsp_tls_index,IMPORT_LABEL);
-#   ifndef LINUX_ELF
+
 		i_move_r_id (A_STACK_POINTER,SAVED_A_STACK_P_OFFSET,-4/*R9*/);
 		i_move_r_id (-7/*RDI*/,SAVED_HEAP_P_OFFSET,-4/*R9*/);
 		i_move_r_id (REGISTER_D7,SAVED_R15_OFFSET,-4/*R9*/);
-#   endif
 	}
 #  endif
 
