@@ -1156,7 +1156,11 @@ void code_buildI (CleanInt value)
 {
 	INSTRUCTION_GRAPH graph_3,graph_4,graph_5;
 
+#ifndef G_A64
 	if (!parallel_flag && (unsigned long)value<(unsigned long)33){
+#else
+	if (!parallel_flag && (uint_64)value<(uint_64)33){
+#endif
 		if (small_integers_label==NULL)
 			small_integers_label=enter_label ("small_integers",IMPORT_LABEL | DATA_LABEL);
 	
