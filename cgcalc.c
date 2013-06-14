@@ -2184,6 +2184,9 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			return;
 		}
 		case GLOAD_DES_ID:
+#ifdef G_AI64
+		case GLOAD_SQB_ID:
+#endif
 		{
 			INSTRUCTION_GRAPH graph_1;
 			
@@ -2857,6 +2860,9 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GLOAD_ID:
 		case GLOAD_B_ID:
 		case GLOAD_DES_ID:
+#ifdef G_AI64
+		case GLOAD_SQB_ID:
+#endif
 			if (++graph->node_count==1)
 				count_graph (graph->instruction_parameters[1].p);
 			break;
@@ -3085,6 +3091,9 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GLOAD_ID:
 		case GLOAD_B_ID:
 		case GLOAD_DES_ID:
+#ifdef G_AI64
+		case GLOAD_SQB_ID:
+#endif
 			if (graph->node_mark<2){
 				graph->node_mark=2;
 				mark_graph_2 (graph->instruction_parameters[1].p);
@@ -3315,6 +3324,9 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GLOAD_ID:
 		case GLOAD_B_ID:
 		case GLOAD_DES_ID:
+#ifdef G_AI64
+		case GLOAD_SQB_ID:
+#endif
 			if (!graph->node_mark){
 				graph->node_mark=1;
 				mark_graph_2 (graph->instruction_parameters[1].p);

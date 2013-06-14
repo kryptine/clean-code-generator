@@ -907,6 +907,20 @@ INSTRUCTION_GRAPH g_load_s_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INS
 
 	return instruction;
 }
+
+INSTRUCTION_GRAPH g_load_sqb_id (int offset,INSTRUCTION_GRAPH graph_1)
+{
+	INSTRUCTION_GRAPH instruction;
+
+	instruction=g_new_node (GLOAD_SQB_ID,0,2*sizeof (union instruction_parameter));
+
+	instruction->instruction_parameters[0].i=offset;
+	instruction->instruction_parameters[1].p=graph_1;
+
+	graph_1->instruction_d_min_a_cost+=1;
+
+	return instruction;
+}
 #endif
 
 INSTRUCTION_GRAPH g_movem (int offset,INSTRUCTION_GRAPH graph_1,int n)
@@ -6466,6 +6480,18 @@ void code_load_si16 (CleanInt offset)
 
 	s_push_b (graph_2);
 }
+
+#ifdef G_AI64
+void code_load_si32 (CleanInt offset)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+	
+	graph_1=s_pop_b ();
+	graph_2=g_load_sqb_id (offset,graph_1);
+
+	s_push_b (graph_2);
+}
+#endif
 
 void code_load_ui8 (CleanInt offset)
 {

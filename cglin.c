@@ -9055,6 +9055,34 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 	
 			return;
 		}
+#ifdef G_AI64
+		case GLOAD_SQB_ID:
+		{
+			ADDRESS ad_1;
+			int reg_1;
+			
+			linearize_graph (graph->instruction_parameters[1].p,&ad_1);
+			in_address_register (&ad_1);
+			
+			if (--*ad_1.ad_count_p==0)
+				free_aregister (ad_1.ad_register);
+		
+			if (graph->instruction_d_min_a_cost>0)
+				reg_1=get_aregister();
+			else
+				reg_1=get_dregister();
+
+			i_loadsqb_id_r (graph->instruction_parameters[0].i,ad_1.ad_register,reg_1);
+
+			if (graph->node_count>1)
+				register_node (graph,reg_1);
+
+			ad_p->ad_mode=P_REGISTER;
+			ad_p->ad_register=reg_1;
+			ad_p->ad_count_p=&graph->node_count;	
+			return;
+		}
+#endif
 		case GSTORE:
 		{
 			INSTRUCTION_GRAPH a_graph;

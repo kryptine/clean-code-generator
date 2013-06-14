@@ -154,6 +154,9 @@ void code_jsr_eval (int a_offset);
 void code_lnR (VOID);
 void code_load_i (CleanInt offset);
 void code_load_si16 (CleanInt offset);
+#ifdef G_AI64
+void code_load_si32 (CleanInt offset);
+#endif
 void code_load_ui8 (CleanInt offset);
 void code_log10R (VOID);
 void code_ltC (VOID);
