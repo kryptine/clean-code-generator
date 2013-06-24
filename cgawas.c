@@ -1108,7 +1108,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 						w_as_local_label (instruction->instruction_parameters[0].parameter_data.l->label_number);
 					else
 						w_as_label (instruction->instruction_parameters[0].parameter_data.l->label_name);
-#ifdef MACH_O64
+#if defined (MACH_O64) || defined (LINUX)
 					fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");
 #endif
 					break;
@@ -1365,7 +1365,7 @@ static void w_as_move_instruction (struct instruction *instruction,int size_flag
 					w_as_local_label (instruction->instruction_parameters[1].parameter_data.l->label_number);
 				else
 					w_as_label (instruction->instruction_parameters[1].parameter_data.l->label_name);
-#ifdef MACH_O64
+#if defined (MACH_O64) || defined (LINUX)
 				fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");
 #endif
 				if (intel_asm)
@@ -1445,7 +1445,7 @@ static void w_as_lea_instruction (struct instruction *instruction)
 				offset=instruction->instruction_parameters[0].parameter_offset;
 				fprintf (assembly_file,offset>=0 ? "+%d" : "%d",offset);
 			}
-#ifdef MACH_O64
+#if defined (MACH_O64) || defined (LINUX)
 			fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");
 #endif
 		} else
