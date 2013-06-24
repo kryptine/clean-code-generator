@@ -4267,7 +4267,7 @@ void write_assembly (VOID)
 					if (intel_asm)
 						w_as_register_comma (REGISTER_D0);
 					w_as_label (block->block_ea_label->label_name);
-#ifdef MACH_O64
+#if defined (MACH_O64) || defined (LINUX)
 					fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");						
 #endif
 					if (!intel_asm)
