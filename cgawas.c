@@ -728,7 +728,7 @@ static void w_as_lea_descriptor (LABEL *label,int arity,int register_1)
 		else
 			fprintf (assembly_file,"-%d",-arity);
 
-#ifdef MACH_O64
+#if defined (MACH_O64) || defined (LINUX)
 	fprintf (assembly_file,"%s",intel_asm ? "[rip]" : "(%rip)");
 #endif
 	
