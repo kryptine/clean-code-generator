@@ -4913,6 +4913,11 @@ static void write_code (void)
 						store_c (0x90);
 					}
 				} else {
+#ifdef LINUX
+					if (pic_flag)
+						as_move_d_r (block->block_ea_label,0,REGISTER_D0);
+					else
+#endif
 					as_move_l_r (block->block_ea_label,REGISTER_D0);
 				
 					store_c (0377);
