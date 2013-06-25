@@ -2123,6 +2123,14 @@ static void as_cmp_instruction (struct instruction *instruction)
 
 	switch (parameter_0.parameter_type){
 		case P_DESCRIPTOR_NUMBER:
+#ifdef LINUX
+			if (pic_flag){
+				as_move_d_r (parameter_0.parameter_data.l,parameter_0.parameter_offset,REGISTER_O0);
+
+				parameter_0.parameter_type=P_REGISTER;
+				parameter_0.parameter_data.reg.r=REGISTER_O0;
+			} else
+#endif
 			switch (parameter_1.parameter_type){
 				case P_REGISTER:
 					as_d_r2 (0201,0070,0075,parameter_0.parameter_data.l,parameter_0.parameter_offset,
