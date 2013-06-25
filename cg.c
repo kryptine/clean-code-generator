@@ -107,6 +107,9 @@ int profile_table_flag;
 #ifdef G_POWER
 int fmadd_flag=1;
 #endif
+#if defined (LINUX) && defined (G_AI64)
+int pic_flag=0;
+#endif
 
 #ifdef USER_INTERFACE
 #	define print_error(s1) FPrintF (StdError,"%s\n",s1)
@@ -712,6 +715,10 @@ int main (int argc,char **argv)
 #ifdef G_AI64
 			else if (!strcmp (s,"sse64"))
 				sse_128=0;
+#endif
+#if defined (LINUX) && defined (G_AI64)
+			else if (!strcmp (s,"pic"))
+				pic_flag=1;
 #endif
 			else if (!strcmp (s,"mc68000")){
 				mc68000_flag=1;

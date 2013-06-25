@@ -34,4 +34,8 @@ extern int profile_table_flag;
 extern int fmadd_flag;
 #endif
 
+#if defined (LINUX) && defined (G_AI64)
+extern int pic_flag;
+#endif
+
 extern char *this_module_name;
