@@ -4887,6 +4887,11 @@ static void write_code (void)
 
 				if (n_node_arguments>=0 && block->block_ea_label!=eval_fill_label){
 					if (!block->block_profile){
+#ifdef LINUX
+						if (pic_flag)
+							as_move_d_r (block->block_ea_label,0,REGISTER_A4);
+						else
+#endif
 						as_move_l_r (block->block_ea_label,REGISTER_A4);
 
 						store_c (0351);
