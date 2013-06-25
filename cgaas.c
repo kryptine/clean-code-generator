@@ -749,7 +749,7 @@ static void as_move_d_r (LABEL *label,int arity,int reg1)
 	reg1_n=reg_num (reg1);
 
 	store_c (0x48 | ((reg1_n & 8)>>1));	
-	store_c (0x8d);
+	store_c (0x8d);	/* lea */
 	store_c (5 | ((reg1_n & 7)<<3));
 #ifdef ELF_RELA
 	store_l (0);
@@ -1484,18 +1484,19 @@ static void as_move_instruction (struct instruction *instruction)
 						instruction->instruction_parameters[1].parameter_data.reg.r);
 					return;
 				case P_DESCRIPTOR_NUMBER:
-#if 0
-					as_move_d_r (instruction->instruction_parameters[0].parameter_data.l,
-								 instruction->instruction_parameters[0].parameter_offset,REGISTER_O0);
-					as_r_id (0211,REGISTER_O0,
-						instruction->instruction_parameters[1].parameter_offset,
-						instruction->instruction_parameters[1].parameter_data.reg.r);
-#else
+#ifdef LINUX
+					if (pic_flag){
+						as_move_d_r (instruction->instruction_parameters[0].parameter_data.l,
+									 instruction->instruction_parameters[0].parameter_offset,REGISTER_O0);
+						as_r_id (0211,REGISTER_O0,
+							instruction->instruction_parameters[1].parameter_offset,
+							instruction->instruction_parameters[1].parameter_data.reg.r);
+					} else
+#endif
 					as_d_id (0307,0,instruction->instruction_parameters[0].parameter_data.l,
 						instruction->instruction_parameters[0].parameter_offset,
 						instruction->instruction_parameters[1].parameter_offset,
 						instruction->instruction_parameters[1].parameter_data.reg.r);
-#endif
 					return;
 				case P_IMMEDIATE:
 					if ((int)instruction->instruction_parameters[0].parameter_data.imm!=instruction->instruction_parameters[0].parameter_data.imm){
