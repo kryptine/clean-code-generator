@@ -8907,10 +8907,14 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			return;
 		case GLEA:
 		{
-			register int reg_1;
+			int reg_1;
 
 #if defined (I486) && !defined (MACH_O64)
-			if (graph->node_count==1){
+			if (graph->node_count==1
+# if defined (G_AI64) && defined (LINUX)
+				&& !pic_flag
+# endif
+			){
 				ad_p->ad_mode=P_DESCRIPTOR_NUMBER;
 				if (graph->inode_arity==1)
 					ad_p->ad_offset=graph->instruction_parameters[1].i;
