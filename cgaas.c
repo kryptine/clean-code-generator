@@ -2127,8 +2127,17 @@ static void as_cmp_instruction (struct instruction *instruction)
 			if (pic_flag){
 				as_move_d_r (parameter_0.parameter_data.l,parameter_0.parameter_offset,REGISTER_O0);
 
-				parameter_0.parameter_type=P_REGISTER;
-				parameter_0.parameter_data.reg.r=REGISTER_O0;
+				switch (parameter_1.parameter_type){
+					case P_REGISTER:
+						as_r_r (0071,parameter_1.parameter_data.reg.r,REGISTER_O0);
+						return;
+					case P_INDIRECT:
+						as_id_r (0071,parameter_1.parameter_offset,parameter_1.parameter_data.reg.r,REGISTER_O0);
+						return;
+					case P_INDEXED:
+						as_x_r (0071,parameter_1.parameter_offset,parameter_1.parameter_data.ir,REGISTER_O0);
+						return;					
+				}
 			} else
 #endif
 			switch (parameter_1.parameter_type){
