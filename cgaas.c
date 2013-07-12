@@ -5847,7 +5847,7 @@ static int search_short_branches (void)
 #endif
 			case BRANCH_SKIP_BRANCH_RELOCATION:
 #ifdef LINUX
-			case GOT_PC_RELATIVE_RELOCATION
+			case GOT_PC_RELATIVE_RELOCATION:
 #endif
 				break;
 			case SHORT_BRANCH_RELOCATION:
