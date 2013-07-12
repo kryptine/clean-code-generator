@@ -205,6 +205,9 @@ static void write_q (int c)
 #define DUMMY_BRANCH_RELOCATION 9
 #define PC_RELATIVE_LONG_WORD_RELOCATION 10
 #define BRANCH_SKIP_BRANCH_RELOCATION 11
+#ifdef LINUX
+# define GOT_PC_RELATIVE_RELOCATION 12
+#endif
 
 struct relocation {
 	struct relocation *		next;
@@ -599,6 +602,27 @@ static void store_label_in_code_section (struct label *label)
 	new_relocation->relocation_addend=0;
 #endif
 }
+
+#ifdef LINUX
+static void store_pc_rel_got_label_in_code_section (struct label *label)
+{
+	struct relocation *new_relocation;
+
+	new_relocation=fast_memory_allocate_type (struct relocation);
+	++n_code_relocations;
+	
+	*last_code_relocation_l=new_relocation;
+	last_code_relocation_l=&new_relocation->next;
+	new_relocation->next=NULL;
+	
+	new_relocation->relocation_label=label;
+	new_relocation->relocation_offset=CURRENT_CODE_OFFSET-4;
+	new_relocation->relocation_kind=GOT_PC_RELATIVE_RELOCATION;
+# ifdef ELF_RELA
+	new_relocation->relocation_addend=0;
+# endif
+}
+#endif
 
 #ifdef ELF_RELA
 static void store_label_plus_offset_in_code_section (struct label *label,int offset)
@@ -4935,12 +4959,22 @@ static void write_code (void)
 				
 				if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
 					store_l (0);
+#ifdef LINUX
+					if (pic_flag)
+						store_pc_rel_got_label_in_code_section (block->block_descriptor);
+					else
+#endif
 					store_label_in_code_section (block->block_descriptor);
 				} else
 					store_l (0);
 			} else
 			if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
 				store_l (0);
+#ifdef LINUX
+				if (pic_flag)
+					store_pc_rel_got_label_in_code_section (block->block_descriptor);
+				else
+#endif
 				store_label_in_code_section (block->block_descriptor);
 			}
 			/* else
@@ -5812,6 +5846,9 @@ static int search_short_branches (void)
 			case DUMMY_BRANCH_RELOCATION:
 #endif
 			case BRANCH_SKIP_BRANCH_RELOCATION:
+#ifdef LINUX
+			case GOT_PC_RELATIVE_RELOCATION
+#endif
 				break;
 			case SHORT_BRANCH_RELOCATION:
 				offset_difference+=4;
@@ -6038,6 +6075,9 @@ static void relocate_short_branches_and_move_code (void)
 			case PC_RELATIVE_LONG_WORD_RELOCATION:
 #ifdef FUNCTION_LEVEL_LINKING
 			case DUMMY_BRANCH_RELOCATION:
+#endif
+#ifdef LINUX
+			case GOT_PC_RELATIVE_RELOCATION:
 #endif
 				relocation->relocation_offset -= offset_difference;
 				relocation_p=&relocation->next;
@@ -6479,6 +6519,19 @@ static void relocate_code (void)
 					internal_error_in_function ("relocate_code");
 					*relocation_p=relocation->next;
 				}
+#endif
+#ifdef LINUX
+			case GOT_PC_RELATIVE_RELOCATION:
+				relocation_p=&relocation->next;
+
+				instruction_offset=relocation->relocation_offset;
+				v= -4;
+# ifdef ELF_RELA
+				relocation->relocation_addend+=v;
+				continue;
+# else
+				break;
+# endif
 #endif
 			default:
 				internal_error_in_function ("relocate_code");
@@ -7094,6 +7147,32 @@ static void write_code_relocations (void)
 # endif
 #endif
 				break;
+			}
+#endif
+#ifdef LINUX
+			case GOT_PC_RELATIVE_RELOCATION:
+			{
+				struct label *label;
+
+				label=relocation->relocation_label;
+# ifdef FUNCTION_LEVEL_LINKING
+				if (label->label_id==-1)
+# else
+				if (label->label_id<0)
+# endif
+					internal_error_in_function ("write_code_relocations");
+
+				write_q (relocation->relocation_offset);
+				write_l (R_X86_64_GOTPCREL);
+# ifdef FUNCTION_LEVEL_LINKING
+				write_l (elf_label_number (label));
+# else
+				write_l (label->label_id);
+# endif
+# ifdef ELF_RELA
+				write_q (relocation->relocation_addend);
+# endif
+				break;				
 			}
 #endif
 			default:
