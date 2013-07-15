@@ -4961,7 +4961,7 @@ static void write_code (void)
 					store_l (0);
 #ifdef LINUX
 					if (pic_flag)
-						store_pc_rel_got_label_in_code_section (block->block_descriptor);
+						store_relative_label_offset_in_code_section (block->block_descriptor);
 					else
 #endif
 					store_label_in_code_section (block->block_descriptor);
@@ -4972,7 +4972,7 @@ static void write_code (void)
 				store_l (0);
 #ifdef LINUX
 				if (pic_flag)
-					store_pc_rel_got_label_in_code_section (block->block_descriptor);
+					store_relative_label_offset_in_code_section (block->block_descriptor);
 				else
 #endif
 				store_label_in_code_section (block->block_descriptor);
