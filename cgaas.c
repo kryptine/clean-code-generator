@@ -6834,6 +6834,11 @@ static void write_object_labels (void)
 #ifdef ELF
 				write_l (object_label->object_label_string_offset);
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_NOTYPE));
+# ifdef LINUX
+				if (pic_flag)
+					write_c (STV_PROTECTED);
+				else
+# endif
 				write_c (0);
 				write_w (0);
 				write_q (0);
