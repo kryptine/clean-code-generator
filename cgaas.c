@@ -6861,8 +6861,16 @@ static void write_object_labels (void)
 				label=object_label->object_label_label;
 #ifdef ELF
 				write_l (object_label->object_label_string_offset);
+# ifdef LINUX
+				if (pic_flag){
+					write_c (ELF32_ST_INFO (STB_GLOBAL,STT_OBJECT));
+					write_c (STV_PROTECTED);
+				} else
+# endif
+				{
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_FUNC));
 				write_c (0);
+				}
 # ifdef FUNCTION_LEVEL_LINKING
 				write_w (2+label->label_object_label->object_label_section_n);
 				write_q (label->label_offset - label->label_object_label->object_label_offset);
@@ -6900,6 +6908,11 @@ static void write_object_labels (void)
 #ifdef ELF
 				write_l (object_label->object_label_string_offset);
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_OBJECT));
+# ifdef LINUX
+				if (pic_flag)
+					write_c (STV_PROTECTED);
+				else
+# endif
 				write_c (0);
 # ifdef FUNCTION_LEVEL_LINKING
 				write_w (2+n_code_sections+label->label_object_label->object_label_section_n);
