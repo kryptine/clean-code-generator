@@ -8920,7 +8920,16 @@ static void code_new_descriptor (int arity,int lazy_record_flag)
 
 	if (module_info_flag && module_label){
 # ifdef GEN_OBJ
+#  ifdef MACH_O64
+		store_label_offset_in_data_section (module_label);
+#  else
+#   ifdef LINUX
+		if (pic_flag)
+			store_label_offset_in_data_section (module_label);
+		else
+#   endif
 		store_label_in_data_section (module_label);
+#  endif
 # endif
 		if (assembly_flag)
 # ifdef MACH_O64
@@ -9236,7 +9245,16 @@ void code_record (char record_label_name[],char type[],int a_size,int b_size,cha
 	/* not for 68k to maintain long word alignment */
 	if (module_info_flag && module_label){
 # ifdef GEN_OBJ
+#  ifdef MACH_O64
+		store_label_offset_in_data_section (module_label);
+#  else
+#   ifdef LINUX
+		if (pic_flag)
+			store_label_offset_in_data_section (module_label);
+		else
+#   endif
 		store_label_in_data_section (module_label);
+#  endif
 # endif
 		if (assembly_flag)
 # ifdef MACH_O64
@@ -9464,7 +9482,16 @@ void code_pb (char string[],int string_length)
 #if TIME_PROFILE_WITH_MODULE_NAMES
 	if (module_label!=NULL){
 # ifdef GEN_OBJ
+#  ifdef MACH_O64
+		store_label_offset_in_data_section (module_label);
+#  else
+#   ifdef LINUX
+		if (pic_flag)
+			store_label_offset_in_data_section (module_label);
+		else
+#   endif
 		store_label_in_data_section (module_label);
+#  endif
 # endif
 	}
 #endif
@@ -9531,7 +9558,16 @@ void write_profile_table (void)
 #if TIME_PROFILE_WITH_MODULE_NAMES
 		if (module_label!=NULL){
 # ifdef GEN_OBJ
+#  ifdef MACH_O64
+			store_label_offset_in_data_section (module_label);
+#  else
+#   ifdef LINUX
+			if (pic_flag)
+				store_label_offset_in_data_section (module_label);
+			else
+#   endif
 			store_label_in_data_section (module_label);
+#  endif
 # endif
 		}
 #endif
@@ -9896,7 +9932,7 @@ void show_imports_and_exports (VOID)
 
 void initialize_coding (VOID)
 {
-	register int n;
+	int n;
 	
 	last_INT_descriptor_block=NULL;
 	last_BOOL_descriptor_block=NULL;

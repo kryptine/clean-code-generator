@@ -681,6 +681,33 @@ static void store_relative_label_plus_offset_offset_in_code_section (struct labe
 }
 #endif
 
+#if defined (MACH_O64) || defined (LINUX)
+static void store_relative_label_plus_offset_in_data_section (struct label *label,int offset)
+{
+	struct relocation *new_relocation;
+
+# ifdef ELF_RELA
+	store_long_word_in_data_section (0);
+# else
+	store_long_word_in_data_section (offset);
+# endif
+
+	new_relocation=fast_memory_allocate_type (struct relocation);
+	++n_data_relocations;
+	
+	*last_data_relocation_l=new_relocation;
+	last_data_relocation_l=&new_relocation->next;
+	new_relocation->next=NULL;
+	
+	new_relocation->relocation_label=label;
+	new_relocation->relocation_offset=CURRENT_DATA_OFFSET-4;
+	new_relocation->relocation_kind=PC_RELATIVE_LONG_WORD_RELOCATION;
+# ifdef ELF_RELA
+	new_relocation->relocation_addend=offset;
+# endif
+}
+#endif
+
 static void store_label_plus_offset_in_data_section (LABEL *label,int offset)
 {
 	struct relocation *new_relocation;
@@ -2267,6 +2294,13 @@ void store_label_in_data_section (LABEL *label)
 {
 	store_label_plus_offset_in_data_section (label,0);
 }
+
+#if defined (MACH_O64) || defined (LINUX)
+void store_label_offset_in_data_section (LABEL *label)
+{
+	store_relative_label_plus_offset_in_data_section (label,0);
+}
+#endif
 
 void store_descriptor_in_data_section (LABEL *label)
 {
@@ -6598,6 +6632,23 @@ static void relocate_data (void)
 				relocation->relocation_addend += v;
 			}
 		}
+#ifdef LINUX
+		else if (relocation->relocation_kind==PC_RELATIVE_LONG_WORD_RELOCATION){
+			if (label->label_id==TEXT_LABEL_ID || (label->label_id==DATA_LABEL_ID
+# if defined (RELOCATIONS_RELATIVE_TO_EXPORTED_DATA_LABEL) && defined (FUNCTION_LEVEL_LINKING)
+				&& !((label->label_flags & EXPORT_LABEL) && label->label_object_label->object_label_kind==EXPORTED_DATA_LABEL)
+# endif
+				))
+			{
+				v = label->label_offset;
+				v -= 4;
+# ifdef FUNCTION_LEVEL_LINKING
+				v -= label->label_object_label->object_label_offset;
+# endif
+				relocation->relocation_addend += v;
+			}
+		}
+#endif
 	}
 #else
 	struct relocation *relocation;
@@ -7240,6 +7291,43 @@ static void write_data_relocations (void)
 #endif
 				break;				
 			}
+#ifdef LINUX
+			case PC_RELATIVE_LONG_WORD_RELOCATION:
+			{
+				struct label *label;
+		
+				label=relocation->relocation_label;
+# ifdef FUNCTION_LEVEL_LINKING
+				if (label->label_id==-1)
+# else
+				if (label->label_id<0)
+# endif
+					internal_error_in_function ("write_data_relocations");
+
+# ifdef ELF
+				write_q (relocation->relocation_offset);
+				write_l (R_X86_64_PC32);
+#  ifdef FUNCTION_LEVEL_LINKING
+				write_l (elf_label_number (label));
+#  else
+				write_l (label->label_id);
+#  endif
+#  ifdef ELF_RELA
+				write_q (relocation->relocation_addend);
+#  endif
+# else
+				write_l (relocation->relocation_offset);
+#  ifdef FUNCTION_LEVEL_LINKING
+				if (label->label_id==TEXT_LABEL_ID || label->label_id==DATA_LABEL_ID)
+					write_l (label->label_object_label->object_label_number);
+				else
+#  endif
+				write_l (label->label_id);
+				write_w (R_REL32);
+# endif
+				break;				
+			}
+#endif
 			default:
 				internal_error_in_function ("write_data_relocations");
 		}
