@@ -6640,6 +6640,8 @@ static void relocate_data (void)
 # endif
 				))
 			{
+				int v;
+				
 				v = label->label_offset;
 				v -= 4;
 # ifdef FUNCTION_LEVEL_LINKING
