@@ -10,7 +10,6 @@ void store_label_in_data_section (LABEL *label);
 #if defined (MACH_O64) || defined (LINUX)
 void store_label_offset_in_data_section (LABEL *label);
 #endif
-void store_label_offset_in_data_section (int label_id);
 void store_descriptor_in_data_section (LABEL *label);
 void store_descriptor_in_code_section (int label_id);
 void store_c_string_in_data_section (char *string,int length);
