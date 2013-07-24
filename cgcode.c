@@ -8803,6 +8803,12 @@ static void write_descriptor_curry_table (int arity,LABEL *code_label)
 				add_arg_label->label_id=next_label_id++;
 
 #ifdef GEN_OBJ
+# if defined (MACH_O64) || (defined (G_A64) && defined (LINUX))
+#  if defined (G_A64) && defined (LINUX)
+			if (pic_flag)
+#  endif
+			store_long_word_in_data_section (0);
+# endif
 			store_label_in_data_section (add_arg_label);
 #endif
 			if (assembly_flag){
@@ -8814,6 +8820,12 @@ static void write_descriptor_curry_table (int arity,LABEL *code_label)
 		} else
 			if (n==arity-1){
 #ifdef GEN_OBJ
+# if defined (MACH_O64) || (defined (G_A64) && defined (LINUX))
+#  if defined (G_A64) && defined (LINUX)
+				if (pic_flag)
+#  endif
+				store_long_word_in_data_section (0);
+# endif
 				store_label_in_data_section (code_label);
 #endif
 				if (assembly_flag){
@@ -8923,7 +8935,7 @@ static void code_new_descriptor (int arity,int lazy_record_flag)
 #  ifdef MACH_O64
 		store_label_offset_in_data_section (module_label);
 #  else
-#   ifdef LINUX
+#   if defined (G_A64) && defined (LINUX)
 		if (pic_flag)
 			store_label_offset_in_data_section (module_label);
 		else
@@ -9248,7 +9260,7 @@ void code_record (char record_label_name[],char type[],int a_size,int b_size,cha
 #  ifdef MACH_O64
 		store_label_offset_in_data_section (module_label);
 #  else
-#   ifdef LINUX
+#   if defined (G_A64) && defined (LINUX)
 		if (pic_flag)
 			store_label_offset_in_data_section (module_label);
 		else
@@ -9485,7 +9497,7 @@ void code_pb (char string[],int string_length)
 #  ifdef MACH_O64
 		store_label_offset_in_data_section (module_label);
 #  else
-#   ifdef LINUX
+#   if defined (G_A64) && defined (LINUX)
 		if (pic_flag)
 			store_label_offset_in_data_section (module_label);
 		else
@@ -9561,7 +9573,7 @@ void write_profile_table (void)
 #  ifdef MACH_O64
 			store_label_offset_in_data_section (module_label);
 #  else
-#   ifdef LINUX
+#   if defined (G_A64) && defined (LINUX)
 			if (pic_flag)
 				store_label_offset_in_data_section (module_label);
 			else
