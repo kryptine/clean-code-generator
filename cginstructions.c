@@ -866,6 +866,11 @@ INSTRUCTION_GRAPH g_load_des_i (LABEL *descriptor_label,int arity)
 # ifdef MACH_O64
 	instruction->instruction_parameters[1].i=(arity<<4)+2;
 # else
+#  if defined (G_A64) && defined (LINUX)
+	if (pic_flag)
+		instruction->instruction_parameters[1].i=(arity<<4)+2;
+	else
+#  endif
 	instruction->instruction_parameters[1].i=(arity<<3)+2;
 # endif
 #else

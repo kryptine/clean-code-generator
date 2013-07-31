@@ -8759,7 +8759,16 @@ static void write_descriptor_curry_table (int arity,LABEL *code_label)
 	for (n=0; n<=arity; ++n){
 #ifdef GEN_OBJ
 # ifdef NEW_DESCRIPTORS
+#  ifdef MACH_O64
+		store_2_words_in_data_section (n,(arity-n)<<4);
+#  else
+#   if defined (G_A64) && defined (LINUX)
+		if (pic_flag)
+			store_2_words_in_data_section (n,(arity-n)<<4);
+		else
+#   endif
 		store_2_words_in_data_section (n,(arity-n)<<3);
+# endif
 # else
 		store_2_words_in_data_section (n,n<<3);
 # endif
@@ -8770,6 +8779,11 @@ static void write_descriptor_curry_table (int arity,LABEL *code_label)
 # ifdef MACH_O64
 			w_as_word_in_data_section ((arity-n)<<4);
 # else
+#  if defined (G_A64) && defined (LINUX)
+			if (pic_flag)
+				w_as_word_in_data_section ((arity-n)<<4);
+			else
+#  endif
 			w_as_word_in_data_section ((arity-n)<<3);
 # endif
 #else
