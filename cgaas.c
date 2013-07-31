@@ -2341,7 +2341,13 @@ void store_label_offset_in_data_section (LABEL *label)
 void store_descriptor_in_data_section (LABEL *label)
 {
 	store_label_plus_offset_in_data_section (label,2);
+
+#ifndef MACH_O64
+# ifdef LINUX
+	if (!pic_flag)
+# endif
 	store_long_word_in_data_section (0);
+#endif
 }
 
 static void as_branch_label (struct label *label,int relocation_kind)
