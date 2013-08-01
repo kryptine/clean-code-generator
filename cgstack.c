@@ -4027,6 +4027,8 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 			i_move_id_r (0,REGISTER_A1,REGISTER_A2);
 # ifdef MACH_O64
 			i_jsr_id (8-2,REGISTER_A2,0);
+# elif defined (G_A64) && defined (LINUX)
+			i_jsr_id (pic_flag ? 8-2 : 4-2,REGISTER_A2,0);
 # else
 			i_jsr_id (4-2,REGISTER_A2,0);
 # endif
