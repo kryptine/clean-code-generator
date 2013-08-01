@@ -2522,11 +2522,13 @@ void code_eq_nulldesc (char descriptor_name[],int a_offset)
 	graph_2=g_load_id (0,graph_1);
 #ifdef NEW_DESCRIPTORS
 	graph_5=g_load_des_id (-2,graph_2);
-#  ifdef MACH_O64
+# ifdef MACH_O64
 	graph_5=g_lsl (g_load_i (4),graph_5);
-#  else
+# elif defined (G_A64) && defined (LINUX)
+	graph_5=g_lsl (g_load_i (pic_flag ? 4 : 3),graph_5);
+# else
 	graph_5=g_lsl (g_load_i (3),graph_5);
-#  endif
+# endif
 	graph_6=g_sub (graph_5,graph_2);
 #else
 	graph_5=g_load_des_id (2-2,graph_2);
@@ -3873,6 +3875,8 @@ static void code_jmp_ap_ (int n_apply_args)
 		if (profile_function_label!=NULL)
 #  ifdef MACH_O64
 			i_jmp_id_profile (8-2,REGISTER_A2,0);
+#  elif defined (G_A64) && defined (LINUX)
+			i_jmp_id_profile (pic_flag ? 8-2 : 4-2,REGISTER_A2,0);
 #  else
 			i_jmp_id_profile (4-2,REGISTER_A2,0);			
 #  endif
@@ -3880,6 +3884,8 @@ static void code_jmp_ap_ (int n_apply_args)
 # endif
 # ifdef MACH_O64
 		i_jmp_id (8-2,REGISTER_A2,0);
+# elif defined (G_A64) && defined (LINUX)
+		i_jmp_id (pic_flag ? 8-2 : 4-2,REGISTER_A2,0);
 # else
 		i_jmp_id (4-2,REGISTER_A2,0);
 # endif
