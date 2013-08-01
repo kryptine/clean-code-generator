@@ -2502,12 +2502,18 @@ static void as_jsr_instruction (struct instruction *instruction)
 			as_branch_label (instruction->instruction_parameters[0].parameter_data.l,CALL_RELOCATION);
 			break;
 		case P_INDIRECT:
-			if (instruction->instruction_parameters[0].parameter_offset!=0){
+#ifndef MACH_O64
+			if (
+# ifdef LINUX
+				!pic_flag &&
+# endif
+				instruction->instruction_parameters[0].parameter_offset!=0){
 				as_id_r (0x63,instruction->instruction_parameters[0].parameter_offset,
 							  instruction->instruction_parameters[0].parameter_data.reg.r,REGISTER_O0); /* movsxd */
 				store_c (0377);
 				store_c (0320 | reg_num (REGISTER_O0));
 			} else
+#endif
 				as_id_rex (0377,020,instruction->instruction_parameters[0].parameter_offset,
 									instruction->instruction_parameters[0].parameter_data.reg.r);
 			break;
