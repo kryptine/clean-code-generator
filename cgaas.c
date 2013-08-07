@@ -6542,8 +6542,6 @@ static void relocate_code (void)
 				{
 					instruction_offset=relocation->relocation_offset;
 					v=label->label_offset;
-
-					v -= 4;
 					
 # ifdef FUNCTION_LEVEL_LINKING
 					v -= label->label_object_label->object_label_offset;
@@ -6697,7 +6695,6 @@ static void relocate_data (void)
 				int v;
 				
 				v = label->label_offset;
-				v -= 4;
 # ifdef FUNCTION_LEVEL_LINKING
 				v -= label->label_object_label->object_label_offset;
 # endif
