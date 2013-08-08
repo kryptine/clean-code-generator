@@ -6573,7 +6573,7 @@ static void relocate_code (void)
 # endif
 				} else {
 					instruction_offset=relocation->relocation_offset;
-					v= -4;
+					v=0;
 # ifdef ELF_RELA
 					relocation->relocation_addend+=v;
 					continue;
