@@ -646,7 +646,7 @@ static void store_label_plus_offset_in_code_section (struct label *label,int off
 }
 #endif
 
-static void store_relative_label_offset_in_code_section (struct label *label)
+static void store_relative_to_first_byte_label_offset_in_code_section (struct label *label)
 {
 	struct relocation *new_relocation;
 
@@ -665,8 +665,7 @@ static void store_relative_label_offset_in_code_section (struct label *label)
 #endif
 }
 
-#ifdef ELF_RELA
-static void store_relative_label_plus_offset_offset_in_code_section (struct label *label,int offset)
+static void store_relative_to_next_byte_label_offset_in_code_section (struct label *label)
 {
 	struct relocation *new_relocation;
 
@@ -680,7 +679,27 @@ static void store_relative_label_plus_offset_offset_in_code_section (struct labe
 	new_relocation->relocation_label=label;
 	new_relocation->relocation_offset=CURRENT_CODE_OFFSET-4;
 	new_relocation->relocation_kind=PC_RELATIVE_LONG_WORD_RELOCATION;
-	new_relocation->relocation_addend=offset;
+#ifdef ELF_RELA
+	new_relocation->relocation_addend= -4;
+#endif
+}
+
+#ifdef ELF_RELA
+static void store_relative_to_next_byte_label_plus_offset_offset_in_code_section (struct label *label,int offset)
+{
+	struct relocation *new_relocation;
+
+	new_relocation=fast_memory_allocate_type (struct relocation);
+	++n_code_relocations;
+	
+	*last_code_relocation_l=new_relocation;
+	last_code_relocation_l=&new_relocation->next;
+	new_relocation->next=NULL;
+	
+	new_relocation->relocation_label=label;
+	new_relocation->relocation_offset=CURRENT_CODE_OFFSET-4;
+	new_relocation->relocation_kind=PC_RELATIVE_LONG_WORD_RELOCATION;
+	new_relocation->relocation_addend=offset - 4;
 }
 #endif
 
@@ -840,10 +859,10 @@ static void as_move_d_r (LABEL *label,int arity,int reg1)
 	store_c (5 | ((reg1_n & 7)<<3));
 #ifdef ELF_RELA
 	store_l (0);
-	store_relative_label_plus_offset_offset_in_code_section (label,arity);
+	store_relative_to_next_byte_label_plus_offset_offset_in_code_section (label,arity);
 #else
 	store_l (arity);
-	store_relative_label_offset_in_code_section (label);
+	store_relative_to_next_byte_label_offset_in_code_section (label);
 #endif
 }
 
@@ -1469,7 +1488,7 @@ static void as_r_a (int code,int reg1,LABEL *label)
 	store_c (code);
 	store_c (((reg1_n & 7)<<3) | 5);
 	store_l (0);
-	store_relative_label_offset_in_code_section (label);
+	store_relative_to_next_byte_label_offset_in_code_section (label);
 }
 
 static void as_sar_i_r (int i,int reg)
@@ -3789,7 +3808,7 @@ static void as_f_a (int code1,int code2,LABEL *label,int d_freg)
 	store_c (code2);
 	store_c (5 | ((d_freg & 7)<<3));
 	store_l (0);
-	store_relative_label_offset_in_code_section (label);
+	store_relative_to_next_byte_label_offset_in_code_section (label);
 }
 
 static void as_f_a_rexaw (int code1,int code2,LABEL *label,int d_freg)
@@ -3800,7 +3819,7 @@ static void as_f_a_rexaw (int code1,int code2,LABEL *label,int d_freg)
 	store_c (code2);
 	store_c (5 | ((d_freg & 7)<<3));
 	store_l (0);
-	store_relative_label_offset_in_code_section (label);
+	store_relative_to_next_byte_label_offset_in_code_section (label);
 }
 
 static void as_f_i (int code1,int code2,DOUBLE *r_p,int d_freg)
@@ -5049,7 +5068,7 @@ static void write_code (void)
 					store_l (0);
 #ifdef LINUX
 					if (pic_flag)
-						store_relative_label_offset_in_code_section (block->block_descriptor);
+						store_relative_to_first_byte_label_offset_in_code_section (block->block_descriptor);
 					else
 #endif
 					store_label_in_code_section (block->block_descriptor);
@@ -5060,7 +5079,7 @@ static void write_code (void)
 				store_l (0);
 #ifdef LINUX
 				if (pic_flag)
-					store_relative_label_offset_in_code_section (block->block_descriptor);
+					store_relative_to_first_byte_label_offset_in_code_section (block->block_descriptor);
 				else
 #endif
 				store_label_in_code_section (block->block_descriptor);
