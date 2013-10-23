@@ -1841,12 +1841,21 @@ UW _umul128 (UW multiplier, UW multiplicand, UW* highproduct);
 
 #ifdef A64
 # ifdef __GNUC__
-#  define umul_hl(h,l,a,b) \
-	__asm__ ("mulq %3"		  \
+#  ifdef __clang__
+#   define umul_hl(h,l,a,b) \
+	__asm__ ("mulq %3" \
+			: "=a" (l), \
+			  "=d" (h)  \
+			: "%0" (a), \
+			  "rm" (b))
+#  else
+#   define umul_hl(h,l,a,b) \
+	__asm__ ("mulq %3" \
 			: "=a" ((UW)(l)), \
 			  "=d" ((UW)(h))  \
 			: "%0" ((UW)(a)), \
 			  "rm" ((UW)(b)))
+#  endif
 # else
 #  define umul_hl(h,l,a,b) l=_umul128 (a,b,&h)
 # endif
