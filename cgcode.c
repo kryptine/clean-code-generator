@@ -9386,6 +9386,11 @@ void code_export (char *label_name)
 	enter_label (label_name,EXPORT_LABEL);
 }
 
+#if defined (G_A64) && defined (LINUX)
+extern char **sl_mods;
+static int pic_sl_mod_import;
+#endif
+
 void code_impdesc (char *label_name)
 {
 	enter_label (label_name,IMPORT_LABEL | DATA_LABEL);
@@ -9412,6 +9417,27 @@ void code_implab_node_entry (char *label_name,char *ea_label_name)
 void code_implab (char *label_name)
 {
 /*	enter_label (label_name,IMPORT_LABEL); */
+}
+
+void code_impmod (char *module_name)
+{
+#if defined (G_A64) && defined (LINUX)
+	if (pic_flag){
+		if (!rts_got_flag){
+			pic_sl_mod_import = 1;	
+		} else {
+			char **sl_mod;
+			
+			for (sl_mod=sl_mods; *sl_mod!=NULL; ++sl_mod){
+				if (!strcmp (module_name,*sl_mod)){
+					pic_sl_mod_import = 1;
+					return;
+				}
+			}
+			pic_sl_mod_import = 0;
+		}
+	}
+#endif
 }
 
 void code_o (int oa,int ob,ULONG vector[])
@@ -9991,6 +10017,9 @@ void initialize_coding (VOID)
 	last_instruction=NULL;
 
 	INT_label=BOOL_label=CHAR_label=REAL_label=FILE_label=_STRING__label=_ARRAY__label=NULL;
+#if defined (G_A64) && defined (LINUX)
+	pic_sl_mod_import=!rts_got_flag;
+#endif
 
 	halt_label=cat_string_label=NULL;
 	cmp_string_label=eqD_label=NULL;

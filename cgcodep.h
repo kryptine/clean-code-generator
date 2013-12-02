@@ -319,6 +319,7 @@ void code_export (char *label_name);
 void code_impdesc (char *label_name);
 void code_implab_node_entry (char *label_name,char *ea_label_name);
 void code_implab (char *label_name);
+void code_impmod (char *module_name);
 void code_keep (int a_offset_1,int a_offset_2);
 void code_n (int number_of_arguments,char *descriptor_name,char *ea_label_name);
 void code_nu (int a_size,int b_size,char *descriptor_name,char *ea_label_name);
