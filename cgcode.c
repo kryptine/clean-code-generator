@@ -735,6 +735,14 @@ void code_atanR (VOID)
 #endif
 }
 
+static void define_eval_upd_label_n (int arity)
+{
+	char eval_upd_label_name[32];
+
+	sprintf (eval_upd_label_name,"eval_upd_%d",arity);
+	eval_upd_labels[arity]=enter_label (eval_upd_label_name,IMPORT_LABEL);
+}
+
 void code_build (char descriptor_name[],int arity,char *code_name)
 {
 	INSTRUCTION_GRAPH graph_2,graph_3,graph_4;
@@ -761,10 +769,7 @@ void code_build (char descriptor_name[],int arity,char *code_name)
 			&&	code_label->label_ea_label!=eval_fill_label
 			&&	arity>=0 && eval_upd_labels[arity]==NULL)
 		{
-			char eval_upd_label_name[32];
-		
-			sprintf (eval_upd_label_name,"eval_upd_%d",arity);
-			eval_upd_labels[arity]=enter_label (eval_upd_label_name,IMPORT_LABEL);
+			define_eval_upd_label_n (arity);
 		}
 
 		if (arity<0)
@@ -2721,10 +2726,7 @@ void code_fill (char descriptor_name[],int arity,char *code_name,int a_offset)
 			&&	code_label->label_ea_label!=eval_fill_label
 			&&	arity>=0 && eval_upd_labels[arity]==NULL)
 		{
-			char eval_upd_label_name[32];
-		
-			sprintf (eval_upd_label_name,"eval_upd_%d",arity);
-			eval_upd_labels[arity]=enter_label (eval_upd_label_name,IMPORT_LABEL);
+			define_eval_upd_label_n (arity);
 		}
 
 		if (arity<0)
@@ -2779,10 +2781,7 @@ void code_fillcp (char descriptor_name[],int arity,char *code_name,int a_offset,
 			&&	code_label->label_ea_label!=eval_fill_label
 			&&	arity>=0 && eval_upd_labels[arity]==NULL)
 		{
-			char eval_upd_label_name[32];
-		
-			sprintf (eval_upd_label_name,"eval_upd_%d",arity);
-			eval_upd_labels[arity]=enter_label (eval_upd_label_name,IMPORT_LABEL);
+			define_eval_upd_label_n (arity);
 		}
 
 		if (arity<0)
@@ -5037,8 +5036,6 @@ void code_n (int number_of_arguments,char *descriptor_name,char *ea_label_name)
 	last_block->block_descriptor=label;
 
 	if (ea_label_name!=NULL){
-		char eval_upd_label_name[32];
-		
 		if (ea_label_name[0]=='_' && ea_label_name[1]=='_' && ea_label_name[2]=='\0'){
 			if (eval_fill_label==NULL)
 				eval_fill_label=enter_label ("eval_fill",IMPORT_LABEL);
@@ -5048,8 +5045,7 @@ void code_n (int number_of_arguments,char *descriptor_name,char *ea_label_name)
 				number_of_arguments=1;
 
 			if (number_of_arguments>=0 && eval_upd_labels[number_of_arguments]==NULL){
-				sprintf (eval_upd_label_name,"eval_upd_%d",number_of_arguments);
-				eval_upd_labels[number_of_arguments]=enter_label (eval_upd_label_name,IMPORT_LABEL);
+				define_eval_upd_label_n (number_of_arguments);
 			}
 			last_block->block_ea_label=enter_label (ea_label_name,0);
 		}
