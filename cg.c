@@ -109,6 +109,9 @@ int fmadd_flag=1;
 #endif
 #if defined (LINUX) && defined (G_AI64)
 int pic_flag=0;
+int rts_got_flag=0;
+char **sl_mods;
+char *no_sl_mods=NULL;
 #endif
 
 #ifdef USER_INTERFACE
@@ -612,6 +615,43 @@ static void argument_error (VOID)
 	error ("Usage: cg [options] file [-o object_file] [-s assembly_file]");
 }
 
+#if defined (LINUX) && defined (G_AI64)
+static char **make_sl_mods (char *module_list)
+{
+	char **modules,**module_p,*module_name,*p;
+	int n_modules;
+
+	if (*module_list=='\0')
+		n_modules = 0;
+	else {
+		n_modules = 1;
+		for (p=module_list; *p!='\0'; ++p)
+			if (*p==',')
+				++n_modules;
+	}
+	
+	p = (char*)memory_allocate (strlen (module_list)+1);
+	strcpy (p,module_list);
+
+	modules=(char**)memory_allocate (sizeof (char*) * (n_modules+1));
+	module_p=modules;
+	module_name=p;
+	while (*p!='\0'){
+		if (*p==','){
+			*p='\0';
+			*module_p++ = module_name;
+			module_name=p+1;
+		}
+		++p;
+	}
+	if (module_name!=p)
+		*module_p++ = module_name;
+	*module_p=NULL;
+
+	return modules;
+}
+#endif
+
 #if defined(MAIN_CLM) && (defined (POWER) && !defined (CG_PPC_XO))
 extern int compiler_id;
 #endif
@@ -671,6 +711,9 @@ int main (int argc,char **argv)
 	obj_file=NULL;
 	assembly_file=NULL;
 	abc_file=NULL;
+#if defined (LINUX) && defined (G_AI64)
+	sl_mods=&no_sl_mods;
+#endif
 
 	if (!(r=setjmp (error_jmp))){
 		initialize_memory();
@@ -717,8 +760,16 @@ int main (int argc,char **argv)
 				sse_128=0;
 #endif
 #if defined (LINUX) && defined (G_AI64)
-			else if (!strcmp (s,"pic"))
+			else if (!strcmp (s,"pic")){
 				pic_flag=1;
+				rts_got_flag=1;
+			} else if (!strcmp (s,"picrts")){
+				pic_flag=1;
+				rts_got_flag=0;
+			} else if (!strcmp (s,"slmods") && arg_n+1<argc){				
+				++arg_n;
+				sl_mods = make_sl_mods (argv[arg_n]);
+			}
 #endif
 			else if (!strcmp (s,"mc68000")){
 				mc68000_flag=1;
