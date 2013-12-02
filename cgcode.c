@@ -985,6 +985,20 @@ void code_build_u (char descriptor_name[],int a_size,int b_size,char *code_name)
 	s_push_a (graph_2);
 }
 
+static INSTRUCTION_GRAPH g_BOOL_label (void)
+{
+	if (BOOL_label==NULL)
+		BOOL_label=enter_label ("BOOL",IMPORT_LABEL | DATA_LABEL);
+	return g_load_des_i (BOOL_label,0);
+}
+
+static INSTRUCTION_GRAPH g_FILE_label (void)
+{
+	if (FILE_label==NULL)
+		FILE_label=enter_label ("FILE",IMPORT_LABEL | DATA_LABEL);
+	return g_load_des_i (FILE_label,0);
+}
+
 void code_buildB (int value)
 {
 	INSTRUCTION_GRAPH graph_2,graph_3,graph_4;
@@ -995,9 +1009,7 @@ void code_buildB (int value)
 	if (!parallel_flag && last_BOOL_descriptor_block==last_block)
 		graph_2=last_BOOL_descriptor_graph;
 	else {
-		if (BOOL_label==NULL)
-			BOOL_label=enter_label ("BOOL",IMPORT_LABEL | DATA_LABEL);
-		graph_2=g_load_des_i (BOOL_label,0);
+		graph_2=g_BOOL_label();
 
 		if (!parallel_flag){
 			last_BOOL_descriptor_graph=graph_2;
@@ -1026,10 +1038,7 @@ void code_buildB_b (int b_offset)
 	if (!parallel_flag && last_BOOL_descriptor_block==last_block)
 		graph_2=last_BOOL_descriptor_graph;
 	else {
-		if (BOOL_label==NULL)
-			BOOL_label=enter_label ("BOOL",IMPORT_LABEL | DATA_LABEL);
-
-		graph_2=g_load_des_i (BOOL_label,0);
+		graph_2=g_BOOL_label();
 
 		if (!parallel_flag){
 			last_BOOL_descriptor_graph=graph_2;
@@ -1105,10 +1114,7 @@ void code_buildF_b (int b_offset)
 	if (!parallel_flag && last_FILE_descriptor_block==last_block)
 		graph_2=last_FILE_descriptor_graph;
 	else {
-		if (FILE_label==NULL)
-			FILE_label=enter_label ("FILE",IMPORT_LABEL | DATA_LABEL);
-
-		graph_2=g_load_des_i (FILE_label,0);
+		graph_2=g_FILE_label();
 
 		if (!parallel_flag){
 			last_FILE_descriptor_graph=graph_2;
@@ -3238,10 +3244,7 @@ void code_fillB (int value,int a_offset)
 	if (!parallel_flag && last_BOOL_descriptor_block==last_block)
 		graph_2=last_BOOL_descriptor_graph;
 	else {
-		if (BOOL_label==NULL)
-			BOOL_label=enter_label ("BOOL",IMPORT_LABEL | DATA_LABEL);
-	
-		graph_2=g_load_des_i (BOOL_label,0);
+		graph_2=g_BOOL_label();
 
 		if (!parallel_flag){
 			last_BOOL_descriptor_graph=graph_2;
@@ -3271,10 +3274,7 @@ void code_fillB_b (int b_offset,int a_offset)
 	if (!parallel_flag && last_BOOL_descriptor_block==last_block)
 		graph_2=last_BOOL_descriptor_graph;
 	else {
-		if (BOOL_label==NULL)
-			BOOL_label=enter_label ("BOOL",IMPORT_LABEL | DATA_LABEL);
-
-		graph_2=g_load_des_i (BOOL_label,0);
+		graph_2=g_BOOL_label();
 
 		if (!parallel_flag){
 			last_BOOL_descriptor_graph=graph_2;
@@ -3335,10 +3335,7 @@ void code_fillF_b (int b_offset,int a_offset)
 	if (!parallel_flag && last_FILE_descriptor_block==last_block)
 		graph_2=last_FILE_descriptor_graph;
 	else {
-		if (FILE_label==NULL)
-			FILE_label=enter_label ("FILE",IMPORT_LABEL | DATA_LABEL);
-
-		graph_2=g_load_des_i (FILE_label,0);
+		graph_2=g_FILE_label();
 
 		if (!parallel_flag){
 			last_FILE_descriptor_graph=graph_2;
