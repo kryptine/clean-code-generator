@@ -809,7 +809,7 @@ void i_jsr_id (int offset,int register_1,int n_a_registers)
 	instruction->instruction_parameters[0].parameter_offset=offset;
 	instruction->instruction_parameters[0].parameter_data.reg.r=register_1;
 	
-	instruction->instruction_parameters[0].parameter_data.reg.u=n_a_registers;
+	instruction->instruction_parameters[0].parameter_data.reg.u=n_a_registers; /* for parallel code on MC680x0 */
 }
 
 void i_jsr_l (LABEL *label,int n_a_registers)
@@ -821,7 +821,7 @@ void i_jsr_l (LABEL *label,int n_a_registers)
 	instruction->instruction_parameters[0].parameter_type=P_LABEL;
 	instruction->instruction_parameters[0].parameter_data.l=label;
 		
-	instruction->instruction_parameters[0].parameter_offset=n_a_registers;
+	instruction->instruction_parameters[0].parameter_offset=n_a_registers; /* for parallel code on MC680x0 */
 }
 #else
 void i_jsr_id_id (int offset_1,int register_1,int offset_2)

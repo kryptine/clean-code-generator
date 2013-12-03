@@ -3649,11 +3649,29 @@ static LABEL *enter_c_function_name_label (char *c_function_name)
 # endif
 	strcpy (&label_name[1],c_function_name);
 
-	return enter_label (label_name,0);
+	return enter_label (label_name,
+# if defined (G_A64) && defined (LINUX)
+		pic_flag ? USE_PLT_LABEL : 0);
+# else
+		0);
+# endif
 }
 #else
-# define enter_c_function_name_label(c_function_name) enter_label (c_function_name,0)
+# if defined (G_A64) && defined (LINUX)
+# define enter_c_function_name_label(c_function_name) enter_label (c_function_name, pic_flag ? USE_PLT_LABEL : 0)
+# else
+# define enter_c_function_name_label(c_function_name) enter_label (c_function_name, 0)
+# endif
 #endif
+
+static LABEL *enter_string_to_string_node_label (void)
+{
+	return enter_label ("string_to_string_node",
+#if defined (G_A64) && defined (LINUX)
+						rts_got_flag ? (USE_GOT_LABEL | IMPORT_LABEL) :
+#endif
+						IMPORT_LABEL);
+}
 
 #if defined (G_POWER) || defined (sparc)
 static void ccall_load_b_offset (int b_o,int c_parameter_n)
@@ -4186,7 +4204,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 				break;
 			case 'S':
 				if (string_to_string_node_label==NULL)
-					string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
+					string_to_string_node_label=enter_string_to_string_node_label();
 
 				i_move_id_r (0,B_STACK_POINTER,REGISTER_A0);
 				i_jsr_l_id (string_to_string_node_label,0);
@@ -4216,7 +4234,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			break;
 		case 'S':
 			if (string_to_string_node_label==NULL)
-				string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
+				string_to_string_node_label=enter_string_to_string_node_label();
 
 			i_move_r_r (C_PARAMETER_REGISTER_0,REGISTER_A0);
 			i_sub_i_r (STACK_ELEMENT_SIZE,B_STACK_POINTER);
@@ -4520,7 +4538,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 					break;
 				case 'S':
 					if (string_to_string_node_label==NULL)
-						string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
+						string_to_string_node_label=enter_string_to_string_node_label();
 					i_move_pi_r (B_STACK_POINTER,REGISTER_A0);
 					i_jsr_l (string_to_string_node_label,0);
 					i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
@@ -4563,7 +4581,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 				break;
 			case 'S':
 				if (string_to_string_node_label==NULL)
-					string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
+					string_to_string_node_label=enter_string_to_string_node_label();
 
 				i_move_r_r (REGISTER_D0,REGISTER_A0);
 				i_jsr_l (string_to_string_node_label,0);
@@ -5340,7 +5358,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			switch (s[l]){
 				case 'S':
 					if (string_to_string_node_label==NULL)
-						string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
+						string_to_string_node_label=enter_string_to_string_node_label();
 					i_move_pi_r (B_STACK_POINTER,REGISTER_A0);
 					i_jsr_l (string_to_string_node_label,0);
 					i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
@@ -5412,7 +5430,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 				break;
 			case 'S':
 				if (string_to_string_node_label==NULL)
-					string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
+					string_to_string_node_label=enter_string_to_string_node_label();
 
 				i_move_r_r (REGISTER_D0,REGISTER_A0);
 				i_jsr_l (string_to_string_node_label,0);
@@ -6105,7 +6123,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 				offset-=8;
 			else if (c=='S'){
 				if (string_to_string_node_label==NULL)
-					string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
+					string_to_string_node_label=enter_string_to_string_node_label();
 				offset-=STACK_ELEMENT_SIZE;
 				i_move_id_r (offset,B_STACK_POINTER,REGISTER_A0);
 				i_jsr_l (string_to_string_node_label,0);
@@ -6880,6 +6898,11 @@ void code_catS (int source_offset_1,int source_offset_2,int destination_offset)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 	
 	if (cat_string_label==NULL)
+#if defined (G_A64) && defined (LINUX)
+    if (rts_got_flag)
+		cat_string_label=enter_label ("cat_string",IMPORT_LABEL | USE_GOT_LABEL);
+	else
+#endif
 		cat_string_label=enter_label ("cat_string",IMPORT_LABEL);
 	
 	graph_1=s_get_a (source_offset_1);

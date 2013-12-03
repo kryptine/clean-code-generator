@@ -210,6 +210,7 @@ static void write_q (int c)
 #endif
 #ifdef LINUX
 # define GOT_PC_RELATIVE_RELOCATION 13
+# define PLT_PC_RELATIVE_RELOCATION 14
 #endif
 
 struct relocation {
@@ -277,6 +278,16 @@ struct call_and_jump {
 
 static struct call_and_jump *first_call_and_jump,*last_call_and_jump;
 
+#ifdef LINUX
+struct got_jump {
+	struct got_jump *gj_next;
+	struct label *gj_got_label;
+	struct label gj_label;
+};
+
+static struct got_jump *first_got_jump,*last_got_jump;
+#endif
+
 void initialize_assembler (FILE *output_file_d)
 {
 	output_file=output_file_d;
@@ -298,6 +309,9 @@ void initialize_assembler (FILE *output_file_d)
 	n_data_relocations=0;
 	
 	first_call_and_jump=NULL;
+#ifdef LINUX
+	first_got_jump=NULL;
+#endif
 #ifdef ELF
 	string_table_offset=13;
 #else
@@ -607,7 +621,7 @@ static void store_label_in_code_section (struct label *label)
 }
 
 #ifdef LINUX
-static void store_pc_rel_got_label_in_code_section (struct label *label)
+static void store_pc_rel_got_or_plt_label_in_code_section (struct label *label,int relocation_kind)
 {
 	struct relocation *new_relocation;
 
@@ -620,10 +634,15 @@ static void store_pc_rel_got_label_in_code_section (struct label *label)
 	
 	new_relocation->relocation_label=label;
 	new_relocation->relocation_offset=CURRENT_CODE_OFFSET-4;
-	new_relocation->relocation_kind=GOT_PC_RELATIVE_RELOCATION;
+	new_relocation->relocation_kind=relocation_kind;
 # ifdef ELF_RELA
 	new_relocation->relocation_addend=0;
 # endif
+}
+
+static void store_pc_rel_got_label_in_code_section (struct label *label)
+{
+	return store_pc_rel_got_or_plt_label_in_code_section (label,GOT_PC_RELATIVE_RELOCATION);
 }
 #endif
 
@@ -854,7 +873,16 @@ static void as_move_d_r (LABEL *label,int arity,int reg1)
 	
 	reg1_n=reg_num (reg1);
 
-	store_c (0x48 | ((reg1_n & 8)>>1));	
+	store_c (0x48 | ((reg1_n & 8)>>1));
+#ifdef LINUX
+	if (pic_flag && label->label_flags & USE_GOT_LABEL && arity==0){
+		store_c (0x8b);	/* movq */
+		store_c (5 | ((reg1_n & 7)<<3));
+		store_l (0);
+		store_pc_rel_got_label_in_code_section (label);
+		return;
+	}
+#endif
 	store_c (0x8d);	/* lea */
 	store_c (5 | ((reg1_n & 7)<<3));
 #ifdef ELF_RELA
@@ -2415,10 +2443,24 @@ static void as_jmp_instruction (struct instruction *instruction)
 {
 	switch (instruction->instruction_parameters[0].parameter_type){
 		case P_LABEL:
+		{
+			LABEL *label;
+
+			label = instruction->instruction_parameters[0].parameter_data.l;
+#ifdef LINUX
+			if (pic_flag && label->label_flags & USE_GOT_LABEL){
+				store_c (0xff);
+				store_c (0x25);
+				store_l (0);
+				store_pc_rel_got_label_in_code_section (label);
+				return;
+			}
+#endif
 			store_c (0351);
 			store_l (0);
-			as_branch_label (instruction->instruction_parameters[0].parameter_data.l,JUMP_RELOCATION);
+			as_branch_label (label,JUMP_RELOCATION);
 			break;
+		}
 		case P_INDIRECT:
 #ifndef MACH_O64
 			if (
@@ -2516,10 +2558,30 @@ static void as_jsr_instruction (struct instruction *instruction)
 {
 	switch (instruction->instruction_parameters[0].parameter_type){
 		case P_LABEL:
+		{
+			LABEL *label;
+
+			label = instruction->instruction_parameters[0].parameter_data.l;
+#ifdef LINUX
+			if (pic_flag){
+				if (label->label_flags & USE_GOT_LABEL){
+					store_c (0xff);
+					store_c (0x15);
+					store_l (0);
+					store_pc_rel_got_label_in_code_section (label);
+				} else if (label->label_flags & USE_PLT_LABEL){
+					store_c (0350);
+					store_l (0);
+					store_pc_rel_got_or_plt_label_in_code_section (label,PLT_PC_RELATIVE_RELOCATION);
+				}
+				return;
+			}
+#endif
 			store_c (0350);
 			store_l (0);
-			as_branch_label (instruction->instruction_parameters[0].parameter_data.l,CALL_RELOCATION);
+			as_branch_label (label,CALL_RELOCATION);
 			break;
+		}
 		case P_INDIRECT:
 #ifndef MACH_O64
 			if (
@@ -2555,10 +2617,39 @@ static void as_jsr_instruction (struct instruction *instruction)
 
 static void as_branch_instruction (struct instruction *instruction,int condition_code)
 {
+	LABEL *label;
+
+	label = instruction->instruction_parameters[0].parameter_data.l;
+
+#ifdef LINUX
+	if (pic_flag && label->label_flags & USE_GOT_LABEL){
+		if (label->label_flags & HAS_GOT_JUMP_LABEL){
+			label = label->label_got_jump_label;
+		} else {
+			struct got_jump *new_got_jump;
+
+			new_got_jump=allocate_memory_from_heap (sizeof (struct got_jump));
+			new_got_jump->gj_next=NULL;
+
+			new_got_jump->gj_got_label = label;
+
+			if (first_got_jump!=NULL)
+				last_got_jump->gj_next=new_got_jump;
+			else
+				first_got_jump=new_got_jump;
+			last_got_jump=new_got_jump;
+
+			label->label_got_jump_label = &new_got_jump->gj_label;
+			label->label_flags |= HAS_GOT_JUMP_LABEL;
+
+			label = &new_got_jump->gj_label;
+		}
+	}
+#endif
 	store_c (017);
 	store_c (0200 | condition_code);
 	store_l (0);
-	as_branch_label (instruction->instruction_parameters[0].parameter_data.l,BRANCH_RELOCATION);
+	as_branch_label (label,BRANCH_RELOCATION);
 }
 
 static void as_move_r_r (int reg1,int reg2)
@@ -4247,49 +4338,66 @@ static void as_set_float_condition_instruction (struct instruction *instruction,
 	store_c (0300 | ((r_n & 7)<<3) | (r_n & 7));
 }
 
+static void create_new_data_object_label (LABEL *label)
+{
+	struct object_label *new_object_label;
+	int string_length;
+	
+	new_object_label=fast_memory_allocate_type (struct object_label);
+	*last_object_label_l=new_object_label;
+	last_object_label_l=&new_object_label->next;
+	new_object_label->next=NULL;
+	
+	new_object_label->object_label_label=label;
+#if defined (RELOCATIONS_RELATIVE_TO_EXPORTED_DATA_LABEL) && defined (FUNCTION_LEVEL_LINKING)
+	new_object_label->object_label_number = n_object_labels;
+#endif 
+
+	++n_object_labels;
+
+	string_length=strlen (label->label_name);
+#ifndef ELF
+	if (string_length<8)
+		new_object_label->object_label_string_offset=0;
+	else
+#endif
+	{
+		new_object_label->object_label_string_offset=string_table_offset;
+		string_table_offset+=string_length+1;
+	}
+
+#if defined (RELOCATIONS_RELATIVE_TO_EXPORTED_DATA_LABEL) && defined (FUNCTION_LEVEL_LINKING)
+	label->label_object_label=new_object_label;	
+	new_object_label->object_label_section_n = data_object_label->object_label_section_n;
+#endif
+
+	new_object_label->object_label_kind=EXPORTED_DATA_LABEL;
+}
+
 void define_data_label (LABEL *label)
 {
 	label->label_id=DATA_LABEL_ID;
 #ifdef FUNCTION_LEVEL_LINKING
 	label->label_object_label=data_object_label;
 #endif
-	label->label_offset=CURRENT_DATA_OFFSET;	
+	label->label_offset=CURRENT_DATA_OFFSET;
 
-	if (label->label_flags & EXPORT_LABEL){
-		struct object_label *new_object_label;
-		int string_length;
-		
-		new_object_label=fast_memory_allocate_type (struct object_label);
-		*last_object_label_l=new_object_label;
-		last_object_label_l=&new_object_label->next;
-		new_object_label->next=NULL;
-		
-		new_object_label->object_label_label=label;
-#if defined (RELOCATIONS_RELATIVE_TO_EXPORTED_DATA_LABEL) && defined (FUNCTION_LEVEL_LINKING)
-		new_object_label->object_label_number = n_object_labels;
-#endif 
-
-		++n_object_labels;
-
-		string_length=strlen (label->label_name);
-#ifndef ELF
-		if (string_length<8)
-			new_object_label->object_label_string_offset=0;
-		else
-#endif
-		{
-			new_object_label->object_label_string_offset=string_table_offset;
-			string_table_offset+=string_length+1;
-		}
-
-#if defined (RELOCATIONS_RELATIVE_TO_EXPORTED_DATA_LABEL) && defined (FUNCTION_LEVEL_LINKING)
-		label->label_object_label=new_object_label;	
-		new_object_label->object_label_section_n = data_object_label->object_label_section_n;
-#endif
-
-		new_object_label->object_label_kind=EXPORTED_DATA_LABEL;
-	}
+	if (label->label_flags & EXPORT_LABEL)
+		create_new_data_object_label (label);
 }
+
+#ifdef LINUX
+void define_exported_data_label_with_offset (LABEL *label,int offset)\
+{
+	label->label_id=DATA_LABEL_ID;
+#ifdef FUNCTION_LEVEL_LINKING
+	label->label_object_label=data_object_label;
+#endif
+	label->label_offset=CURRENT_DATA_OFFSET+offset;
+
+	create_new_data_object_label (label);
+}
+#endif
 
 void store_descriptor_string_in_data_section (char *string,int length,LABEL *string_label)
 {
@@ -4799,14 +4907,41 @@ static void as_call_and_jump (struct call_and_jump *call_and_jump)
 #endif
 	call_and_jump->cj_label.label_offset=CURRENT_CODE_OFFSET;
 
+#ifdef LINUX
+	if (rts_got_flag){
+		store_c (0xff); /* call */
+		store_c (0x15);
+		store_l (0);
+		store_pc_rel_got_label_in_code_section (call_and_jump->cj_call_label);
+	} else
+#endif
+	{
 	store_c (0350); /* call */
 	store_l (0);
 	as_branch_label (call_and_jump->cj_call_label,CALL_RELOCATION);
+	}
 
 	store_c (0351); /* jmp */
 	store_l (0);
 	as_branch_label (&call_and_jump->cj_jump,JUMP_RELOCATION);
 }
+
+#ifdef LINUX
+static void as_got_jump (struct got_jump *got_jump)
+{
+	got_jump->gj_label.label_flags=0;
+	got_jump->gj_label.label_id=TEXT_LABEL_ID;
+#ifdef FUNCTION_LEVEL_LINKING
+	got_jump->gj_label.label_object_label=code_object_label;
+#endif
+	got_jump->gj_label.label_offset=CURRENT_CODE_OFFSET;
+
+	store_c (0xff); /* jmp */
+	store_c (0x25);
+	store_l (0);
+	store_pc_rel_got_label_in_code_section (got_jump->gj_got_label);
+}
+#endif
 
 static void as_check_stack (struct basic_block *block)
 {
@@ -4878,7 +5013,22 @@ static void as_apply_update_entry (struct basic_block *block)
 		store_c (0x90);
 		store_c (0x90);
 		store_c (0x90);
+
+		store_c (0x90);
 	} else {
+#ifdef LINUX
+		if (rts_got_flag){
+			store_c (0xff); /* call */
+			store_c (0x15);
+			store_l (0);
+			store_pc_rel_got_label_in_code_section (add_empty_node_labels[block->block_n_node_arguments+200]);
+
+			store_c (0351); /* jmp */
+			store_l (0);
+			as_branch_label (block->block_ea_label,JUMP_RELOCATION);
+		} else
+#endif
+		{
 		store_c (0350); /* call */
 		store_l (0);
 		as_branch_label (add_empty_node_labels[block->block_n_node_arguments+200],CALL_RELOCATION);
@@ -4886,9 +5036,11 @@ static void as_apply_update_entry (struct basic_block *block)
 		store_c (0351); /* jmp */
 		store_l (0);
 		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
+
+		store_c (0x90);
+		}
 	}
 
-	store_c (0x90);
 	store_c (0x90);
 }
 #endif
@@ -5019,6 +5171,21 @@ static void write_code (void)
 				if (n_node_arguments>=0 && block->block_ea_label!=eval_fill_label){
 					if (!block->block_profile){
 #ifdef LINUX
+						if (rts_got_flag){
+							store_c (0xff); /* call */
+							store_c (0x15);
+							store_l (0);
+							store_pc_rel_got_label_in_code_section (eval_upd_labels[n_node_arguments]);
+
+							store_c (0351);
+							store_l (0);
+							store_relative_to_next_byte_label_offset_in_code_section (block->block_ea_label);
+
+							store_c (0x90);
+						} else
+#endif
+						{
+#ifdef LINUX
 						if (pic_flag)
 							as_move_d_r (block->block_ea_label,0,REGISTER_A4);
 						else
@@ -5028,6 +5195,7 @@ static void write_code (void)
 						store_c (0351);
 						store_l (0);
 						as_branch_label (eval_upd_labels[n_node_arguments],JUMP_RELOCATION);
+						}
 					} else {
 						as_move_l_r (block->block_profile_function_label,REGISTER_A4);
 
@@ -5115,6 +5283,19 @@ static void write_code (void)
 #endif
 		as_call_and_jump (call_and_jump);
 	}
+
+#ifdef LINUX
+	{
+	struct got_jump *got_jump;
+
+	for_l (got_jump,first_got_jump,gj_next){
+# ifdef FUNCTION_LEVEL_LINKING
+		as_new_code_module();
+# endif
+		as_got_jump (got_jump);
+	}
+	}
+#endif
 }
 
 static void write_string_8 (char *string)
@@ -5955,6 +6136,7 @@ static int search_short_branches (void)
 			case BRANCH_SKIP_BRANCH_RELOCATION:
 #ifdef LINUX
 			case GOT_PC_RELATIVE_RELOCATION:
+			case PLT_PC_RELATIVE_RELOCATION:
 #endif
 				break;
 			case SHORT_BRANCH_RELOCATION:
@@ -6125,6 +6307,29 @@ static void adjust_label_offsets (void)
 		relocation=calculate_new_label_offset
 			(&call_and_jump->cj_label.label_offset,&offset_difference,&new_offset_difference,relocation);
 	}
+
+#ifdef LINUX
+	{
+	struct got_jump *got_jump;
+	
+	for_l (got_jump,first_got_jump,gj_next){
+# ifdef FUNCTION_LEVEL_LINKING
+		while (object_label!=NULL){
+			if (object_label->object_label_kind==CODE_CONTROL_SECTION){
+				if (object_label->object_label_offset!=got_jump->gj_label.label_offset)
+					break;
+				
+				relocation=calculate_new_label_offset
+								(&object_label->object_label_offset,&offset_difference,&new_offset_difference,relocation);
+			}
+			object_label=object_label->next;
+		}
+# endif
+		relocation=calculate_new_label_offset
+			(&got_jump->gj_label.label_offset,&offset_difference,&new_offset_difference,relocation);
+	}
+	}
+#endif
 	
 #ifdef FUNCTION_LEVEL_LINKING
 	if (object_label!=NULL)
@@ -6185,6 +6390,7 @@ static void relocate_short_branches_and_move_code (void)
 #endif
 #ifdef LINUX
 			case GOT_PC_RELATIVE_RELOCATION:
+			case PLT_PC_RELATIVE_RELOCATION:
 #endif
 				relocation->relocation_offset -= offset_difference;
 				relocation_p=&relocation->next;
@@ -6627,6 +6833,7 @@ static void relocate_code (void)
 #endif
 #ifdef LINUX
 			case GOT_PC_RELATIVE_RELOCATION:
+			case PLT_PC_RELATIVE_RELOCATION:
 				relocation_p=&relocation->next;
 
 				instruction_offset=relocation->relocation_offset;
@@ -6973,7 +7180,7 @@ static void write_object_labels (void)
 				write_l (object_label->object_label_string_offset);
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_NOTYPE));
 # ifdef LINUX
-				if (pic_flag)
+				if (!rts_got_flag)
 					write_c (STV_PROTECTED);
 				else
 # endif
@@ -7320,6 +7527,30 @@ static void write_code_relocations (void)
 
 				write_q (relocation->relocation_offset);
 				write_l (R_X86_64_GOTPCREL);
+# ifdef FUNCTION_LEVEL_LINKING
+				write_l (elf_label_number (label));
+# else
+				write_l (label->label_id);
+# endif
+# ifdef ELF_RELA
+				write_q (relocation->relocation_addend);
+# endif
+				break;				
+			}
+			case PLT_PC_RELATIVE_RELOCATION:
+			{
+				struct label *label;
+
+				label=relocation->relocation_label;
+# ifdef FUNCTION_LEVEL_LINKING
+				if (label->label_id==-1)
+# else
+				if (label->label_id<0)
+# endif
+					internal_error_in_function ("write_code_relocations");
+
+				write_q (relocation->relocation_offset);
+				write_l (R_X86_64_PLT32);
 # ifdef FUNCTION_LEVEL_LINKING
 				write_l (elf_label_number (label));
 # else

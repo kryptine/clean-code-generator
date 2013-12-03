@@ -40,6 +40,9 @@ typedef struct label {
 #ifdef G_POWER
 		struct toc_label *			u_toc_labels;		/* cgpwas.c */
 #endif
+#if defined (G_A64) && defined (LINUX)
+		struct label *				u_got_jump_label;	/* cgaas.c */
+#endif
 	} label_u2;
 	WORD						label_last_lea_arity;
 } LABEL;
@@ -48,6 +51,9 @@ typedef struct label {
 #define label_block label_u2.u_block
 #ifdef G_POWER
 # define label_toc_labels label_u2.u_toc_labels
+#endif
+#if defined (G_A64) && defined (LINUX)
+# define label_got_jump_label label_u2.u_got_jump_label
 #endif
 
 #define label_last_lea label_u1.u_last_lea
@@ -68,7 +74,14 @@ typedef struct label {
 #	define DOT_O_BEFORE_LABEL	2048
 #	define STUB_GENERATED		4096
 #endif
+#if defined (G_A64) && defined (LINUX)
+# define USE_PLT_LABEL			4096
+#endif
 #define CMP_BRANCH_BLOCK_LABEL	8192
+#if defined (G_A64) && defined (LINUX)
+# define USE_GOT_LABEL			16384
+# define HAS_GOT_JUMP_LABEL		32768
+#endif
 
 struct label_node {
 	struct label_node *	label_node_left;

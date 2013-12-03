@@ -278,6 +278,9 @@ int no_time_profiling;
 
 LABEL *INT_label,*BOOL_label,*CHAR_label,*REAL_label;
 LABEL *_STRING__label,*_ARRAY__label;
+#if defined (G_A64) && defined (LINUX)
+LABEL *_STRING__0_label;
+#endif
 
 static LABEL *FILE_label;
 
@@ -406,6 +409,54 @@ LABEL *enter_label (char *label_name,int label_flags)
 	*label_p=new_label;
 	return &new_label->label_node_label;
 }
+
+#if defined (G_A64) && defined (LINUX)
+LABEL *enter_label_with_extension (char *label_name,char *label_name_extension,int label_flags)
+{
+	struct label_node **label_p,*new_label;
+	int label_name_length;
+	char *label_name_with_extension;
+
+	label_name_length=strlen (label_name);
+
+	label_p=&labels;
+	while (*label_p!=NULL){
+		struct label_node *label;
+		int r;
+		
+		label=*label_p;
+		r=strncmp (label_name,label->label_node_label.label_name,label_name_length);
+		if (r==0){
+			r=strcmp (label_name_extension,label->label_node_label.label_name+label_name_length);
+			if (r==0){
+				label->label_node_label.label_flags |= label_flags;
+				return &label->label_node_label;
+			}
+		}
+		if (r<0)
+			label_p=&label->label_node_left;
+		else
+			label_p=&label->label_node_right;
+	}
+	
+	new_label=fast_memory_allocate_type (struct label_node);
+	new_label->label_node_left=NULL;
+	new_label->label_node_right=NULL;
+	new_label->label_node_label.label_flags=label_flags;
+	new_label->label_node_label.label_number=0;
+	new_label->label_node_label.label_id=-1;
+	label_name_with_extension
+		=(char*)fast_memory_allocate (label_name_length+strlen (label_name_extension)+1);
+	strcpy (label_name_with_extension,label_name);
+	strcpy (label_name_with_extension+label_name_length,label_name_extension);
+	new_label->label_node_label.label_name=label_name_with_extension;
+	
+	new_label->label_node_label.label_last_lea_block=NULL;
+
+	*label_p=new_label;
+	return &new_label->label_node_label;
+}
+#endif
 
 static int next_label;
 
@@ -739,6 +790,13 @@ static void define_eval_upd_label_n (int arity)
 {
 	char eval_upd_label_name[32];
 
+#if defined (G_A64) && defined (LINUX)
+	if (rts_got_flag){
+		sprintf (eval_upd_label_name,"eval_upd_%d_",arity);
+		eval_upd_labels[arity]=enter_label (eval_upd_label_name,IMPORT_LABEL | USE_GOT_LABEL);
+		return;
+	}
+#endif
 	sprintf (eval_upd_label_name,"eval_upd_%d",arity);
 	eval_upd_labels[arity]=enter_label (eval_upd_label_name,IMPORT_LABEL);
 }
@@ -799,6 +857,16 @@ void code_build (char descriptor_name[],int arity,char *code_name)
 	}
 }
 
+#if defined (G_A64) && defined (LINUX)
+static LABEL *enter_got_label (char *descriptor_name,int arity,int label_flags)
+{
+	static char arity_extension[24];
+
+	sprintf (arity_extension,"_%d",arity);
+	return enter_label_with_extension (descriptor_name,arity_extension,label_flags | USE_GOT_LABEL);
+}
+#endif
+
 void code_buildh (char descriptor_name[],int arity)
 {
 	INSTRUCTION_GRAPH graph_2,graph_3,graph_4,graph_5,graph_6;
@@ -807,6 +875,12 @@ void code_buildh (char descriptor_name[],int arity)
 	descriptor_label=enter_label (descriptor_name,DATA_LABEL);
 
 	if (!parallel_flag && arity==0){
+#if defined (G_A64) && defined (LINUX)
+		if (pic_flag && descriptor_label->label_flags & USE_GOT_LABEL){
+			descriptor_label=enter_label_with_extension (descriptor_name,"_Z",DATA_LABEL | USE_GOT_LABEL);
+			graph_4=g_lea (descriptor_label);
+		} else
+#endif
 		graph_4=g_lea_i (descriptor_label,ARITY_0_DESCRIPTOR_OFFSET+NODE_POINTER_OFFSET);
 		s_push_a (graph_4);
 		return;
@@ -818,6 +892,12 @@ void code_buildh (char descriptor_name[],int arity)
 	{
 		graph_2=descriptor_label->label_last_lea;
 	} else {
+#if defined (G_A64) && defined (LINUX)
+		if (pic_flag && descriptor_label->label_flags & USE_GOT_LABEL){
+			descriptor_label=enter_got_label (descriptor_name,arity,DATA_LABEL);
+			graph_2=g_lea (descriptor_label);
+		} else
+#endif
 		graph_2=g_load_des_i (descriptor_label,arity);
 
 		if (!parallel_flag ){
@@ -872,6 +952,12 @@ void code_build_r (char descriptor_name[],int a_size,int b_size,int a_offset,int
 	if (!parallel_flag && descriptor_label->label_last_lea_block==last_block)
 		graph_2=descriptor_label->label_last_lea;
 	else {
+#if defined (G_A64) && defined (LINUX)
+		if (pic_flag && descriptor_label->label_flags & USE_GOT_LABEL){
+			descriptor_label=enter_got_label (descriptor_name,0,DATA_LABEL);
+			graph_2=g_lea (descriptor_label);
+		} else
+#endif
 		graph_2=g_load_des_i (descriptor_label,0);
 
 		if (!parallel_flag ){
@@ -992,6 +1078,13 @@ void code_build_u (char descriptor_name[],int a_size,int b_size,char *code_name)
 
 static INSTRUCTION_GRAPH g_BOOL_label (void)
 {
+#if defined (G_A64) && defined (LINUX)
+	if (rts_got_flag){
+		if (BOOL_label==NULL)
+			BOOL_label=enter_label ("BOOL_0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
+		return g_lea (BOOL_label);
+	}
+#endif
 	if (BOOL_label==NULL)
 		BOOL_label=enter_label ("BOOL",IMPORT_LABEL | DATA_LABEL);
 	return g_load_des_i (BOOL_label,0);
@@ -999,6 +1092,13 @@ static INSTRUCTION_GRAPH g_BOOL_label (void)
 
 static INSTRUCTION_GRAPH g_FILE_label (void)
 {
+#if defined (G_A64) && defined (LINUX)
+	if (rts_got_flag){
+		if (FILE_label==NULL)
+			FILE_label=enter_label ("FILE_0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
+		return g_lea (FILE_label);
+	}
+#endif
 	if (FILE_label==NULL)
 		FILE_label=enter_label ("FILE",IMPORT_LABEL | DATA_LABEL);
 	return g_load_des_i (FILE_label,0);
@@ -1086,10 +1186,22 @@ void code_buildC (int value)
 	INSTRUCTION_GRAPH graph_2,graph_3,graph_4;
 
 	if (!parallel_flag){
+#if defined (G_A64) && defined (LINUX)
+		if (rts_got_flag){
+			LABEL *static_characters_n_label;
+			static char static_characters_n_s[40];
+
+			sprintf (static_characters_n_s,"static_characters_%d",(int)value);
+			static_characters_n_label=enter_label (static_characters_n_s,IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
+			graph_4=g_lea (static_characters_n_label);
+		} else
+#endif
+		{
 		if (static_characters_label==NULL)
 			static_characters_label=enter_label ("static_characters",IMPORT_LABEL | DATA_LABEL);
 
 		graph_4=g_lea_i (static_characters_label,(value<<(1+STACK_ELEMENT_LOG_SIZE))+NODE_POINTER_OFFSET);
+		}
 		s_push_a (graph_4);
 		return;
 	}
@@ -1145,14 +1257,22 @@ static INSTRUCTION_GRAPH int_descriptor_graph (void)
 	if (!parallel_flag && last_INT_descriptor_block==last_block)
 		graph=last_INT_descriptor_graph;
 	else {
+#if defined (G_A64) && defined (LINUX)
+		if (rts_got_flag){
+			if (INT_label==NULL)
+				INT_label=enter_label ("dINT_0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
+			graph=g_lea (INT_label);
+		} else
+#endif
+		{
 		if (INT_label==NULL)
 #ifdef G_AI64
 			INT_label=enter_label ("dINT",IMPORT_LABEL | DATA_LABEL);
 #else
 			INT_label=enter_label ("INT",IMPORT_LABEL | DATA_LABEL);
 #endif
-
 		graph=g_load_des_i (INT_label,0);
+		}
 
 		if (!parallel_flag){
 			last_INT_descriptor_graph=graph;
@@ -1172,10 +1292,23 @@ void code_buildI (CleanInt value)
 #else
 	if (!parallel_flag && (uint_64)value<(uint_64)33){
 #endif
+#if defined (G_A64) && defined (LINUX)
+		if (rts_got_flag){
+			LABEL *small_integers_n_label;
+			static char small_integers_n_s[40];
+
+			sprintf (small_integers_n_s,"small_integers_%d",(int)value);
+			small_integers_n_label=enter_label (small_integers_n_s,IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
+			graph_5=g_lea (small_integers_n_label);
+		} else
+#endif
+		{
 		if (small_integers_label==NULL)
 			small_integers_label=enter_label ("small_integers",IMPORT_LABEL | DATA_LABEL);
 	
 		graph_5=g_lea_i (small_integers_label,(value<<(STACK_ELEMENT_LOG_SIZE+1))+NODE_POINTER_OFFSET);
+		}
+
 		s_push_a (graph_5);
 		return;
 	}
@@ -1332,10 +1465,19 @@ void code_CtoAC (VOID)
 	if (!parallel_flag && last__STRING__descriptor_block==last_block)
 		graph_1=last__STRING__descriptor_graph;
 	else {
+#if defined (G_A64) && defined (LINUX)
+		if (rts_got_flag){
+			if (_STRING__0_label==NULL)
+				_STRING__0_label=enter_label ("__STRING___0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
+			graph_1=g_lea (_STRING__0_label);
+		} else
+#endif
+		{
 		if (_STRING__label==NULL)
 			_STRING__label=enter_label ("__STRING__",IMPORT_LABEL | DATA_LABEL);
 
 		graph_1=g_load_des_i (_STRING__label,0);
+		}
 
 		if (!parallel_flag){
 			last__STRING__descriptor_graph=graph_1;
@@ -1359,10 +1501,20 @@ void code_CtoAC (VOID)
 	s_push_a (graph_4);
 }
 
+static LABEL *enter_rts_label (char *label_name)
+{
+	return enter_label (label_name,
+#if defined (G_A64) && defined (LINUX)
+			rts_got_flag ? IMPORT_LABEL | USE_GOT_LABEL : IMPORT_LABEL);
+#else
+			IMPORT_LABEL);
+#endif
+}
+
 static void code_create_lazy_array (VOID)
 {	
 	if (create_array_label==NULL)
-		create_array_label=enter_label ("create_array",IMPORT_LABEL);
+		create_array_label=enter_rts_label ("create_array");
 
 	s_push_b (s_get_b (0));
 	s_put_b (1,NULL);
@@ -1374,7 +1526,7 @@ static void code_create_lazy_array (VOID)
 static void code_create_arrayB (VOID)
 {
 	if (create_arrayB_label==NULL)
-		create_arrayB_label=enter_label ("create_arrayB",IMPORT_LABEL);
+		create_arrayB_label=enter_rts_label ("create_arrayB");
 	
 	s_push_b (s_get_b (0));
 	s_put_b (1,s_get_b (2));
@@ -1387,8 +1539,8 @@ static void code_create_arrayB (VOID)
 static void code_create_arrayC (VOID)
 {
 	if (create_arrayC_label==NULL)
-		create_arrayC_label=enter_label ("create_arrayC",IMPORT_LABEL);
-	
+		create_arrayC_label=enter_rts_label ("create_arrayC");
+
 	s_push_b (s_get_b (0));
 	s_put_b (1,s_get_b (2));
 	s_put_b (2,NULL);
@@ -1399,15 +1551,25 @@ static void code_create_arrayC (VOID)
 
 INSTRUCTION_GRAPH g_create_unboxed_int_array (int n_elements)
 {
-	INSTRUCTION_GRAPH graph_1;
+	INSTRUCTION_GRAPH graph_1,graph_2;
 	int n;
 
 	graph_1=g_create_m (n_elements+3);
 	
+#if defined (G_A64) && defined (LINUX)
+	if (rts_got_flag){
+		if (_ARRAY__label==NULL)
+			_ARRAY__label=enter_label ("__ARRAY__",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
+		graph_2=g_lea (_ARRAY__label);
+	} else
+#endif
+	{
 	if (_ARRAY__label==NULL)
 		_ARRAY__label=enter_label ("__ARRAY__",IMPORT_LABEL | DATA_LABEL);
+	graph_2=g_load_des_i (_ARRAY__label,0);
+	}
 
-	graph_1->instruction_parameters[0].p=g_load_des_i (_ARRAY__label,0);;
+	graph_1->instruction_parameters[0].p=graph_2;
 	graph_1->instruction_parameters[1].p=g_load_i (n_elements);
 	graph_1->instruction_parameters[2].p=int_descriptor_graph();
 
@@ -1436,7 +1598,7 @@ static void code_create_arrayI (VOID)
 		s_push_a (graph_2);
 	} else {
 		if (create_arrayI_label==NULL)
-			create_arrayI_label=enter_label ("create_arrayI",IMPORT_LABEL);
+			create_arrayI_label=enter_rts_label ("create_arrayI");
 		
 		s_push_b (graph_1);
 		s_put_b (1,s_get_b (2));
@@ -1451,7 +1613,7 @@ static void code_create_arrayI (VOID)
 static void code_create_arrayI32 (VOID)
 {
 	if (create_arrayI32_label==NULL)
-		create_arrayI32_label=enter_label ("create_arrayI32",IMPORT_LABEL);
+		create_arrayI32_label=enter_rts_label ("create_arrayI32");
 
 	s_push_b (s_get_b (0));
 	s_put_b (1,s_get_b (2));
@@ -1465,7 +1627,7 @@ static void code_create_arrayI32 (VOID)
 static void code_create_arrayR (VOID)
 {
 	if (create_arrayR_label==NULL)
-		create_arrayR_label=enter_label ("create_arrayR",IMPORT_LABEL);
+		create_arrayR_label=enter_rts_label ("create_arrayR");
 	
 #ifdef M68000
 	if (!mc68881_flag){
@@ -1515,7 +1677,7 @@ static void code_create_arrayR (VOID)
 static void code_create_arrayR32 (VOID)
 {
 	if (create_arrayR32_label==NULL)
-		create_arrayR32_label=enter_label ("create_arrayR32",IMPORT_LABEL);
+		create_arrayR32_label=enter_rts_label ("create_arrayR32");
 
 	s_push_b (s_get_b (0));
 	s_put_b (1,s_get_b (2));
@@ -1530,14 +1692,21 @@ static void code_create_r_array (char element_descriptor[],int a_size,int b_size
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
 	LABEL *descriptor;
-	
-	descriptor=enter_label (element_descriptor,DATA_LABEL);
-	
+		
 	if (create_r_array_label==NULL)
-		create_r_array_label=enter_label ("create_R_array",IMPORT_LABEL);
+		create_r_array_label=enter_rts_label ("create_R_array");
 
 	graph_1=s_pop_b();
+
+	descriptor=enter_label (element_descriptor,DATA_LABEL);
+#if defined (G_A64) && defined (LINUX)
+	if (pic_flag && descriptor->label_flags & USE_GOT_LABEL){
+		descriptor=enter_got_label (element_descriptor,0,DATA_LABEL);
+		graph_2=g_lea (descriptor);
+	} else
+#endif
 	graph_2=g_load_des_i (descriptor,0);
+
 	graph_3=g_load_i (a_size+b_size);
 	graph_4=g_load_i (a_size);
 
@@ -1690,11 +1859,19 @@ static void code_create_lazy_array_ (VOID)
 	INSTRUCTION_GRAPH graph_1;
 	LABEL *nil_label;
 	
+#if defined (G_A64) && defined (LINUX)
+	if (rts_got_flag){
+		nil_label=enter_label ("__Nil_Z",DATA_LABEL | USE_GOT_LABEL);
+		graph_1=g_lea (nil_label);
+	} else
+#endif
+	{
 	nil_label=enter_label ("__Nil",DATA_LABEL);
 	if (!parallel_flag)
 		graph_1=g_lea_i (nil_label,ARITY_0_DESCRIPTOR_OFFSET+NODE_POINTER_OFFSET);
 	else
 		graph_1=g_create_1 (g_load_des_i (nil_label,0));
+	}
 
 	s_push_a (graph_1);
 	code_create_lazy_array();
@@ -1708,7 +1885,7 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 				element_descriptor[4]=='\0')
 			{
 				if (create_arrayB__label==NULL)
-					create_arrayB__label=enter_label ("_create_arrayB",IMPORT_LABEL);
+					create_arrayB__label=enter_rts_label ("_create_arrayB");
 	
 				s_push_b (s_get_b (0));
 				s_put_b (1,NULL);
@@ -1723,7 +1900,7 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 				element_descriptor[4]=='\0')
 			{
 				if (create_arrayC__label==NULL)
-					create_arrayC__label=enter_label ("_create_arrayC",IMPORT_LABEL);
+					create_arrayC__label=enter_rts_label ("_create_arrayC");
 	
 				s_push_b (s_get_b (0));
 				s_put_b (1,NULL);
@@ -1749,7 +1926,7 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 					s_push_a (graph_2);
 				} else {
 					if (create_arrayI__label==NULL)
-						create_arrayI__label=enter_label ("_create_arrayI",IMPORT_LABEL);
+						create_arrayI__label=enter_rts_label ("_create_arrayI");
 		
 					s_push_b (graph_1);
 					s_put_b (1,NULL);
@@ -1763,7 +1940,7 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 		case 'P':
 			if (is__rocid (element_descriptor)){
 				if (create_arrayI__label==NULL)
-					create_arrayI__label=enter_label ("_create_arrayI",IMPORT_LABEL);
+					create_arrayI__label=enter_rts_label ("_create_arrayI");
 	
 				s_push_b (s_get_b (0));
 				s_put_b (1,NULL);
@@ -1778,7 +1955,7 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 				element_descriptor[4]=='\0')
 			{
 				if (create_arrayR__label==NULL)
-					create_arrayR__label=enter_label ("_create_arrayR",IMPORT_LABEL);
+					create_arrayR__label=enter_rts_label ("_create_arrayR");
 	
 				s_push_b (s_get_b (0));
 				s_put_b (1,NULL);
@@ -1826,22 +2003,37 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 			INSTRUCTION_GRAPH graph_1;
 			LABEL *nil_label;
 			
+#if defined (G_A64) && defined (LINUX)
+			if (rts_got_flag){
+				nil_label=enter_label ("__Nil_Z",DATA_LABEL | USE_GOT_LABEL);
+				graph_1=g_lea (nil_label);
+			} else
+#endif
+			{
 			nil_label=enter_label ("__Nil",DATA_LABEL);
 			if (!parallel_flag)
 				graph_1=g_lea_i (nil_label,ARITY_0_DESCRIPTOR_OFFSET+NODE_POINTER_OFFSET);
 			else
 				graph_1=g_create_1 (g_load_des_i (nil_label,0));
+			}
 
 			s_push_a (graph_1);
 		}
-		
-		descriptor=enter_label (element_descriptor,DATA_LABEL);
-		
+				
 		if (create_r_array__label==NULL)
-			create_r_array__label=enter_label ("_create_r_array",IMPORT_LABEL);
+			create_r_array__label=enter_rts_label ("_create_r_array");
 
 		graph_1=s_pop_b();
+
+		descriptor=enter_label (element_descriptor,DATA_LABEL);
+#if defined (G_A64) && defined (LINUX)
+		if (pic_flag && descriptor->label_flags & USE_GOT_LABEL){
+			descriptor=enter_got_label (element_descriptor,0,DATA_LABEL);
+			graph_2=g_lea (descriptor);
+		} else
+#endif
 		graph_2=g_load_des_i (descriptor,0);
+		
 		graph_3=g_load_i (a_size+b_size);
 		graph_4=g_load_i (a_size);
 
@@ -2283,7 +2475,14 @@ void code_eqD_b (char descriptor_name[],int arity)
 	
 	graph_1=s_get_b (0);
 
+#if defined (G_A64) && defined (LINUX)
+	if (pic_flag && descriptor->label_flags & USE_GOT_LABEL){
+		descriptor=enter_got_label (descriptor_name,arity,DATA_LABEL);
+		graph_2=g_lea (descriptor);
+	} else
+#endif
 	graph_2=g_load_des_i (descriptor,arity);
+
 	graph_3=g_cmp_eq (graph_2,graph_1);
 	
 	s_push_b (graph_3);
@@ -2462,7 +2661,11 @@ void code_eqAC_a (char *string,int string_length)
 	LABEL *string_label;	
 	
 	if (equal_string_label==NULL)
-		equal_string_label=enter_label ("eqAC",IMPORT_LABEL);
+		equal_string_label=enter_label ("eqAC",
+#if defined (G_A64) && defined (LINUX)
+							rts_got_flag ? (USE_GOT_LABEL | IMPORT_LABEL) :
+#endif
+							IMPORT_LABEL);
 		
 	string_label=w_code_length_and_string (string,string_length);
 	
@@ -2494,7 +2697,14 @@ void code_eq_desc (char descriptor_name[],int arity,int a_offset)
 	graph_2=g_load_des_id (DESCRIPTOR_OFFSET,graph_1);
 #endif
 
+#if defined (G_A64) && defined (LINUX)
+	if (pic_flag && descriptor->label_flags & USE_GOT_LABEL){
+		descriptor=enter_got_label (descriptor_name,arity,DATA_LABEL);
+		graph_3=g_lea (descriptor);
+	} else
+#endif
 	graph_3=g_load_des_i (descriptor,arity);
+
 	graph_4=g_cmp_eq (graph_3,graph_2);
 	
 	s_push_b (graph_4);
@@ -2624,6 +2834,14 @@ void code_fill_r (char descriptor_name[],int a_size,int b_size,int root_offset,i
 	if (!parallel_flag && descriptor_label->label_last_lea_block==last_block)
 		graph_2=descriptor_label->label_last_lea;
 	else {
+#if defined (G_A64) && defined (LINUX)
+		if (pic_flag && descriptor_label->label_flags & USE_GOT_LABEL){
+			LABEL *descriptor_label_0;
+
+			descriptor_label_0=enter_got_label (descriptor_name,0,DATA_LABEL);
+			graph_2=g_lea (descriptor_label_0);
+		} else
+#endif
 		graph_2=g_load_des_i (descriptor_label,0);
 
 		if (!parallel_flag ){
@@ -2953,6 +3171,12 @@ void code_fillh (char descriptor_name[],int arity,int a_offset)
 	{
 		graph_2=descriptor_label->label_last_lea;
 	} else {
+#if defined (G_A64) && defined (LINUX)
+		if (pic_flag && descriptor_label->label_flags & USE_GOT_LABEL){
+			descriptor_label=enter_got_label (descriptor_name,arity,DATA_LABEL);
+			graph_2=g_lea (descriptor_label);
+		} else
+#endif
 		graph_2=g_load_des_i (descriptor_label,arity);
 
 		if (!parallel_flag ){
@@ -3508,7 +3732,11 @@ void code_fillcaf (char *label_name,int a_stack_size,int b_stack_size)
 		INSTRUCTION_GRAPH graph_5,graph_6,graph_7,graph_8;
 		LABEL *caf_listp_label;
 
-		caf_listp_label=enter_label ("caf_listp",DATA_LABEL | IMPORT_LABEL);
+		caf_listp_label=enter_label ("caf_listp",
+#if defined (G_A64) && defined (LINUX)
+										rts_got_flag ? USE_GOT_LABEL | DATA_LABEL | IMPORT_LABEL :
+#endif
+										DATA_LABEL | IMPORT_LABEL);
 		
 		graph_5=g_lea (caf_listp_label);
 		graph_6=g_sub (g_load_i (STACK_ELEMENT_SIZE),g_load_id (0,graph_5));
@@ -3751,7 +3979,7 @@ void code_gtU (VOID)
 void code_halt (VOID)
 {
 	if (halt_label==NULL)
-		halt_label=enter_label ("halt",IMPORT_LABEL);
+		halt_label=enter_rts_label ("halt");
 	
 	end_basic_block_with_registers (0,0,e_vector);
 	
@@ -3861,6 +4089,8 @@ static struct basic_block *profile_function_block;
 
 int profile_flag=PROFILE_NORMAL;
 
+static void code_jmp_label (LABEL *label);
+
 static void code_jmp_ap_ (int n_apply_args)
 {
     if (n_apply_args==1){
@@ -3927,10 +4157,98 @@ static void code_jmp_ap_ (int n_apply_args)
 		begin_new_basic_block();
 	} else {
 		char ap_label_name[32];
+		LABEL *label;
 
 		sprintf (ap_label_name,"ap_%d",n_apply_args);
-		code_jmp (ap_label_name);
+		label=enter_label (ap_label_name,
+#if defined (G_A64) && defined (LINUX)
+			rts_got_flag ? USE_GOT_LABEL :
+#endif
+			0);
+		code_jmp_label (label);
 	}
+}
+
+static void code_jmp_label (LABEL *label)
+{
+	int a_stack_size,b_stack_size,n_a_and_f_registers;
+	ULONG *vector;
+
+	if (demand_flag){
+		a_stack_size=demanded_a_stack_size;
+		b_stack_size=demanded_b_stack_size;
+		vector=demanded_vector;
+		
+		end_basic_block_with_registers (a_stack_size,b_stack_size,vector);
+	} else {
+		generate_code_for_previous_blocks (1);
+		if (!(label->label_flags & REGISTERS_ALLOCATED)){
+			label->label_a_stack_size=get_a_stack_size();
+			label->label_vector=&label->label_small_vector;
+			label->label_b_stack_size=get_b_stack_size (&label->label_vector);
+			label->label_flags |= REGISTERS_ALLOCATED;
+		}
+		
+		a_stack_size=label->label_a_stack_size;
+		b_stack_size=label->label_b_stack_size;
+		vector=label->label_vector;
+		
+		end_stack_elements (a_stack_size,b_stack_size,vector);
+		linearize_stack_graphs();
+		adjust_stack_pointers();
+	}
+
+	n_a_and_f_registers=0;
+	
+	if (mc68881_flag){
+		int parameter_n;
+
+		for (parameter_n=0; parameter_n<b_stack_size; ++parameter_n)
+			if (test_bit (vector,parameter_n))
+				if (n_a_and_f_registers<N_FLOAT_PARAMETER_REGISTERS){
+					++n_a_and_f_registers;
+#ifndef G_A64
+					++parameter_n;
+#endif
+				} else
+					break;
+	}
+
+	n_a_and_f_registers+=
+		(a_stack_size<=N_ADDRESS_PARAMETER_REGISTERS) ? (a_stack_size<<4) : (N_ADDRESS_PARAMETER_REGISTERS<<4);
+
+#ifdef PROFILE
+	if (profile_function_label!=NULL && profile_flag!=PROFILE_NOT && demand_flag){
+		int tail_call_profile;
+		
+		if (profile_flag==PROFILE_TAIL)
+			tail_call_profile=1;
+		else {
+			struct block_label *profile_block_label;
+			
+			tail_call_profile=0;
+			
+			if (profile_function_block!=NULL){
+				for_l (profile_block_label,profile_function_block->block_labels,block_label_next)
+					if (profile_block_label->block_label_label==label)
+						tail_call_profile=1;
+			}
+		}
+		
+		if (! tail_call_profile)
+			i_jmp_l_profile (label,0);
+		else
+			i_jmp_l_profile (label,profile_offset);
+	} else
+#endif
+		i_jmp_l (label,n_a_and_f_registers);
+
+	profile_flag=PROFILE_NORMAL;
+	demand_flag=0;
+	
+	reachable=0;
+	
+	begin_new_basic_block();
 }
 
 void code_jmp (char label_name[])
@@ -3939,86 +4257,9 @@ void code_jmp (char label_name[])
 		code_jmp_ap_(1);
 	else {
 		LABEL *label;
-		int a_stack_size,b_stack_size,n_a_and_f_registers;
-		ULONG *vector;
 
 		label=enter_label (label_name,0);
-		
-		if (demand_flag){
-			a_stack_size=demanded_a_stack_size;
-			b_stack_size=demanded_b_stack_size;
-			vector=demanded_vector;
-			
-			end_basic_block_with_registers (a_stack_size,b_stack_size,vector);
-		} else {
-			generate_code_for_previous_blocks (1);
-			if (!(label->label_flags & REGISTERS_ALLOCATED)){
-				label->label_a_stack_size=get_a_stack_size();
-				label->label_vector=&label->label_small_vector;
-				label->label_b_stack_size=get_b_stack_size (&label->label_vector);
-				label->label_flags |= REGISTERS_ALLOCATED;
-			}
-			
-			a_stack_size=label->label_a_stack_size;
-			b_stack_size=label->label_b_stack_size;
-			vector=label->label_vector;
-			
-			end_stack_elements (a_stack_size,b_stack_size,vector);
-			linearize_stack_graphs();
-			adjust_stack_pointers();
-		}
-
-		n_a_and_f_registers=0;
-		
-		if (mc68881_flag){
-			int parameter_n;
-
-			for (parameter_n=0; parameter_n<b_stack_size; ++parameter_n)
-				if (test_bit (vector,parameter_n))
-					if (n_a_and_f_registers<N_FLOAT_PARAMETER_REGISTERS){
-						++n_a_and_f_registers;
-#ifndef G_A64
-						++parameter_n;
-#endif
-					} else
-						break;
-		}
-
-		n_a_and_f_registers+=
-			(a_stack_size<=N_ADDRESS_PARAMETER_REGISTERS) ? (a_stack_size<<4) : (N_ADDRESS_PARAMETER_REGISTERS<<4);
-
-#ifdef PROFILE
-		if (profile_function_label!=NULL && profile_flag!=PROFILE_NOT && demand_flag){
-			int tail_call_profile;
-			
-			if (profile_flag==PROFILE_TAIL)
-				tail_call_profile=1;
-			else {
-				struct block_label *profile_block_label;
-				
-				tail_call_profile=0;
-				
-				if (profile_function_block!=NULL){
-					for_l (profile_block_label,profile_function_block->block_labels,block_label_next)
-						if (profile_block_label->block_label_label==label)
-							tail_call_profile=1;
-				}
-			}
-			
-			if (! tail_call_profile)
-				i_jmp_l_profile (label,0);
-			else
-				i_jmp_l_profile (label,profile_offset);
-		} else
-#endif
-			i_jmp_l (label,n_a_and_f_registers);
-
-		profile_flag=PROFILE_NORMAL;
-		demand_flag=0;
-		
-		reachable=0;
-		
-		begin_new_basic_block();
+		code_jmp_label (label);
 	}
 }
 
@@ -4389,6 +4630,8 @@ static int too_many_b_stack_parameters_for_registers (int b_stack_size,int n_dat
 }
 #endif
 
+static void code_jsr_label (LABEL *label);
+
 static void code_jsr_ap_ (int n_apply_args)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
@@ -4426,10 +4669,74 @@ static void code_jsr_ap_ (int n_apply_args)
 		init_a_stack (1);
 	} else {
 		char ap_label_name[32];
+		LABEL *label;
 
 		sprintf (ap_label_name,"ap_%d",n_apply_args);
-		code_jsr (ap_label_name);
+		label=enter_label (ap_label_name,
+#if defined (G_A64) && defined (LINUX)
+			rts_got_flag ? USE_GOT_LABEL :
+#endif
+			0);
+		code_jsr_label (label);
 	}
+}
+
+static void code_jsr_label (LABEL *label)
+{
+	INSTRUCTION_GRAPH graph;
+	int b_stack_size,n_data_parameter_registers;
+#if defined (M68000) || defined (I486)
+	LABEL *label_2;
+#endif		
+
+	if (!demand_flag)
+		error ("Directive .d missing before jsr instruction");
+
+	offered_after_jsr=1;
+	demand_flag=0;
+
+	n_data_parameter_registers=parallel_flag ? N_DATA_PARAMETER_REGISTERS-1 : N_DATA_PARAMETER_REGISTERS;
+#ifdef MORE_PARAMETER_REGISTERS
+	if (demanded_a_stack_size<N_ADDRESS_PARAMETER_REGISTERS)
+		n_data_parameter_registers += N_ADDRESS_PARAMETER_REGISTERS-demanded_a_stack_size;
+#endif
+	graph=NULL;
+
+	b_stack_size=demanded_b_stack_size;
+
+#if defined (M68000) || defined (I486)
+	if (b_stack_size>n_data_parameter_registers || !mc68881_flag){
+		if (too_many_b_stack_parameters_for_registers (b_stack_size,n_data_parameter_registers)){
+			sprintf (eval_label_s,"e_%d",eval_label_number++);
+			label_2=enter_label (eval_label_s,LOCAL_LABEL);
+			graph=g_lea (label_2);
+		}
+	}
+#endif
+
+	insert_graph_in_b_stack (graph,b_stack_size,demanded_vector);
+
+	clear_bit (demanded_vector,b_stack_size);
+	++b_stack_size;
+
+	insert_basic_block (JSR_BLOCK,demanded_a_stack_size,b_stack_size,demanded_vector,label);
+
+#if defined (M68000) || defined (I486)
+	if (graph!=NULL)
+		define_label_in_block (label_2);
+#endif
+}
+
+void code_jrsr (char label_name[])
+{
+	LABEL *label;
+
+	label=enter_label (label_name,
+#if defined (G_A64) && defined (LINUX)
+						rts_got_flag ? USE_GOT_LABEL :
+#endif
+						0);
+	code_jsr_label (label);
 }
 
 void code_jsr (char label_name[])
@@ -4438,50 +4745,9 @@ void code_jsr (char label_name[])
 		code_jsr_ap_ (1);
 	else {
 		LABEL *label;
-		INSTRUCTION_GRAPH graph;
-		int b_stack_size,n_data_parameter_registers;
-#if defined (M68000) || defined (I486)
-		LABEL *label_2;
-#endif		
 
-		if (!demand_flag)
-			error ("Directive .d missing before jsr instruction");
-		
 		label=enter_label (label_name,0);
-		
-		offered_after_jsr=1;
-		demand_flag=0;
-
-		n_data_parameter_registers=parallel_flag ? N_DATA_PARAMETER_REGISTERS-1 : N_DATA_PARAMETER_REGISTERS;
-#ifdef MORE_PARAMETER_REGISTERS
-		if (demanded_a_stack_size<N_ADDRESS_PARAMETER_REGISTERS)
-			n_data_parameter_registers += N_ADDRESS_PARAMETER_REGISTERS-demanded_a_stack_size;
-#endif
-		graph=NULL;
-
-		b_stack_size=demanded_b_stack_size;
-
-#if defined (M68000) || defined (I486)
-		if (b_stack_size>n_data_parameter_registers || !mc68881_flag){
-			if (too_many_b_stack_parameters_for_registers (b_stack_size,n_data_parameter_registers)){
-				sprintf (eval_label_s,"e_%d",eval_label_number++);
-				label_2=enter_label (eval_label_s,LOCAL_LABEL);
-				graph=g_lea (label_2);
-			}
-		}
-#endif
-
-		insert_graph_in_b_stack (graph,b_stack_size,demanded_vector);
-
-		clear_bit (demanded_vector,b_stack_size);
-		++b_stack_size;
-
-		insert_basic_block (JSR_BLOCK,demanded_a_stack_size,b_stack_size,demanded_vector,label);
-
-#if defined (M68000) || defined (I486)
-		if (graph!=NULL)
-			define_label_in_block (label_2);
-#endif
+		code_jsr_label (label);
 	}
 }
 
@@ -5038,7 +5304,11 @@ void code_n (int number_of_arguments,char *descriptor_name,char *ea_label_name)
 	if (ea_label_name!=NULL){
 		if (ea_label_name[0]=='_' && ea_label_name[1]=='_' && ea_label_name[2]=='\0'){
 			if (eval_fill_label==NULL)
-				eval_fill_label=enter_label ("eval_fill",IMPORT_LABEL);
+				eval_fill_label=enter_label ("eval_fill",
+#if defined (G_A64) && defined (LINUX)
+												rts_got_flag ? (IMPORT_LABEL | USE_GOT_LABEL) :
+#endif
+												IMPORT_LABEL);
 			last_block->block_ea_label=eval_fill_label;
 		} else {
 			if (number_of_arguments<-2)
@@ -5068,7 +5338,11 @@ void code_nu (int a_size,int b_size,char *descriptor_name,char *ea_label_name)
 	if (ea_label_name!=NULL){
 		/* eval_upd not yet implemented */
 		if (eval_fill_label==NULL)
-			eval_fill_label=enter_label ("eval_fill",IMPORT_LABEL);
+			eval_fill_label=enter_label ("eval_fill",
+#if defined (G_A64) && defined (LINUX)
+											rts_got_flag ? (IMPORT_LABEL | USE_GOT_LABEL) :
+#endif
+											IMPORT_LABEL);
 		last_block->block_ea_label=eval_fill_label;
 	} else
 		last_block->block_ea_label=NULL;
@@ -5181,7 +5455,11 @@ void code_print (char *string,int length)
 #ifdef G_POWER
 		print_label=enter_label ("print_",IMPORT_LABEL);
 #else
-		print_label=enter_label ("print",IMPORT_LABEL);
+		print_label=enter_label ("print",
+# if defined (G_A64) && defined (LINUX)
+								rts_got_flag ? (USE_GOT_LABEL | IMPORT_LABEL) :
+# endif
+								IMPORT_LABEL);
 #endif
 
 	string_label=w_code_string (string,length);
@@ -8930,6 +9208,23 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 #endif
 	if (assembly_flag)
 		w_as_define_label (label);
+
+#if defined (G_A64) && defined (LINUX)
+	if (pic_flag && label->label_flags & EXPORT_LABEL){
+		int n;
+
+		define_exported_data_label_with_offset
+			(enter_label_with_extension (label->label_name,"_Z",label->label_flags),ARITY_0_DESCRIPTOR_OFFSET);
+	
+		for (n=0; n<=arity; ++n){
+			static char arity_extension[24];
+
+			sprintf (arity_extension,"_%d",n);
+			define_exported_data_label_with_offset
+				(enter_label_with_extension (label->label_name,arity_extension,label->label_flags),2+(n<<4));
+		}
+	}
+#endif
 }
 
 #ifdef NEW_DESCRIPTORS
@@ -9306,6 +9601,11 @@ void code_record (char record_label_name[],char type[],int a_size,int b_size,cha
 	if (assembly_flag)
 		w_as_define_label (label);
 
+#if defined (G_A64) && defined (LINUX)
+	if (pic_flag && label->label_flags & EXPORT_LABEL)
+		define_exported_data_label_with_offset (enter_label_with_extension (label->label_name,"_0",label->label_flags),2);
+#endif
+
 #ifdef GEN_OBJ
 	store_2_words_in_data_section (a_size+b_size+256,a_size);
 #endif
@@ -9386,7 +9686,12 @@ static int pic_sl_mod_import;
 
 void code_impdesc (char *label_name)
 {
-	enter_label (label_name,IMPORT_LABEL | DATA_LABEL);
+	enter_label (label_name,
+#if defined (G_A64) && defined (LINUX)
+				 !pic_sl_mod_import ? IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL : IMPORT_LABEL | DATA_LABEL);
+#else
+				 IMPORT_LABEL | DATA_LABEL);
+#endif
 }
 
 void code_implab_node_entry (char *label_name,char *ea_label_name)
@@ -9394,11 +9699,20 @@ void code_implab_node_entry (char *label_name,char *ea_label_name)
 	if (ea_label_name!=NULL){
 		LABEL *ea_label,*node_label;
 
-		node_label=enter_label (label_name,IMPORT_LABEL | EA_LABEL);
+		node_label=enter_label (label_name,
+#if defined (G_A64) && defined (LINUX)
+								!pic_sl_mod_import ? IMPORT_LABEL | EA_LABEL | USE_GOT_LABEL : IMPORT_LABEL | EA_LABEL);
+#else
+								IMPORT_LABEL | EA_LABEL);
+#endif
 
 		if (ea_label_name[0]=='_' && ea_label_name[1]=='_' && ea_label_name[2]=='\0'){
 			if (eval_fill_label==NULL)
-				eval_fill_label=enter_label ("eval_fill",IMPORT_LABEL);
+				eval_fill_label=enter_label ("eval_fill",
+#if defined (G_A64) && defined (LINUX)
+												rts_got_flag ? (IMPORT_LABEL | USE_GOT_LABEL) :
+#endif
+												IMPORT_LABEL);
 			node_label->label_ea_label=eval_fill_label;
 		} else {
 			ea_label=enter_label (ea_label_name,0);
@@ -9409,6 +9723,10 @@ void code_implab_node_entry (char *label_name,char *ea_label_name)
 
 void code_implab (char *label_name)
 {
+#if defined (G_A64) && defined (LINUX)
+	if (!pic_sl_mod_import)
+		enter_label (label_name,IMPORT_LABEL | USE_GOT_LABEL);
+#endif
 /*	enter_label (label_name,IMPORT_LABEL); */
 }
 
@@ -10011,6 +10329,7 @@ void initialize_coding (VOID)
 
 	INT_label=BOOL_label=CHAR_label=REAL_label=FILE_label=_STRING__label=_ARRAY__label=NULL;
 #if defined (G_A64) && defined (LINUX)
+	_STRING__0_label=NULL;
 	pic_sl_mod_import=!rts_got_flag;
 #endif
 

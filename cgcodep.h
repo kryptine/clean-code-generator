@@ -148,6 +148,7 @@ void code_jmp_eval (VOID);
 void code_jmp_eval_upd (VOID);
 void code_jmp_false (char label_name[]);
 void code_jmp_true (char label_name[]);
+void code_jrsr (char label_name[]);
 void code_jsr (char label_name[]);
 void code_jsr_ap (int n_args);
 void code_jsr_eval (int a_offset);

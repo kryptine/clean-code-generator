@@ -2407,6 +2407,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("jmp_false",		parse_instruction_a,		code_jmp_false );
 	put_instruction_name ("jmp_not_eqZ",	parse_instruction_z_a,		code_jmp_not_eqZ );
 	put_instruction_name ("jmp_true",		parse_instruction_a,		code_jmp_true );
+	put_instruction_name ("jrsr",			parse_instruction_a,		code_jrsr );
 	put_instruction_name ("jsr",			parse_instruction_a,		code_jsr );
 	put_instruction_name ("jsr_ap",			parse_instruction_n,		code_jsr_ap );
 	put_instruction_name ("jsr_eval",		parse_instruction_n,		code_jsr_eval );

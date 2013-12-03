@@ -6,6 +6,9 @@ void define_external_label (int id,int flag,char label_name[]);
 void store_word_in_data_section (UWORD i);
 void store_long_word_in_data_section (ULONG i);
 void define_data_label (LABEL *label);
+#ifdef LINUX
+void define_exported_data_label_with_offset (LABEL *label,int offset);
+#endif
 void store_label_in_data_section (LABEL *label);
 #if defined (MACH_O64) || defined (LINUX)
 void store_label_offset_in_data_section (LABEL *label);
