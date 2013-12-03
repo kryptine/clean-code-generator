@@ -2569,12 +2569,13 @@ static void as_jsr_instruction (struct instruction *instruction)
 					store_c (0x15);
 					store_l (0);
 					store_pc_rel_got_label_in_code_section (label);
+					return;
 				} else if (label->label_flags & USE_PLT_LABEL){
 					store_c (0350);
 					store_l (0);
 					store_pc_rel_got_or_plt_label_in_code_section (label,PLT_PC_RELATIVE_RELOCATION);
+					return;
 				}
-				return;
 			}
 #endif
 			store_c (0350);
