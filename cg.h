@@ -36,6 +36,7 @@ extern int fmadd_flag;
 
 #if defined (LINUX) && defined (G_AI64)
 extern int pic_flag;
+extern int rts_got_flag;
 #endif
 
 extern char *this_module_name;
