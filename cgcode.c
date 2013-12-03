@@ -1168,9 +1168,18 @@ static INSTRUCTION_GRAPH char_descriptor_graph (void)
 	if (!parallel_flag && last_CHAR_descriptor_block==last_block)
 		graph=last_CHAR_descriptor_graph;
 	else {
+#if defined (G_A64) && defined (LINUX)
+		if (rts_got_flag){
+			if (CHAR_label==NULL)
+				CHAR_label=enter_label ("CHAR_0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
+			graph=g_lea (CHAR_label);
+		} else
+#endif
+		{
 		if (CHAR_label==NULL)
 			CHAR_label=enter_label ("CHAR",IMPORT_LABEL | DATA_LABEL);
 		graph=g_load_des_i (CHAR_label,0);
+		}
 
 		if (!parallel_flag){
 			last_CHAR_descriptor_graph=graph;
