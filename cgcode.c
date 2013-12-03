@@ -1568,7 +1568,7 @@ INSTRUCTION_GRAPH g_create_unboxed_int_array (int n_elements)
 #if defined (G_A64) && defined (LINUX)
 	if (rts_got_flag){
 		if (_ARRAY__label==NULL)
-			_ARRAY__label=enter_label ("__ARRAY__",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
+			_ARRAY__label=enter_label ("__ARRAY___0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
 		graph_2=g_lea (_ARRAY__label);
 	} else
 #endif
