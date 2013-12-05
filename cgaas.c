@@ -4388,7 +4388,7 @@ void define_data_label (LABEL *label)
 }
 
 #ifdef LINUX
-void define_exported_data_label_with_offset (LABEL *label,int offset)\
+void define_exported_data_label_with_offset (LABEL *label,int offset)
 {
 	label->label_id=DATA_LABEL_ID;
 #ifdef FUNCTION_LEVEL_LINKING
@@ -7746,5 +7746,10 @@ void assemble_code (void)
 	write_string_table();
 }
 
-#endif
+#else
 
+void define_exported_data_label_with_offset (LABEL *label,int offset)
+{
+}
+
+#endif
