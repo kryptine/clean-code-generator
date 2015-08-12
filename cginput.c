@@ -2565,6 +2565,7 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("updateS",		parse_instruction_n_n,		code_updateS );
 	put_instruction_name ("update",			parse_instruction_a_n_n,	code_update );
 	put_instruction_name ("xor%",			parse_instruction,			code_xor );
+	put_instruction_name (".algtype",		parse_instruction_n,		code_algtype );
 	put_instruction_name (".caf",			parse_instruction_a_n_n,	code_caf );
 	put_instruction_name (".code",			parse_directive_n_n_n,		code_dummy	);
 	put_instruction_name (".comp",			parse_directive_n_l,		code_comp	);

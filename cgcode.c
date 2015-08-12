@@ -735,6 +735,10 @@ void code_addR (VOID)
 #endif
 }
 
+void code_algtype (int n_constructors)
+{
+}
+
 void code_andB (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;

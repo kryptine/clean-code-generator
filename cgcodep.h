@@ -25,6 +25,7 @@ void code_addLU (VOID);
 #ifndef M68000
 void code_addIo (VOID);
 #endif
+void code_algtype (int n_constructors);
 void code_addR (VOID);
 void code_andB (VOID);
 void code_and (VOID);
