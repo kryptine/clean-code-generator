@@ -1951,11 +1951,32 @@ static int parse_directive_record (InstructionP instruction)
 	
 	parse_label (a1);
 	parse_record_field_types (a2);
-	if (!parse_unsigned_integer (&n1) || !parse_unsigned_integer (&n2) || !parse_descriptor_string (s,&l))
+	if (!parse_unsigned_integer (&n1) || !parse_unsigned_integer (&n2))
 		return 0;
 
-	instruction->instruction_code_function (a1,a2,(int)n1,(int)n2,s,l);
-	return 1;
+	if (last_char=='"'){
+		if (!parse_descriptor_string (s,&l))
+			return 0;
+
+		instruction->instruction_code_function (a1,a2,(int)n1,(int)n2,s,l);
+		return 1;
+	} else {
+		code_record_start (a1,a2,(int)n1,(int)n2);
+
+		do {
+			STRING a3;
+			
+			parse_label (a3);
+
+			code_record_descriptor_label (a3);
+		} while (last_char!='"');
+		
+		if (!parse_descriptor_string (s,&l))
+			return 0;
+
+		code_record_end (s,l);
+		return 1;
+	}
 }
 
 static int parse_directive_module (InstructionP instruction)
@@ -2500,6 +2521,7 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("push_r_args_a",	parse_instruction_n_n_n_n_n, code_push_r_args_a );
 	put_instruction_name ("push_r_args_b",	parse_instruction_n_n_n_n_n, code_push_r_args_b );
 	put_instruction_name ("push_r_args_u",	parse_instruction_n_n_n,	code_push_r_args_u );
+	put_instruction_name ("push_r_arg_D",	parse_instruction,			code_push_r_arg_D );
 	put_instruction_name ("push_r_arg_t",	parse_instruction,			code_push_r_arg_t );
 	put_instruction_name ("push_r_arg_u",	parse_instruction_n_n_n_n_n_n_n, code_push_r_arg_u );
 	put_instruction_name ("push_wl_args",	parse_instruction_n_n_n,	code_push_args );

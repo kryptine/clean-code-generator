@@ -247,6 +247,7 @@ void code_push_arraysize (char *element_descriptor,int a_size,int b_size);
 void code_pushcaf (char *label_name,int a_size,int b_size);
 void code_push_node (char *label_name,int n_arguments);
 void code_push_node_u (char *label_name,int a_size,int b_size);
+void code_push_r_arg_D (VOID);
 void code_push_r_arg_t (VOID);
 void code_push_r_arg_u (int a_offset,int a_size,int b_size,int a_arg_offset,int a_arg_size,int b_arg_offset,int b_arg_size);
 void code_pushZ (char *integer_string,int length);
@@ -316,6 +317,9 @@ void code_descexp (char *s1,char *s2,char *s3,int n,int lazy_record_flag,char *s
 void code_descs (char *s1,char *s2,char *s3,int offset1,int offset2,char *s4,int l);
 #endif
 void code_record (char *s1,char *s2,int n1,int n2,char *s3,int s3_length);
+void code_record_start (char record_label_name[],char type[],int a_size,int b_size);
+void code_record_descriptor_label (char descriptor_name[]);
+void code_record_end (char record_name[],int record_name_length);
 void code_depend (char *module_name,int module_name_length);
 void code_export (char *label_name);
 void code_impdesc (char *label_name);

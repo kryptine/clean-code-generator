@@ -6180,6 +6180,39 @@ void code_push_r_args (int a_offset,int a_size,int b_size)
 	push_record_arguments (graph_1,a_size,b_size);
 }
 
+void code_push_r_arg_D (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+	
+	graph_1=s_pop_b();
+	graph_2=s_get_b (0);
+	graph_1=g_and (g_load_i (-4),g_add (g_load_i (4-1),graph_1));
+#if defined (G_AI64)
+# if defined (MACH_O64) || defined (LINUX)
+#  ifdef LINUX
+	if (pic_flag)
+#  endif
+	{
+		graph_1=g_add (g_lsl (g_load_i (3),graph_2),graph_1);
+		graph_2=g_load_id (0,graph_1);
+	}
+#  ifdef LINUX
+	else
+#  endif
+# endif
+# ifndef MACH_O64
+	{
+		graph_1=g_add (g_lsl (g_load_i (2),graph_2),graph_1);
+		graph_2=g_load_sqb_id (0,graph_1);
+	}
+# endif
+#else
+	graph_1=g_add (g_lsl (g_load_i (2),graph_2),graph_1);
+	graph_2=g_load_id (0,graph_1);
+#endif
+	s_put_b (0,graph_2);
+}
+
 void code_push_r_arg_t (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
@@ -9549,30 +9582,11 @@ void code_descs (char label_name[],char node_entry_label_name[],char *result_des
 }
 #endif
 
-void code_record (char record_label_name[],char type[],int a_size,int b_size,char record_name[],int record_name_length)
+static void code_record_descriptor (LABEL *label,int string_code_label_id,char type[],int a_size,int b_size)
 {
-	LABEL *label;
-	int string_code_label_id;
 	LABEL *string_label;
 
-	label=enter_label (record_label_name,LOCAL_LABEL | DATA_LABEL);
-	if (label->label_id>=0)
-		error_s ("Label %d defined twice\n",record_label_name);
-	label->label_id=next_label_id++;
-
-#ifdef FUNCTION_LEVEL_LINKING
-	as_new_data_module();
-	if (assembly_flag)
-		w_as_new_data_module();
-#endif
-
-	string_code_label_id=next_label_id++;
-	string_label=new_local_label (0
-#ifdef G_POWER
-									| DATA_LABEL
-#endif
-	);
-	label->label_descriptor=string_label;
+	string_label=label->label_descriptor;
 
 #ifndef M68000
 	/* not for 68k to maintain long word alignment */
@@ -9652,12 +9666,92 @@ void code_record (char record_label_name[],char type[],int a_size,int b_size,cha
 		if (assembly_flag)
 			w_as_c_string_in_data_section (type,length);
 	}
+}
+
+void code_record (char record_label_name[],char type[],int a_size,int b_size,char record_name[],int record_name_length)
+{
+	LABEL *label,*string_label;
+	int string_code_label_id;
+
+	label=enter_label (record_label_name,LOCAL_LABEL | DATA_LABEL);
+	if (label->label_id>=0)
+		error_s ("Label %d defined twice\n",record_label_name);
+	label->label_id=next_label_id++;
+
+#ifdef FUNCTION_LEVEL_LINKING
+	as_new_data_module();
+	if (assembly_flag)
+		w_as_new_data_module();
+#endif
+
+	string_code_label_id=next_label_id++;
+	string_label=new_local_label (0
+#ifdef G_POWER
+									| DATA_LABEL
+#endif
+	);
+	label->label_descriptor=string_label;
+
+	code_record_descriptor (label,string_code_label_id,type,a_size,b_size);
 
 #ifdef NO_CONSTRUCTOR_NAMES
 	record_name_length=0;
 #endif
-
 	w_descriptor_string (record_name,record_name_length,string_code_label_id,string_label);
+}
+
+static int record_end_string_code_label_id;
+static LABEL *record_end_string_label;
+
+void code_record_start (char record_label_name[],char type[],int a_size,int b_size)
+{
+	LABEL *label,*string_label;
+	int string_code_label_id;
+
+	label=enter_label (record_label_name,LOCAL_LABEL | DATA_LABEL);
+	if (label->label_id>=0)
+		error_s ("Label %d defined twice\n",record_label_name);
+	label->label_id=next_label_id++;
+
+#ifdef FUNCTION_LEVEL_LINKING
+	as_new_data_module();
+	if (assembly_flag)
+		w_as_new_data_module();
+#endif
+
+	string_code_label_id=next_label_id++;
+	string_label=new_local_label (0
+#ifdef G_POWER
+									| DATA_LABEL
+#endif
+	);
+	label->label_descriptor=string_label;
+
+	record_end_string_code_label_id = string_code_label_id;
+	record_end_string_label = string_label;
+
+	code_record_descriptor (label,string_code_label_id,type,a_size,b_size);
+}
+
+void code_record_descriptor_label (char descriptor_name[])
+{
+	LABEL *label;
+
+	label=enter_label (descriptor_name,0);
+
+# ifdef GEN_OBJ
+	store_label_in_data_section (label);
+# endif
+	if (assembly_flag)
+		w_as_label_in_data_section (label->label_name);
+}
+
+void code_record_end (char record_name[],int record_name_length)
+{
+#ifdef NO_CONSTRUCTOR_NAMES
+	record_name_length=0;
+#endif
+	w_descriptor_string (record_name,record_name_length,record_end_string_code_label_id,record_end_string_label);
 }
 
 /*
