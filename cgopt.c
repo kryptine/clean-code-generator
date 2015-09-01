@@ -38,7 +38,7 @@
 # define IF_G_SPARC(a)
 #endif
 
-#if defined (G_POWER) || defined (sparc)
+#if defined (G_POWER) || defined (sparc) || defined (ARM)
 # define IF_G_RISC(a) a
 #else
 # define IF_G_RISC(a)
@@ -47,7 +47,7 @@
 #define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
 
 #define POWER_PC_A_STACK_OPTIMIZE
-#ifdef I486
+#if defined (I486) || defined (ARM)
 # define OPTIMIZE_LOOPS
 #endif
 
@@ -74,7 +74,7 @@ static void optimize_branch_jump (struct instruction *branch,LABEL *new_branch_l
 		case IBGTU:	branch->instruction_icode=IBLEU;	break;
 		case IBLEU:	branch->instruction_icode=IBGTU;	break;
 		case IBLTU:	branch->instruction_icode=IBGEU;	break;
-#if !defined (I486_USE_SCRATCH_REGISTER) || defined (G_A64)
+#if !defined (I486_USE_SCRATCH_REGISTER) || defined (G_A64) || defined (ARM)
 		case IFBEQ:	branch->instruction_icode=IFBNE;	break;
 		case IFBGE:	branch->instruction_icode=IFBLT;	break;
 		case IFBGT:	branch->instruction_icode=IFBLE;	break;
@@ -118,7 +118,7 @@ void optimize_jumps (void)
 			switch (branch->instruction_icode){
 				case IBEQ:	case IBGE:	case IBGT:	case IBLE:	case IBLT:
 				case IBNE:	case IBGEU:	case IBGTU:	case IBLEU:	case IBLTU:
-#if !defined (I486_USE_SCRATCH_REGISTER) || defined (G_A64)
+#if !defined (I486_USE_SCRATCH_REGISTER) || defined (G_A64) || defined (ARM)
 				case IFBEQ:	case IFBGE:	case IFBGT:	case IFBLE:	case IFBLT:	case IFBNE:
 #endif
 				{
@@ -275,7 +275,7 @@ void optimize_jumps (void)
 				struct block_label *branch_block_label,*branch_next_block_label;
 				struct instruction *old_cmp_instruction,*old_branch_instruction,*new_branch_instruction;
 				LABEL *branch_label,*new_jmp_label;
-# ifdef I486
+# if defined (I486) || defined (ARM)
 				struct instruction *previous_instruction;
 # endif
 
@@ -298,7 +298,7 @@ void optimize_jumps (void)
 						if (branch_block_label->block_label_label==branch_label)
 							break;
 
-# ifdef I486
+# if defined (I486) || defined (ARM)
 				if (old_cmp_instruction->instruction_parameters[0].parameter_type==P_IMMEDIATE &&
 					old_cmp_instruction->instruction_parameters[0].parameter_data.i==0 &&
 					old_cmp_instruction->instruction_parameters[1].parameter_type==P_REGISTER &&
@@ -308,6 +308,13 @@ void optimize_jumps (void)
 					old_cmp_instruction->instruction_parameters[1].parameter_data.reg.r==previous_instruction->instruction_parameters[1].parameter_data.reg.r)
 				{
 					new_jmp_label = get_label_of_block (jmp_next_block);
+
+#  ifdef ARM
+					if (previous_instruction->instruction_icode==ISUB)
+						previous_instruction->instruction_icode=ISUBO;
+					else if (previous_instruction->instruction_icode==IADD)
+						previous_instruction->instruction_icode=IADDO;
+#  endif
 
 					if (branch_next_block_label!=NULL){
 						branch->instruction_icode=old_branch_instruction->instruction_icode;
@@ -401,7 +408,7 @@ void optimize_jumps (void)
 #endif
 }
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 
 #	ifdef M68000
 static struct parameter *previous_a_parameter;
@@ -419,12 +426,17 @@ static int get_argument_size (int instruction_code)
 		case IEOR:		case ILSL:		case ILSR:		case IREM:		case IMOVE:
 		case IMUL:		case IOR:		case ISUB:		case ITST:
 IF_G_RISC (case IADDI: case ILSLI:)
-IF_G_SPARC (case IADDO: case ISUBO: )
-#ifdef I486
-		case IDIVI:		case IREMI:		case IREMU:		case IMULUD:	case IDIVDU:
+#if defined (sparc) || defined (ARM)
+		case IADDO:		case ISUBO:
+#endif
+#if defined (I486) || defined (ARM)
+		case IDIVI:		case IREMI:		case IREMU:		case IMULUD:
 		case IFLOORDIV:	case IMOD:
 #endif
-#if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
+#ifdef I486
+		case IDIVDU:
+#endif
+#if ((defined (I486) || defined (ARM)) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
 		case IDIVU:
 #endif
 IF_G_POWER ( case IUMULH: )
@@ -486,7 +498,7 @@ static void optimize_a_stack_access (struct parameter *parameter,int instruction
 extern struct basic_block *last_block;
 extern struct instruction *last_instruction;
 
-#if defined (M68000) | defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 static void insert_decrement_b_stack_pointer (struct instruction *next_instruction,int offset)
 {
 	struct instruction *previous_instruction,*instruction;
@@ -524,7 +536,7 @@ static void insert_decrement_b_stack_pointer (struct instruction *next_instructi
 }
 #endif
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void optimize_b_stack_access (struct parameter *parameter,struct instruction *instruction)
 {
 	if (parameter->parameter_offset<b_offset){
@@ -673,7 +685,11 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 #ifdef M68000
 					instruction->instruction_icode!=IMOVEM &&
 #endif
-#ifdef I486
+#ifdef ARM
+					instruction->instruction_icode!=IADDI &&
+					instruction->instruction_icode!=ILSLI &&
+#endif
+#if defined (I486) || defined (ARM)
 # ifdef THREAD32
 					instruction->instruction_icode!=IDIV &&
 					instruction->instruction_icode!=IDIVU &&
@@ -682,14 +698,18 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 					instruction->instruction_icode!=IDIVI &&
 					instruction->instruction_icode!=IREMI &&
 					instruction->instruction_icode!=IREMU &&
+# ifndef ARM
 					instruction->instruction_icode!=IDIVDU &&
 					instruction->instruction_icode!=IASR_S &&
 					instruction->instruction_icode!=ILSL_S &&
 					instruction->instruction_icode!=ILSR_S &&
+# endif
 					instruction->instruction_icode!=IFLOORDIV &&
 					instruction->instruction_icode!=IMOD &&
+# ifndef ARM
 					instruction->instruction_icode!=IROTL_S &&
 					instruction->instruction_icode!=IROTR_S &&
+# endif
 #endif
 					instruction->instruction_icode!=IREM)
 #ifdef M68000
@@ -728,13 +748,43 @@ static void compute_maximum_b_stack_offsets (register int b_offset)
 	}
 }
 
-void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_offset_p)
+#ifdef ARM
+static int is_int_instruction (int icode)
+{
+	switch (icode){
+		case IMOVE:
+		case IADD: case ISUB:  case ICMP:  case ITST:  case INEG: /* case IADDI: */
+		case IAND: case IOR:   case IEOR:  case INOT:
+		case ILSL: case ILSR:  case IASR:  case IROTR: /* case ILSLI: */
+		case IMUL: case IMULUD:
+		case IDIV: case IDIVI: case IFLOORDIV: case IDIVU:
+		case IREM: case IREMI: case IREMU:  case IMOD:
+		case IADC: case ISBB:  case IADDO:  case ISUBO:
+			return 1;
+		default:
+			return 0;
+	}
+}
+#endif
+
+void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_offset_p
+# ifdef ARM
+	,int try_adjust_b_stack_pointer
+# endif
+	)
 {
 	struct instruction *instruction;
 
 # ifdef M68000	
 	a_offset=0;
 	previous_a_parameter=NULL;
+# endif
+# ifdef ARM
+	struct parameter *previous_a_stack_parameter,*previous_b_stack_parameter;
+	int previous_a_stack_parameter_icode,previous_b_stack_parameter_icode;
+	
+	previous_a_stack_parameter=NULL;
+	previous_b_stack_parameter=NULL;
 # endif
 
 	b_offset=0;
@@ -746,15 +796,11 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 		switch (instruction->instruction_arity){
 			default:
 				if (
-#  ifdef M68000
 					instruction->instruction_icode!=IMOVEM &&
-#  endif
 					instruction->instruction_icode!=IREM)
-#  ifdef M68000
 						if (instruction->instruction_icode==IBMOVE)
 							break;
 						else
-#  endif
 							internal_error_in_function ("optimize_stack_access");
 					/* only first argument of movem or mod might be register indirect */
 					/* no break ! */
@@ -824,9 +870,22 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 	*a_offset_p-=a_offset;
 # endif
 
-# ifdef I486
+# if defined (I486) || defined (ARM)
 	for_l (instruction,block->block_instructions,instruction_next){
 		if (instruction->instruction_icode==IMOVE){
+# ifdef ARM
+			if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT &&
+				instruction->instruction_parameters[1].parameter_data.reg.r==A_STACK_POINTER)
+			{
+				previous_a_stack_parameter=&instruction->instruction_parameters[1];
+				previous_a_stack_parameter_icode=IMOVE;
+			} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
+					   instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER)
+			{
+				previous_a_stack_parameter=&instruction->instruction_parameters[0];
+				previous_a_stack_parameter_icode=IMOVE;
+			}
+# endif
 			if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
 				instruction->instruction_parameters[0].parameter_data.reg.r==B_STACK_POINTER)
 			{
@@ -837,14 +896,29 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					
 					parameter0=&instruction->instruction_parameters[0];
 					parameter1=&instruction->instruction_parameters[1];
-					
+# ifdef ARM
+					previous_b_stack_parameter=parameter1;
+					previous_b_stack_parameter_icode=IMOVE;
+# endif
 					if (parameter1->parameter_offset<b_offset && parameter1->parameter_offset!=b_offset-STACK_ELEMENT_SIZE){
+# ifdef ARM
+						parameter0->parameter_offset-=b_offset;
+						parameter1->parameter_type=P_INDIRECT_WITH_UPDATE;
+						{
+							int offset=parameter1->parameter_offset;
+							
+							parameter1->parameter_offset=offset-b_offset;
+							b_offset=offset;
+						}
+						continue;
+# else
 						insert_decrement_b_stack_pointer (instruction,b_offset-parameter1->parameter_offset);
 				
 						b_offset=parameter1->parameter_offset;
 						parameter0->parameter_offset-=b_offset;
 						parameter1->parameter_offset=0;
 						continue;
+# endif
 					}
 					
 					if (parameter0->parameter_offset<b_offset){
@@ -878,10 +952,25 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					struct parameter *parameter;
 		
 					parameter=&instruction->instruction_parameters[0];
-	
+# ifdef ARM
+					previous_b_stack_parameter=parameter;
+					previous_b_stack_parameter_icode=IMOVE;
+# endif
+
 					if (parameter->parameter_offset<b_offset){
+# ifdef ARM
+						parameter->parameter_type=P_INDIRECT_WITH_UPDATE;
+						{
+							int offset=parameter->parameter_offset;
+							
+							parameter->parameter_offset=offset-b_offset;
+							b_offset=offset;
+						}
+						continue;
+# else
 						insert_decrement_b_stack_pointer (instruction,b_offset-parameter->parameter_offset);
 						b_offset=parameter->parameter_offset;
+# endif
 					} else 
 						if (parameter->parameter_offset==b_offset
 							&& b_offset<((WORD)parameter->parameter_data.reg.u))
@@ -902,15 +991,29 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					struct parameter *parameter;
 		
 					parameter=&instruction->instruction_parameters[1];
-		
+# ifdef ARM
+					previous_b_stack_parameter=parameter;
+					previous_b_stack_parameter_icode=IMOVE;
+# endif
 					if (parameter->parameter_offset<b_offset){
 						if (parameter->parameter_offset==b_offset-STACK_ELEMENT_SIZE){
 							b_offset-=STACK_ELEMENT_SIZE;
 							parameter->parameter_type=P_PRE_DECREMENT;
 							continue;
 						} else {
+# ifdef ARM
+							parameter->parameter_type=P_INDIRECT_WITH_UPDATE;
+							{
+								int offset=parameter->parameter_offset;
+							
+								parameter->parameter_offset=offset-b_offset;
+								b_offset=offset;
+							}
+							continue;
+# else
 							insert_decrement_b_stack_pointer (instruction,b_offset-parameter->parameter_offset);
 							b_offset=parameter->parameter_offset;
+# endif
 						}
 					}
 						
@@ -922,6 +1025,10 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 		switch (instruction->instruction_arity){
 			default:
 				if (
+#ifdef ARM
+					instruction->instruction_icode!=IADDI &&
+					instruction->instruction_icode!=ILSLI &&
+#endif
 # ifdef THREAD32
 					instruction->instruction_icode!=IDIV &&
 					instruction->instruction_icode!=IDIVU &&
@@ -930,39 +1037,119 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					instruction->instruction_icode!=IDIVI &&
 					instruction->instruction_icode!=IREMI &&
 					instruction->instruction_icode!=IREMU &&
+# ifndef ARM
 					instruction->instruction_icode!=IDIVDU &&
 					instruction->instruction_icode!=IASR_S &&
 					instruction->instruction_icode!=ILSL_S &&
 					instruction->instruction_icode!=ILSR_S &&
+# endif
 					instruction->instruction_icode!=IFLOORDIV &&
 					instruction->instruction_icode!=IMOD &&
-					instruction->instruction_icode!=IREM &&
-					instruction->instruction_icode!=IROTL_S &&
-					instruction->instruction_icode!=IROTR_S)
+					instruction->instruction_icode!=IREM
+# ifndef ARM
+					&& instruction->instruction_icode!=IROTL_S
+					&& instruction->instruction_icode!=IROTR_S
+# endif
+					)
 					internal_error_in_function ("optimize_stack_access");
 				/* only first argument of mod might be register indirect */
 				/* no break ! */
 			case 1:
-				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
-						instruction->instruction_parameters[0].parameter_data.reg.r==B_STACK_POINTER)
-					optimize_b_stack_access
-						(&instruction->instruction_parameters[0],instruction);
+				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
+					if (instruction->instruction_parameters[0].parameter_data.reg.r==B_STACK_POINTER){
+						optimize_b_stack_access (&instruction->instruction_parameters[0],instruction);
+# ifdef ARM
+						previous_b_stack_parameter=&instruction->instruction_parameters[0];
+						previous_b_stack_parameter_icode=instruction->instruction_icode;
+					} else if (instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER){
+						previous_a_stack_parameter=&instruction->instruction_parameters[0];
+						previous_a_stack_parameter_icode=instruction->instruction_icode;
+# endif
+					}
+				}
 				break;
 			case 2:
 				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
 					instruction->instruction_parameters[0].parameter_data.reg.r==B_STACK_POINTER)
 				{
-					if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT
-						&&	instruction->instruction_parameters[1].parameter_data.reg.r==B_STACK_POINTER)
+					if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT &&
+						instruction->instruction_parameters[1].parameter_data.reg.r==B_STACK_POINTER)
 					{
 						optimize_b_stack_access2 (instruction);
-					} else
+# ifdef ARM
+						previous_b_stack_parameter=&instruction->instruction_parameters[1];
+						previous_b_stack_parameter_icode=instruction->instruction_icode;
+# endif
+					} else {
 						optimize_b_stack_access (&instruction->instruction_parameters[0],instruction);
+# ifdef ARM
+						previous_b_stack_parameter=&instruction->instruction_parameters[0];
+						previous_b_stack_parameter_icode=instruction->instruction_icode;
+# endif
+					}
+				} else if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT &&
+						   instruction->instruction_parameters[1].parameter_data.reg.r==B_STACK_POINTER)
+				{
+					optimize_b_stack_access (&instruction->instruction_parameters[1],instruction);
+# ifdef ARM
+					previous_b_stack_parameter=&instruction->instruction_parameters[1];
+					previous_b_stack_parameter_icode=instruction->instruction_icode;
+# endif
 				}
+# ifdef ARM
 				if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT &&
-						instruction->instruction_parameters[1].parameter_data.reg.r==B_STACK_POINTER)
-					optimize_b_stack_access
-						(&instruction->instruction_parameters[1],instruction);
+					instruction->instruction_parameters[1].parameter_data.reg.r==A_STACK_POINTER)
+				{
+					previous_a_stack_parameter=&instruction->instruction_parameters[1];
+					previous_a_stack_parameter_icode=instruction->instruction_icode;
+				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
+						   instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER)
+				{
+					previous_a_stack_parameter=&instruction->instruction_parameters[0];
+					previous_a_stack_parameter_icode=instruction->instruction_icode;
+				}
+# endif
+		}
+	}
+# endif
+
+# ifdef ARM
+	{
+		int offset;
+		
+		offset=*b_offset_p-b_offset;
+		if (previous_b_stack_parameter!=NULL && offset!=0 && is_int_instruction (previous_b_stack_parameter_icode)){
+			if (previous_b_stack_parameter->parameter_type==P_INDIRECT && try_adjust_b_stack_pointer){
+				if (previous_b_stack_parameter->parameter_offset==0){
+					if (offset==STACK_ELEMENT_SIZE){
+						previous_b_stack_parameter->parameter_type=P_POST_INCREMENT;
+					} else {
+						previous_b_stack_parameter->parameter_type=P_INDIRECT_POST_ADD;
+						previous_b_stack_parameter->parameter_offset=offset;
+					}
+					b_offset = *b_offset_p;
+				} else if (previous_b_stack_parameter->parameter_offset==offset){
+					previous_b_stack_parameter->parameter_type=P_INDIRECT_WITH_UPDATE;
+					b_offset = *b_offset_p;
+				}
+			} else if (previous_b_stack_parameter->parameter_type==P_POST_INCREMENT){
+				previous_b_stack_parameter->parameter_type=P_INDIRECT_POST_ADD;
+				previous_b_stack_parameter->parameter_offset=STACK_ELEMENT_SIZE+offset;				
+				b_offset = *b_offset_p;
+			}
+		}
+
+		if (previous_a_stack_parameter!=NULL && *a_offset_p!=0 && is_int_instruction (previous_a_stack_parameter_icode)){
+			if (previous_a_stack_parameter->parameter_type==P_INDIRECT){
+				if (previous_a_stack_parameter->parameter_offset==0){
+					previous_a_stack_parameter->parameter_type=P_INDIRECT_POST_ADD;
+					previous_a_stack_parameter->parameter_offset=*a_offset_p;
+					*a_offset_p=0;
+				} else if (previous_a_stack_parameter->parameter_offset==*a_offset_p){
+					previous_a_stack_parameter->parameter_type=P_INDIRECT_WITH_UPDATE;
+					*a_offset_p = 0;
+				}
+			}
 		}
 	}
 # endif
@@ -1330,7 +1517,7 @@ static void use_parameter (struct parameter *parameter)
 	switch (parameter->parameter_type){
 		case P_REGISTER:
 		case P_INDIRECT:
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		case P_POST_INCREMENT:
 		case P_PRE_DECREMENT:
 #endif
@@ -1439,7 +1626,7 @@ static void define_parameter (struct parameter *parameter)
 			r_use_p->value_used=0;
 			break;
 		case P_INDIRECT:
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		case P_POST_INCREMENT:
 		case P_PRE_DECREMENT:
 #endif
@@ -1552,27 +1739,34 @@ static void store_next_uses (struct instruction *instruction)
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IASR:	case ILSL:	case ILSR:
 			case IDIV:
-# ifdef I486
-			case IROTL:	case IROTR:
+# if defined (I486) || defined (ARM)
+#  ifndef ARM
+			case IROTL:
+#  endif
+			case IROTR:
 # endif
 #endif
-#if defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)
+#if (defined (I486) || defined (ARM)) && !defined (I486_USE_SCRATCH_REGISTER)
 			case IMULUD:
 #endif
-#if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
+#if ((defined (I486) || defined (ARM)) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
 			case IDIVU:
 #endif
 			case IEOR:	case IFADD:	
 			case IFCMP:	case IFDIV:	case IFMUL:	case IFREM:	case IFSUB:
 			case IMUL:	case IOR:	case ISUB:	case ICMP:
+#ifndef ARM
 			case IEXG:
+#endif
 IF_G_POWER (case ICMPLW:)
-IF_G_SPARC (case IADDO: case ISUBO:)
+#if defined (sparc) || defined (ARM)
+			case IADDO:	case ISUBO:
+#endif
 #if defined (I486) && defined (FP_STACK_OPTIMIZATIONS)
 			case IFEXG:
 #endif
 IF_G_POWER ( case IUMULH: )
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			case IADC:	case ISBB:
 #endif
 #ifdef M68000
@@ -1582,7 +1776,10 @@ IF_G_POWER ( case IUMULH: )
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
 #ifdef I486_USE_SCRATCH_REGISTER
-			case IASR:	case ILSL:	case ILSR:	case IROTL:	case IROTR:
+			case IASR:	case ILSL:	case ILSR:	case IROTR:
+# ifndef ARM
+			case IROTL:
+# endif
 				if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE)
 					define_scratch_register();
 				use_parameter (&instruction->instruction_parameters[1]);
@@ -1609,7 +1806,7 @@ IF_G_POWER ( case IUMULH: )
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			case IDIVI:		case IREMI:
 # if defined (I486_USE_SCRATCH_REGISTER) && !defined (THREAD32)
 				define_scratch_register();
@@ -1629,7 +1826,10 @@ IF_G_POWER ( case IUMULH: )
 #ifdef G_AI64
 			case IMOVEQB:
 #endif
-			case IFCOS:		case IFSIN:		case IFTAN:
+#ifndef ARM
+			case IFCOS:		case IFSIN:
+#endif
+			case IFTAN:
 #ifdef M68000
 			case IFACOS:	case IFASIN:	case IFATAN:	case IFEXP:		case IFLN:		case IFLOG10:
 #endif
@@ -1643,7 +1843,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #ifdef G_AI64
 			case ILOADSQB:	case IFCVT2S:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			case IFLOADS:	case IFMOVES:
 #endif
 #if defined (I486) && !defined (G_A64)
@@ -1657,7 +1857,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 			case IEXTB:
 #endif
 			case INEG:
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 			case INOT:
 #endif
 			/* case IJMP:	case IJSR: */
@@ -1673,9 +1873,9 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				break;
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IREM:
-# if defined (I486) || defined (G_POWER)
+# if defined (I486) || defined (ARM) || defined (G_POWER)
 				use_parameter (&instruction->instruction_parameters[1]);
-#  ifdef I486
+#  if defined (I486) || defined (ARM)
 			case IREMU:
 #  endif
 				use_parameter (&instruction->instruction_parameters[0]);
@@ -1721,7 +1921,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 				use_parameter (&instruction->instruction_parameters[0]);
 				break;
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			case IFLOORDIV: case IMOD:
 				define_parameter (&instruction->instruction_parameters[2]);
 				use_parameter (&instruction->instruction_parameters[1]);
@@ -2054,7 +2254,7 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 				real_reg_n=REAL_D1;
 				i=reg_alloc[REAL_D1].instruction_n;
 			}
-#ifndef I486
+# ifndef I486
 			if (reg_alloc[REAL_D2].instruction_n<i){
 				real_reg_n=REAL_D2;
 				i=reg_alloc[REAL_D2].instruction_n;
@@ -2067,6 +2267,8 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 				real_reg_n=REAL_D4;
 				i=reg_alloc[REAL_D4].instruction_n;
 			}
+# endif
+# if ! (defined (I486) || defined (ARM))
 			if (reg_alloc[REAL_D5].instruction_n<i){
 				real_reg_n=REAL_D5;
 				i=reg_alloc[REAL_D5].instruction_n;
@@ -2079,7 +2281,7 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 				real_reg_n=REAL_D7;
 				i=reg_alloc[REAL_D7].instruction_n;
 			}
-#endif
+# endif
 			if (reg_alloc[REAL_A0].instruction_n<i){
 				real_reg_n=REAL_A0;
 				i=reg_alloc[REAL_A0].instruction_n;
@@ -2110,7 +2312,7 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 				i=reg_alloc[REAL_A4].instruction_n;
 			}
 #endif
-#if ! (defined (I486) || defined (G_POWER))
+#if ! (defined (I486) || defined (ARM) || defined (G_POWER))
 			if (reg_alloc[REAL_A6].instruction_n<i){
 				real_reg_n=REAL_A6;
 				i=reg_alloc[REAL_A6].instruction_n;
@@ -2144,7 +2346,7 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 				real_reg_n=6;
 				i=reg_alloc[6].instruction_n;
 			}
-#  if ! (defined (I486) && !defined (G_AI64))
+#  if ! ((defined (I486) || defined (ARM)) && !defined (G_AI64))
 			if (reg_alloc[7].instruction_n<i){
 				real_reg_n=7;
 				i=reg_alloc[7].instruction_n;
@@ -2189,7 +2391,7 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 			real_reg_n=1;
 			i=reg_alloc[1].instruction_n;
 		}
-# ifdef I486
+# if defined (I486) || defined (ARM)
 		if (register_flag!=D_REGISTER){
 			if (register_flag==F_REGISTER)
 				if (reg_alloc[2].instruction_n<i){
@@ -2281,7 +2483,7 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 				real_reg_n=REAL_D1;
 				i=reg_alloc[REAL_D1].instruction_n;
 			}
-#ifndef I486
+# ifndef I486
 			if (reg_alloc[REAL_D2].instruction_n<i && avoid_reg_n!=REAL_D2){
 				real_reg_n=REAL_D2;
 				i=reg_alloc[REAL_D2].instruction_n;
@@ -2294,6 +2496,8 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 				real_reg_n=REAL_D4;
 				i=reg_alloc[REAL_D4].instruction_n;
 			}
+# endif
+# if ! (defined (I486) || defined (ARM))
 			if (reg_alloc[REAL_D5].instruction_n<i && avoid_reg_n!=REAL_D5){
 				real_reg_n=REAL_D5;
 				i=reg_alloc[REAL_D5].instruction_n;
@@ -2306,7 +2510,7 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 				real_reg_n=REAL_D7;
 				i=reg_alloc[REAL_D7].instruction_n;
 			}
-#endif
+# endif
 			if (reg_alloc[REAL_A0].instruction_n<i && avoid_reg_n!=REAL_A0){
 				real_reg_n=REAL_A0;
 				i=reg_alloc[REAL_A0].instruction_n;
@@ -2337,7 +2541,7 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 				i=reg_alloc[REAL_A4].instruction_n;
 			}
 #endif
-#if ! (defined (I486) || defined (G_POWER))
+#if ! (defined (I486) || defined (ARM) || defined (G_POWER))
 			if (reg_alloc[REAL_A6].instruction_n<i && avoid_reg_n!=REAL_A6){
 				real_reg_n=REAL_A6;
 				i=reg_alloc[REAL_A6].instruction_n;
@@ -2372,7 +2576,7 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 				real_reg_n=6;
 				i=reg_alloc[6].instruction_n;
 			}
-#  if ! (defined (I486) && !defined (G_AI64))
+#  if ! ((defined (I486) || defined (ARM)) && !defined (G_AI64))
 			if (reg_alloc[7].instruction_n<i && avoid_reg_n!=7){
 				real_reg_n=7;
 				i=reg_alloc[7].instruction_n;
@@ -2418,7 +2622,7 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 			real_reg_n=1;
 			i=reg_alloc[1].instruction_n;
 		}
-# ifdef I486
+# if defined (I486) || defined (ARM)
 		if (register_flag!=D_REGISTER){
 			if (register_flag==F_REGISTER)
 				if (reg_alloc[2].instruction_n<i && avoid_reg_n!=2){
@@ -2526,6 +2730,8 @@ static int find_reg_not_in_set
 				real_reg_n=REAL_D4;
 				i=reg_alloc[REAL_D4].instruction_n;
 			}
+#  endif
+#  if ! (defined (I486) || defined (ARM))
 			if (reg_alloc[REAL_D5].instruction_n<i && !(avoid_reg_set & (1<<REAL_D5))){
 				real_reg_n=REAL_D5;
 				i=reg_alloc[REAL_D5].instruction_n;
@@ -2569,7 +2775,7 @@ static int find_reg_not_in_set
 				i=reg_alloc[REAL_A4].instruction_n;
 			}
 #endif
-#if ! (defined (I486) || defined (G_POWER))
+#if ! (defined (I486) || defined (ARM) || defined (G_POWER))
 			if (reg_alloc[REAL_A6].instruction_n<i && !(avoid_reg_set & (1<<REAL_A6))){
 				real_reg_n=REAL_A6;
 				i=reg_alloc[REAL_A6].instruction_n;
@@ -2604,7 +2810,7 @@ static int find_reg_not_in_set
 				real_reg_n=6;
 				i=reg_alloc[6].instruction_n;
 			}
-#  if ! (defined (I486) && !defined (G_AI64))
+#  if ! ((defined (I486) || defined (ARM)) && !defined (G_AI64))
 			if (reg_alloc[7].instruction_n<i && !(avoid_reg_set & 128)){
 				real_reg_n=7;
 				i=reg_alloc[7].instruction_n;
@@ -3322,7 +3528,7 @@ static void instruction_use_def_reg (struct instruction *instruction)
 					float_register_use (&instruction->instruction_parameters[1],DEF);
 			}
 			break;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		case P_POST_INCREMENT:
 		case P_PRE_DECREMENT:
 			register_use (&instruction->instruction_parameters[0].parameter_data.reg,USE_DEF);
@@ -3400,7 +3606,7 @@ static void instruction_use_2 (struct instruction *instruction,int use_flag)
 						(&instruction->instruction_parameters[0].parameter_data.reg,USE,
 						 &instruction->instruction_parameters[1].parameter_data.reg,USE);
 					break;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 				case P_POST_INCREMENT:
 				case P_PRE_DECREMENT:
 					register_use_2
@@ -3429,7 +3635,7 @@ static void instruction_use_2 (struct instruction *instruction,int use_flag)
 					register_use (&instruction->instruction_parameters[0].parameter_data.reg,USE);
 			}
 			break;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		case P_POST_INCREMENT:
 		case P_PRE_DECREMENT:
 			switch (instruction->instruction_parameters[1].parameter_type){
@@ -3481,7 +3687,7 @@ static void instruction_use_2 (struct instruction *instruction,int use_flag)
 					float_register_use (&instruction->instruction_parameters[0],USE);
 					register_use (&instruction->instruction_parameters[1].parameter_data.reg,USE);
 					break;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 				case P_POST_INCREMENT:
 				case P_PRE_DECREMENT:
 					float_register_use (&instruction->instruction_parameters[0],USE);
@@ -3524,7 +3730,7 @@ static void instruction_use_2 (struct instruction *instruction,int use_flag)
 						 &instruction->instruction_parameters[0].parameter_data.ir->d_reg,
 						 &instruction->instruction_parameters[1].parameter_data.reg,USE);
 					break;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 				case P_POST_INCREMENT:
 				case P_PRE_DECREMENT:
 					register_use_3_s_indexed 
@@ -3591,7 +3797,7 @@ static void instruction_use_2 (struct instruction *instruction,int use_flag)
 				case P_INDIRECT:
 					register_use (&instruction->instruction_parameters[1].parameter_data.reg,USE);
 					break;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 				case P_POST_INCREMENT:
 				case P_PRE_DECREMENT:
 					register_use (&instruction->instruction_parameters[1].parameter_data.reg,USE_DEF);
@@ -3620,7 +3826,7 @@ static void instruction_use (struct instruction *instruction)
 		case P_INDIRECT:
 			register_use (&instruction->instruction_parameters[0].parameter_data.reg,USE);
 			break;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		case P_POST_INCREMENT:
 		case P_PRE_DECREMENT:
 			register_use (&instruction->instruction_parameters[0].parameter_data.reg,USE_DEF);
@@ -3645,7 +3851,7 @@ static void instruction_usedef (struct instruction *instruction)
 {
 	switch (instruction->instruction_parameters[0].parameter_type){
 		case P_REGISTER:
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		case P_POST_INCREMENT:
 		case P_PRE_DECREMENT:
 			register_use (&instruction->instruction_parameters[0].parameter_data.reg,USE_DEF);
@@ -3678,7 +3884,7 @@ static void instruction_def (struct instruction *instruction)
 		case P_INDIRECT:
 			register_use (&instruction->instruction_parameters[0].parameter_data.reg,USE);
 			break;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		case P_POST_INCREMENT:
 		case P_PRE_DECREMENT:
 			register_use (&instruction->instruction_parameters[0].parameter_data.reg,USE_DEF);
@@ -3713,7 +3919,7 @@ static void instruction_fexg_usedef_usedef (struct instruction *instruction)
 }
 #endif
 
-#ifndef I486
+#if ! (defined (I486) || defined (ARM))
 static void instruction_mod_use_def_use (struct instruction *instruction)
 {
 	switch (instruction->instruction_parameters[0].parameter_type){
@@ -3745,7 +3951,7 @@ static void instruction_mod_use_def_use (struct instruction *instruction)
 				 &instruction->instruction_parameters[2].parameter_data.reg,USE,
 				 D_REGISTER);
 			break;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		case P_POST_INCREMENT:
 		case P_PRE_DECREMENT:
 			register_use (&instruction->instruction_parameters[0].parameter_data.reg,USE_DEF);
@@ -3904,25 +4110,33 @@ static void allocate_registers (struct basic_block *basic_block)
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IASR:	case ILSL:	case ILSR:
 			case IDIV:
-# ifdef I486
-			case IROTL:	case IROTR:
+# if defined (I486) || defined (ARM)
+#  ifndef ARM
+			case IROTL:
+#  endif
+			case IROTR:
 # endif
 #endif
-#if (defined (I486) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
+#if ((defined (I486) || defined (ARM)) && !defined (I486_USE_SCRATCH_REGISTER)) || defined (G_POWER)
 			case IDIVU:
 #endif
 			case IEOR:
 			case IFADD:	case IFCMP:	case IFDIV:	case IFMUL:	case IFREM:	case IFSUB:
 			case IMUL:	case IOR:	case ISUB:
-IF_G_SPARC (case IADDO: case ISUBO:)
+#if defined (sparc) || defined (ARM)
+			case IADDO:	case ISUBO:
+#endif
 IF_G_POWER ( case IUMULH: )
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			case IADC:	case ISBB:
 #endif
 				instruction_use_2 (instruction,USE_DEF);
 				break;
 #ifdef I486_USE_SCRATCH_REGISTER
-			case IASR:	case ILSL:	case ILSR:	case IROTL:	case IROTR:
+			case IASR:	case ILSL:	case ILSR:	case IROTR:
+# ifndef ARM
+			case IROTL:
+# endif
 				if (instruction->instruction_parameters[0].parameter_type!=P_IMMEDIATE){
 					use_scratch_register();
 					instruction_use_2 (instruction,USE_DEF);
@@ -3980,7 +4194,10 @@ IF_G_POWER (case ICMPLW:)
 #ifdef G_AI64
 			case IMOVEQB:
 #endif
-			case IFCOS:		case IFSIN:		case IFTAN:
+#ifndef ARM
+			case IFCOS:		case IFSIN:
+#endif
+			case IFTAN:
 #ifdef M68000
 			case IFACOS:	case IFASIN:	case IFATAN:	case IFEXP:		case IFLN:		case IFLOG10:	
 #endif
@@ -3994,7 +4211,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #ifdef G_AI64
 			case ILOADSQB:	case IFCVT2S:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			case IFLOADS:	case IFMOVES:
 #endif
 #if 1
@@ -4013,7 +4230,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 			case IEXTB:
 #endif
 			case INEG:
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 			case INOT:
 #endif
 				instruction_usedef (instruction);
@@ -4030,10 +4247,12 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #endif
 				instruction_def (instruction);
 				break;
+#ifndef ARM
 			case IEXG:
 				instruction_usedef_usedef (instruction);
 				break;
-#ifdef I486
+#endif
+#if defined (I486) || defined (ARM)
 			case IMULUD:
 # ifdef THREAD32
 				use_3_same_type_registers
@@ -4067,8 +4286,8 @@ IF_G_RISC (case IADDI: case ILSLI:)
 #endif
 #ifndef I486_USE_SCRATCH_REGISTER
 			case IREM:
-# if defined (I486) || defined (G_POWER)
-#  ifdef I486
+# if defined (I486) || defined (ARM) || defined (G_POWER)
+#  if defined (I486) || defined (ARM)
 			case IREMU:
 #  endif
 				instruction_use_2 (instruction,USE_DEF);
@@ -4077,7 +4296,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 # endif
 				break;
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			case IDIVI:	case IREMI:
 # ifndef THREAD32
 #  ifdef I486_USE_SCRATCH_REGISTER
@@ -4119,7 +4338,7 @@ IF_G_RISC (case IADDI: case ILSLI:)
 # endif
 				break;
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			case IFLOORDIV:	case IMOD:
 				if (instruction->instruction_arity==4)
 					use_3_same_type_registers
@@ -4224,7 +4443,7 @@ int do_register_allocation
 
 	do_not_alter_condition_codes=0;
 
-#ifndef I486	
+#if !(defined (I486) || defined (ARM))	
 	end_d_registers |= ((unsigned)1<<d_reg_num (REGISTER_D7));
 #endif
 
@@ -4243,7 +4462,7 @@ int do_register_allocation
 
 	end_a_registers |= ((unsigned)1<<a_reg_num (A_STACK_POINTER)) |
 					   ((unsigned)1<<a_reg_num (B_STACK_POINTER)) |
-#ifndef I486
+#if !(defined (I486) || defined (ARM))
 					   ((unsigned)1<<a_reg_num (REGISTER_A5)) |
 #endif
 #ifdef G_POWER

@@ -2299,7 +2299,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("acosR",			parse_instruction,			code_acosR );
 	put_instruction_name ("add_args",		parse_instruction_n_n_n,	code_add_args );
 	put_instruction_name ("addI",			parse_instruction,			code_addI );
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	put_instruction_name ("addLU",			parse_instruction,			code_addLU );
 #endif
 	put_instruction_name ("addR",			parse_instruction,			code_addR );
@@ -2346,7 +2346,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("divLU",			parse_instruction,			code_divLU );
 #endif
 	put_instruction_name ("divR",			parse_instruction,			code_divR );
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 	put_instruction_name ("divU",			parse_instruction,			code_divU );
 #endif
 	put_instruction_name ("entierR",		parse_instruction,			code_entierR );
@@ -2393,7 +2393,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("fillR_b",		parse_instruction_n_n,		code_fillR_b );
 	put_instruction_name ("fill_a",			parse_instruction_n_n,		code_fill_a );
 	put_instruction_name ("fill_r",			parse_instruction_a_n_n_n_n_n, code_fill_r );
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	put_instruction_name ("floordivI",		parse_instruction,			code_floordivI );
 #endif
 	put_instruction_name ("getWL",			parse_instruction_n,		code_dummy );
@@ -2404,13 +2404,13 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("gtC",			parse_instruction,			code_gtC );
 	put_instruction_name ("gtI",			parse_instruction,			code_gtI );
 	put_instruction_name ("gtR",			parse_instruction,			code_gtR );
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	put_instruction_name ("gtU",			parse_instruction,			code_gtU );
 #endif
 	put_instruction_name ("halt",			parse_instruction,			code_halt );
 	put_instruction_name ("in",				parse_instruction_in_or_out, code_in );
 	put_instruction_name ("incI",			parse_instruction,			code_incI );
-#if defined (I486) || defined (sparc)
+#if defined (I486) || defined (ARM) || defined (sparc)
 	put_instruction_name ("instruction",	parse_instruction_i, 		code_instruction );
 #else
 	put_instruction_name ("instruction",	parse_instruction_x, 		code_instruction );
@@ -2443,13 +2443,13 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("ltC",			parse_instruction,			code_ltC );
 	put_instruction_name ("ltI",			parse_instruction,			code_ltI );
 	put_instruction_name ("ltR",			parse_instruction,			code_ltR );
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	put_instruction_name ("ltU",			parse_instruction,			code_ltU );
 	put_instruction_name ("modI",			parse_instruction,			code_modI );
 #endif
 	put_instruction_name ("mulI",			parse_instruction,			code_mulI );
 	put_instruction_name ("mulR",			parse_instruction,			code_mulR );
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 	put_instruction_name ("mulUUL",			parse_instruction,			code_mulUUL );
 #endif
 	put_instruction_name ("negI",			parse_instruction,			code_negI );
@@ -2531,7 +2531,7 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("randomP",		parse_instruction,			code_randomP );
 	put_instruction_name ("release",		parse_instruction,			code_release );
 	put_instruction_name ("remI",			parse_instruction,			code_remI );
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	put_instruction_name ("remU",			parse_instruction,			code_remU );
 #endif
 	put_instruction_name ("replace",		parse_instruction_a_n_n,	code_replace );
@@ -2567,7 +2567,7 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name ("sqrtR",			parse_instruction,			code_sqrtR );
 	put_instruction_name ("stop_reducer",	parse_instruction,			code_stop_reducer );
 	put_instruction_name ("subI",			parse_instruction,			code_subI );
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	put_instruction_name ("subLU",			parse_instruction,			code_subLU );
 #endif
 #ifndef M68000

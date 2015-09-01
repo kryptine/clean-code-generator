@@ -14,23 +14,29 @@ void allocate_aregister (int aregister);
 void allocate_dregister (int dregister);
 void allocate_fregister (int fregister);
 #ifdef M68000
-void instruction_pd (int instruction_code,int register_1);
+	void instruction_pd (int instruction_code,int register_1);
 #endif
 void i_jmp_l (LABEL *label,int n_a_registers);
 void i_jmp_id (int offset_1,int register_1,int n_a_registers);
-#if ! (defined (sparc) || defined (G_POWER))
+#if defined (M68000) || defined (I486)
 	void i_jsr_id (int offset,int register_1,int n_a_registers);
 	void i_jsr_l (LABEL *label,int n_a_registers);
+#endif
+#if ! (defined (sparc) || defined (G_POWER))
 	void i_rts (void);
 # ifdef I486
 	void i_rts_i (int offset);
+# endif
+# if defined (I486) || defined (ARM)
 	void i_rts_profile (void);
 	void i_jmp_r_profile (int a_reg);
 	void i_jmp_l_profile (LABEL *label,int offset);
 	void i_jmp_id_profile (int offset_1,int register_1,int n_a_registers);
 # endif
 #else
-	void i_jsr_id_id (int offset_1,int register_1,int offset_2);
+# ifndef ARM
+		void i_jsr_id_id (int offset_1,int register_1,int offset_2);
+# endif
 	void i_jsr_l_id (LABEL *label,int offset);
 	void i_rts (int offset_1,int offset_2);
 # ifdef G_POWER
@@ -40,11 +46,16 @@ void i_jmp_id (int offset_1,int register_1,int n_a_registers);
 		void i_jmp_l_profile (LABEL *label,int offset);
 		void i_jmp_id_profile (int offset_1,int register_1,int n_a_registers);
 		void i_rts_profile (int offset_1,int offset_2);
-		void i_jsr_id_idu (int offset_1,int register_1,int offset_2);
-		void i_jsr_l_idu (LABEL *label,int offset);
 # endif
 #endif
-#if defined (sparc)
+#if defined (G_POWER) || defined (ARM)
+	void i_jsr_id_idu (int offset_1,int register_1,int offset_2);
+	void i_jsr_l_idu (LABEL *label,int offset);
+#endif
+#if defined (ARM)
+	void i_jsr_r_idu (int register_1,int offset);
+#endif
+#if defined (sparc) || defined (ARM)
 	void i_call_l (LABEL *label);
 	void i_call_r (int register_1);
 #elif defined (G_POWER)
@@ -56,15 +67,17 @@ void i_beq_l (LABEL *label);
 	extern LONG *i_bmi_i (VOID);
 	void i_bmi_l (LABEL *label);
 #endif
-#if defined (G_POWER) || defined (G_AI64)
+#if defined (G_POWER) || defined (G_AI64) || defined (ARM)
 	void i_or_i_r (LONG value,int register_1);
 #endif
-#ifdef G_POWER
+#if defined (G_POWER) || defined (ARM)
 	void i_and_i_r (LONG value,int register_1);
+#endif
+#ifdef G_POWER
 	void i_bnep_l (LABEL *label);
 	void i_mtctr (int register_1);
 #endif
-#if defined (sparc) || defined (I486) || defined (G_POWER)
+#if defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER)
 	void i_btst_i_r (LONG i,int register_1);
 #endif
 void i_ext_r (int register_1);
@@ -82,14 +95,19 @@ void i_fmove_id_fr (int offset,int register_2,int register_1);
 	void i_fmove_pd_fr (int register_1,int register_2);
 	void i_fmove_pi_fr (int register_1,int register_2);
 	void i_move_id_pd (int offset,int register_1,int register_2);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void i_fmoves_fr_id (int register_1,int offset,int register_2);
 #endif
 #endif
 void i_move_id_id (int offset_1,int register_1,int offset_2,int register_2);
 void i_move_id_r (int offset,int register_1,int register_2);
-#ifdef G_POWER
+#if defined (G_POWER) || defined (ARM)
 	void i_move_idu_r (int offset,int register_1,int register_2);
+#endif
+#if defined (ARM)
+void i_move_r_idpa (int register_1,int register_2,int offset);
+#endif
+#ifdef G_POWER
 	void i_move_id_idu (int offset1,int register_1,int offset2,int register_2);
 	void i_move_r_idu (int register_1,int offset,int register_2);
 	void i_movew_id_idu (int offset1,int register_1,int offset2,int register_2);
@@ -102,7 +120,7 @@ void i_move_pi_id (int register_1,int offset_2,int register_2);
 void i_move_pi_r (int register_1,int register_2);
 void i_move_pd_r (int register_1,int register_2);
 #endif
-#if defined (I486)
+#if defined (I486) || defined (ARM)
 	void i_move_r_l (int register_1,LABEL *label);
 #endif
 void i_move_r_id (int register_1,int offset,int register_2);
@@ -119,6 +137,12 @@ void i_movew_id_pd (int offset_1,int register_1,int register_2);
 void i_movew_pi_id (int register_1,int offset_2,int register_2);
 void i_movew_pi_r (int register_1,int register_2);
 void i_movew_r_pd (int register_1,int register_2);
+#endif
+#if defined (ARM)
+	void i_movem_pd_rs (int register_1,int n_arguments,int arguments[]);
+	void i_movem_pi_rs (int register_1,int n_arguments,int arguments[]);
+	void i_movem_rs_pd (int n_arguments,int arguments[],int register_1);
+	void i_movem_rs_pi (int n_arguments,int arguments[],int register_1);
 #endif
 void i_movew_id_r (int offset,int register_1,int register_2);
 void i_lea_id_r (int offset,int register_1,int register_2);

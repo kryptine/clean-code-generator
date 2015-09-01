@@ -18,7 +18,7 @@
 # endif
 #endif
 
-#if defined (I486) || defined (G_POWER) || defined (sparc)
+#if defined (I486) || defined (ARM) || defined (G_POWER) || defined (sparc)
 # define NEW_DESCRIPTORS
 #endif
 
@@ -73,12 +73,8 @@
 #	define DOUBLE double
 #endif
 
-#ifdef sparc
-#else
-#	if defined (I486) || defined (G_POWER)
-#	else
-#		define M68000
-#	endif
+#if ! (defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER))
+#	define M68000
 #endif
 
 #ifndef G_A64
@@ -99,7 +95,7 @@
 # endif
 #endif
 
-#if defined (I486) || (defined (G_POWER) || defined (ALIGN_C_CALLS)) || defined (MACH_O)
+#if defined (I486) || defined (ARM) || (defined (G_POWER) || defined (ALIGN_C_CALLS)) || defined (MACH_O)
 # define SEPARATE_A_AND_B_STACK_OVERFLOW_CHECKS
 #endif
 

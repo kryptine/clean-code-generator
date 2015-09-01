@@ -1345,7 +1345,7 @@ static int set_basic_block_begin_d_registers
 
 	for (offset=0; offset<b_stack_size; ++offset)
 		if (!test_bit (vector,offset)){
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			if (n_d_registers<n_data_parameter_registers)
 #else
 			if (n_d_registers<n_data_parameter_registers-1)
@@ -3364,7 +3364,11 @@ int block_stack_displacement;
 static WORD *check_size_p;
 #endif
 
-static int stack_access_and_adjust_a_stack_pointer (int extra_b_offset,int do_not_alter_condition_codes)
+static int stack_access_and_adjust_a_stack_pointer (int extra_b_offset,int do_not_alter_condition_codes
+# ifdef ARM
+	,int try_adjust_b_stack_pointer
+# endif
+	)
 {
 	int a_offset,b_offset,minimum_b_offset;
 	
@@ -3434,8 +3438,12 @@ static int stack_access_and_adjust_a_stack_pointer (int extra_b_offset,int do_no
 
 	b_offset+=extra_b_offset;
 
-#if defined (M68000) || defined (I486) || defined (G_POWER)
-	optimize_stack_access (last_block,&a_offset,&b_offset);
+#if defined (M68000) || defined (I486) || defined (ARM) || defined (G_POWER)
+	optimize_stack_access (last_block,&a_offset,&b_offset
+# ifdef ARM
+		,try_adjust_b_stack_pointer
+# endif
+		);
 #endif
 
 	if (a_offset!=0)
@@ -3456,7 +3464,11 @@ static void stack_access (int do_not_alter_condition_codes)
 {
 	register int b_offset;
 
-	b_offset=stack_access_and_adjust_a_stack_pointer (0,do_not_alter_condition_codes);
+	b_offset=stack_access_and_adjust_a_stack_pointer (0,do_not_alter_condition_codes
+# ifdef ARM
+														,1
+# endif
+														);
 	
 	if (b_offset!=0)
 #ifdef I486
@@ -3470,13 +3482,21 @@ static void stack_access (int do_not_alter_condition_codes)
 			i_sub_i_r (-b_offset,B_STACK_POINTER);
 }
 
-static int local_register_allocation_and_adjust_a_stack_pointer (int extra_b_offset)
+static int local_register_allocation_and_adjust_a_stack_pointer (int extra_b_offset
+# ifdef ARM
+	,int try_adjust_b_stack_pointer
+# endif
+	)
 {
 	int n_virtual_a_regs,n_virtual_d_regs,n_virtual_f_regs;
 	
 	get_n_virtual_registers (&n_virtual_a_regs,&n_virtual_d_regs,&n_virtual_f_regs);
 	do_register_allocation (last_instruction,last_block,n_virtual_a_regs,n_virtual_d_regs,n_virtual_f_regs,0,0);
-	return stack_access_and_adjust_a_stack_pointer (extra_b_offset,0);
+	return stack_access_and_adjust_a_stack_pointer (extra_b_offset,0
+# ifdef ARM
+													,try_adjust_b_stack_pointer
+# endif
+													);
 }
 
 void adjust_stack_pointers (void)
@@ -3543,12 +3563,18 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 	int code_size;
 #endif
 
-#if defined (sparc) || defined (I486) || defined (G_POWER)
+#if defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER)
 	int a_offset,b_offset;
-#else
+#endif
+#if defined (M68000)
 	static int d_registers[]={
 		REGISTER_D0,REGISTER_D1,REGISTER_D2,REGISTER_D3,REGISTER_D4,
 		REGISTER_D5,REGISTER_D6
+	};
+#endif
+#if defined (ARM)
+	static int reversed_d_registers[]={
+		REGISTER_D4,REGISTER_D3,REGISTER_D2,REGISTER_D1,REGISTER_D0
 	};
 #endif
 	
@@ -3584,6 +3610,31 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 	if (n_a_registers>1)
 		i_mtctr (num_to_d_reg (n_d_registers));
 #	else
+#		if defined (ARM)
+	if (node_a_register!=0 && (n_a_registers==1 || (n_a_registers==2 && node_a_register==1))){
+		i_move_r_idpa (num_to_a_reg (0),A_STACK_POINTER,STACK_ELEMENT_SIZE);
+	} else if (node_a_register==0 && n_a_registers==2){
+		i_move_r_idpa (num_to_a_reg (1),A_STACK_POINTER,STACK_ELEMENT_SIZE);
+	} else {
+		if (n_a_registers>2){
+			int a_registers[3],a_reg_n;
+			
+			a_reg_n=0;
+			for (n=0; n<n_a_registers; ++n)
+				if (n!=node_a_register)
+					a_registers[a_reg_n++]=num_to_a_reg (n);
+			i_movem_rs_pi (a_reg_n,a_registers,A_STACK_POINTER);
+		} else {
+			for (n=0; n<n_a_registers; ++n)
+				if (n!=node_a_register){
+					i_move_r_id (num_to_a_reg (n),a_offset,A_STACK_POINTER);
+					a_offset+=STACK_ELEMENT_SIZE;
+				}
+			if (a_offset>0)
+				i_add_i_r (a_offset,A_STACK_POINTER);
+		}
+	}
+#		else
 	for (n=n_a_registers-1; n>=0; --n)
 		if (n!=node_a_register){
 			i_move_r_id (num_to_a_reg (n),a_offset,A_STACK_POINTER);
@@ -3591,6 +3642,7 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 		}
 	if (a_offset>0)
 		i_add_i_r (a_offset,A_STACK_POINTER);
+#		endif
 #	endif
 #endif
 
@@ -3612,17 +3664,34 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 			i_move_r_pd (num_to_d_reg (n),B_STACK_POINTER);
 			code_size+=2;
 		}
+#elif defined (I486)
+	b_offset=0;
+	for (n=0; n<n_d_registers; ++n)
+		i_move_r_pd (num_to_d_reg (n),B_STACK_POINTER);
+#elif defined (ARM)
+	b_offset = n_d_registers << STACK_ELEMENT_LOG_SIZE;
+	if (n_d_registers!=0){
+		if (n_d_registers==1){
+			i_move_r_pd (num_to_d_reg (0),B_STACK_POINTER);
+			b_offset=0;
+		} else {
+			i_movem_rs_pd (n_d_registers,&reversed_d_registers[5-n_d_registers],B_STACK_POINTER);
+			b_offset=0;
+			/*
+			i_sub_i_r (b_offset,B_STACK_POINTER);
+			for (n=0; n<n_d_registers; ++n){
+				b_offset-=STACK_ELEMENT_SIZE;
+				i_move_r_id (num_to_d_reg (n),b_offset,B_STACK_POINTER);
+			}
+			*/
+		}
+	}
 #else
 	b_offset=0;
-#	ifdef I486
-		for (n=0; n<n_d_registers; ++n)
-			i_move_r_pd (num_to_d_reg (n),B_STACK_POINTER);
-#	else	
-		for (n=0; n<n_d_registers; ++n){
-			b_offset+=STACK_ELEMENT_SIZE;
-			i_move_r_id (num_to_d_reg (n),-b_offset,B_STACK_POINTER);
-		}
-#	endif
+	for (n=0; n<n_d_registers; ++n){
+		b_offset+=STACK_ELEMENT_SIZE;
+		i_move_r_id (num_to_d_reg (n),-b_offset,B_STACK_POINTER);
+	}
 #endif
 
 #ifdef M68000
@@ -3635,7 +3704,7 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 		b_offset+=8;
 		i_fmove_fr_id (n,-b_offset,B_STACK_POINTER);
 	}
-#	ifdef I486
+#	if defined (I486) || defined (ARM)
 		if (b_offset)
 			i_sub_i_r (b_offset,B_STACK_POINTER);
 #	else
@@ -3649,28 +3718,26 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 	i_move_r_r (num_to_d_reg (n_d_registers),REGISTER_A1);
 	i_jsr_id (0,REGISTER_A1,256);
 	code_size+=4;
-#else
-#	if defined (I486)
-		i_jsr_id (0,num_to_a_reg (node_a_register),0);
-#	else
-#		if defined (G_POWER)
-#			ifdef SMALLER_EVAL
-			if (n_a_registers>1){
-				struct label *eval_label;
+#elif defined (I486)
+	i_jsr_id (0,num_to_a_reg (node_a_register),0);
+#elif defined (ARM)
+	i_jsr_r_idu (REGISTER_D6,-4);
+#elif defined (G_POWER)
+#	ifdef SMALLER_EVAL
+		if (n_a_registers>1){
+			struct label *eval_label;
 
-				if (n_a_registers==2)
-					eval_label = node_a_register==0 ? eval_01_label : eval_11_label;
-				else
-					eval_label = node_a_register==0 ? eval_02_label : node_a_register==1 ? eval_12_label : eval_22_label;
+			if (n_a_registers==2)
+				eval_label = node_a_register==0 ? eval_01_label : eval_11_label;
+			else
+				eval_label = node_a_register==0 ? eval_02_label : node_a_register==1 ? eval_12_label : eval_22_label;
 
-				i_jsr_l_idu (eval_label,-(b_offset+4));
-			} else
-#			endif
-			i_jsr_id_idu (0,num_to_d_reg (n_d_registers),-(b_offset+4));
-#		else
-			i_jsr_id_id (0,num_to_d_reg (n_d_registers),0);
-#		endif
+			i_jsr_l_idu (eval_label,-(b_offset+4));
+		} else
 #	endif
+	i_jsr_id_idu (0,num_to_d_reg (n_d_registers),-(b_offset+4));
+#else
+	i_jsr_id_id (0,num_to_d_reg (n_d_registers),0);
 #endif
 
 #ifdef M68000
@@ -3695,20 +3762,31 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 			i_move_pi_r (B_STACK_POINTER,num_to_d_reg (n));
 			code_size+=2;
 		}
-#else
-#	ifdef I486
+#elif defined (I486)
 		if (b_offset>0)
 			i_add_i_r (b_offset,B_STACK_POINTER);
 		for (n=n_d_registers-1; n>=0; --n)
 			i_move_pi_r (B_STACK_POINTER,num_to_d_reg (n));	
-#	else
-		for (n=n_d_registers-1; n>=0; --n){
-			i_move_id_r (-offset,B_STACK_POINTER,num_to_d_reg (n));
-			offset-=STACK_ELEMENT_SIZE;
-		}
-		if (b_offset>0)
-			i_add_i_r (b_offset,B_STACK_POINTER);
+#else
+#	if defined (ARM)
+		if (offset==0){
+			if (n_d_registers==1){
+				i_move_pi_r (B_STACK_POINTER,num_to_d_reg (0));				
+				offset -= STACK_ELEMENT_SIZE;
+			} else if (n_d_registers>1){
+				i_movem_pi_rs (B_STACK_POINTER,n_d_registers,&reversed_d_registers[5-n_d_registers]);
+				offset -= n_d_registers << STACK_ELEMENT_LOG_SIZE;
+			}
+		} else
 #	endif
+		{
+			for (n=n_d_registers-1; n>=0; --n){
+				i_move_id_r (-offset,B_STACK_POINTER,num_to_d_reg (n));
+				offset-=STACK_ELEMENT_SIZE;
+			}
+			if (offset!=0)
+				i_add_i_r (-offset,B_STACK_POINTER);
+		}
 #endif
 
 	if (node_a_register!=0){
@@ -3743,15 +3821,40 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 					i_move_id_r (offset,A_STACK_POINTER,num_to_a_reg (n));
 			}
 	}
-#	else
+#	elif defined (ARM)
+	if (n_a_registers>2){
+		int a_registers[3],a_reg_n;
+		
+		a_reg_n=0;
 		for (n=0; n<n_a_registers; ++n)
+			if (n!=node_a_register)
+				a_registers[a_reg_n++]=num_to_a_reg (n);
+		i_movem_pd_rs (A_STACK_POINTER,a_reg_n,a_registers);
+	} else {
+		int last_a_register;
+		
+		last_a_register=0;
+		if (last_a_register==node_a_register)
+			++last_a_register;
+
+		for (n=n_a_registers-1; n>=0; --n)
 			if (n!=node_a_register){
 				offset-=STACK_ELEMENT_SIZE;
-				i_move_id_r (offset,A_STACK_POINTER,num_to_a_reg (n));
+				if (n==last_a_register)
+					i_move_idu_r (offset,A_STACK_POINTER,num_to_a_reg (n));
+				else
+					i_move_id_r (offset,A_STACK_POINTER,num_to_a_reg (n));
 			}
-		if (a_offset>0)
-			i_sub_i_r (a_offset,A_STACK_POINTER);
-#endif
+	}
+#	else
+	for (n=0; n<n_a_registers; ++n)
+		if (n!=node_a_register){
+			offset-=STACK_ELEMENT_SIZE;
+			i_move_id_r (offset,A_STACK_POINTER,num_to_a_reg (n));
+		}
+	if (a_offset>0)
+		i_sub_i_r (a_offset,A_STACK_POINTER);
+#	endif
 #endif
 
 #ifdef M68000
@@ -3798,7 +3901,7 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 	}
 
 	n_data_parameter_registers =
-#ifndef I486
+#if !(defined (I486) || defined (ARM))
 		block_graph->block_graph_kind==JSR_EVAL_BLOCK ? N_DATA_PARAMETER_REGISTERS-1 :
 #endif
 		N_DATA_PARAMETER_REGISTERS;
@@ -3848,7 +3951,7 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 			
 			for (n=0; n<b_stack_size; ++n)
 				if (!test_bit (vector,n)){
-#ifdef I486
+#if defined (I486) || defined (ARM)
 					if (n_allocated_d_regs<n_data_parameter_registers)
 #else
 					if (n_allocated_d_regs<n_data_parameter_registers-1)
@@ -3868,14 +3971,22 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 #else
 			i_move_id_r (0-NODE_POINTER_OFFSET,num_to_a_reg (block_graph->block_graph_end_a_stack_size
 						 -block_graph->block_graph_jsr_eval_offset-1),
+#	if defined (ARM)
+						 REGISTER_D6);
+#	else
 						 num_to_d_reg (n_allocated_d_regs));
+#	endif
 #	ifdef M68000
 			if (check_stack || parallel_flag)
 				i_bmi_l (block_graph->block_graph_last_instruction_label);
 			else
 				branch_offset_p=i_bmi_i();
 #	else
+#		if defined (ARM)
+			i_btst_i_r (2,REGISTER_D6);
+#		else
 			i_btst_i_r (2,num_to_d_reg (n_allocated_d_regs));
+#		endif
 #		ifdef G_POWER
 			i_bnep_l (block_graph->block_graph_last_instruction_label);
 #		else
@@ -3903,14 +4014,18 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 		{
 			int b_offset;
 			
-#if ! (defined (sparc) || defined (G_POWER))
+#if ! (defined (sparc) || defined (G_POWER) || defined (ARM))
 			b_offset=local_register_allocation_and_adjust_a_stack_pointer
 				(end_b_stack_size==global_block.block_graph_b_stack_end_displacement ? STACK_ELEMENT_SIZE : 0);
 #else
-			b_offset=local_register_allocation_and_adjust_a_stack_pointer (0);
+			b_offset=local_register_allocation_and_adjust_a_stack_pointer (0
+# ifdef ARM
+				,end_b_stack_size!=global_block.block_graph_b_stack_end_displacement
+# endif
+				);
 #endif
 
-#ifdef G_POWER
+#if defined (G_POWER) || defined (ARM)
 			{
 				int return_offset;
 				
@@ -4009,12 +4124,16 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 		}
 		case APPLY_BLOCK:
 		{
-			register int b_offset;
+			int b_offset;
 			
 #if defined (sparc) || defined (G_POWER)
 			b_offset=local_register_allocation_and_adjust_a_stack_pointer (-4);
 #else
-			b_offset=local_register_allocation_and_adjust_a_stack_pointer (0);
+			b_offset=local_register_allocation_and_adjust_a_stack_pointer (0
+# ifdef ARM
+																			,1
+# endif
+																			);
 #endif
 
 			if (b_offset!=0)
@@ -4023,24 +4142,24 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 				else
 					i_add_i_r (b_offset,B_STACK_POINTER);
 
-#if defined (I486)
+#if defined (I486) || defined (ARM)
 			i_move_id_r (0,REGISTER_A1,REGISTER_A2);
 # ifdef MACH_O64
 			i_jsr_id (8-2,REGISTER_A2,0);
 # elif defined (G_A64) && defined (LINUX)
 			i_jsr_id (pic_flag ? 8-2 : 4-2,REGISTER_A2,0);
+# elif defined (ARM)
+			i_jsr_id_idu (4-2,REGISTER_A2,-4);
 # else
 			i_jsr_id (4-2,REGISTER_A2,0);
 # endif
-#else
-# ifdef M68000
-#	if !defined (SUN)
+#elif defined (M68000)
+# if !defined (SUN)
 			i_add_r_r (GLOBAL_DATA_REGISTER,REGISTER_A2);
-#  endif
-			i_jsr_id (0,REGISTER_A2,2<<4);
-# else
-			i_jsr_id_id (0,REGISTER_A2,0);
 # endif
+			i_jsr_id (0,REGISTER_A2,2<<4);
+#else
+			i_jsr_id_id (0,REGISTER_A2,0);
 #endif
 			break;
 		}
@@ -4329,7 +4448,7 @@ void generate_code_for_previous_blocks (int jmp_jsr_or_rtn_flag)
 	}
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 int end_basic_block_with_registers_and_return_address_and_return_b_stack_offset
 	(int n_a_parameters,int n_b_parameters,ULONG vector[],int n_data_parameter_registers)
 {
@@ -4353,7 +4472,11 @@ int end_basic_block_with_registers_and_return_address_and_return_b_stack_offset
 				);
 	
 	linearize_stack_graphs();
-	b_stack_offset=local_register_allocation_and_adjust_a_stack_pointer (0);
+	b_stack_offset=local_register_allocation_and_adjust_a_stack_pointer (0
+# ifdef ARM
+																			,1
+# endif
+																			);
 	
 	return b_stack_offset;
 }
@@ -4381,7 +4504,11 @@ int end_basic_block_with_registers_and_return_b_stack_offset (int n_a_parameters
 				);
 	
 	linearize_stack_graphs();
-	b_stack_offset=local_register_allocation_and_adjust_a_stack_pointer (0);
+	b_stack_offset=local_register_allocation_and_adjust_a_stack_pointer (0
+# ifdef ARM
+																		,1
+# endif
+																		);
 	
 	return b_stack_offset;
 }

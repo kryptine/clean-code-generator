@@ -59,7 +59,7 @@ extern LABEL
 	*eval_01_label,*eval_11_label,*eval_02_label,*eval_12_label,*eval_22_label,
 #endif
 	*EMPTY_label;
-#if defined (G_POWER) || defined (I486)
+#if defined (G_POWER) || defined (I486) || defined (ARM)
 extern LABEL
 	*profile_l_label,*profile_l2_label,*profile_n_label,*profile_n2_label,
 	*profile_s_label,*profile_s2_label,*profile_r_label,*profile_t_label;

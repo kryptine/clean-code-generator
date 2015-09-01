@@ -21,7 +21,7 @@
 
 #include "cgport.h"
 
-#if defined (G_POWER) || defined (I486) || defined (sparc)
+#if defined (G_POWER) || defined (I486) || defined (ARM) || defined (sparc)
 # define NO_STRING_ADDRESS_IN_DESCRIPTOR
 #endif
 
@@ -29,7 +29,7 @@
 # define SIN_COS_CSE
 #endif
 
-#if defined (G_POWER) || defined (I486)
+#if defined (G_POWER) || defined (I486) || defined (ARM)
 #	define PROFILE
 # if defined (G_POWER)
 #  if defined (MACH_O)
@@ -60,7 +60,7 @@
 #	include "cgpas.h"
 #	include "cgpwas.h"
 #else
-# ifdef I486
+# if defined (I486) || defined (ARM)
 #  ifdef G_AI64
 #	include "cgaas.h"
 #	include "cgawas.h"
@@ -223,16 +223,16 @@ int no_time_profiling;
 #define g_bounds(g1,g2) g_instruction_2(GBOUNDS,(g1),(g2))
 #define g_cmp_eq(g1,g2) g_instruction_2(GCMP_EQ,(g1),(g2))
 #define g_cmp_gt(g1,g2) g_instruction_2(GCMP_GT,(g1),(g2))
-#ifdef I486
+#if defined (I486) || defined (ARM)
 # define g_cmp_gtu(g1,g2) g_instruction_2(GCMP_GTU,(g1),(g2))
 #endif
 #define g_cmp_lt(g1,g2) g_instruction_2(GCMP_LT,(g1),(g2))
-#ifdef I486
+#if defined (I486) || defined (ARM)
 # define g_cmp_ltu(g1,g2) g_instruction_2(GCMP_LTU,(g1),(g2))
 #endif
 #define g_cnot(g1) g_instruction_1(GCNOT,(g1))
 #define g_div(g1,g2) g_instruction_2(GDIV,(g1),(g2))
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 # define g_divu(g1,g2) g_instruction_2(GDIVU,(g1),(g2))
 #endif
 #define g_eor(g1,g2) g_instruction_2(GEOR,(g1),(g2))
@@ -242,7 +242,7 @@ int no_time_profiling;
 #define g_fcmp_lt(g1,g2) g_instruction_2(GFCMP_LT,(g1),(g2))
 #define g_fdiv(g1,g2) g_instruction_2(GFDIV,(g1),(g2))
 #define g_fitor(g1) g_instruction_1(GFITOR,(g1))
-#ifdef I486
+#if defined (I486) || defined (ARM)
 # define g_floordiv(g1,g2) g_instruction_2(GFLOORDIV,(g1),(g2))
 #endif
 #define g_fmul(g1,g2) g_instruction_2(GFMUL,(g1),(g2))
@@ -252,13 +252,13 @@ int no_time_profiling;
 #define g_lsl(g1,g2) g_instruction_2(GLSL,(g1),(g2))
 #define g_lsr(g1,g2) g_instruction_2(GLSR,(g1),(g2))
 #define g_rem(g1,g2) g_instruction_2(GREM,(g1),(g2))
-#ifdef I486
+#if defined (I486) || defined (ARM)
 # define g_mod(g1,g2) g_instruction_2(GMOD,(g1),(g2))
 # define g_remu(g1,g2) g_instruction_2(GREMU,(g1),(g2))
 #endif
 #define g_mul(g1,g2) g_instruction_2(GMUL,(g1),(g2))
 #define g_neg(g1) g_instruction_1(GNEG,(g1))
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 # define g_not(g1) g_instruction_1(GNOT,(g1))
 #endif
 #define g_or(g1,g2) g_instruction_2(GOR,(g1),(g2))
@@ -297,8 +297,11 @@ LABEL	*cycle_in_spine_label,*reserve_label;
 static LABEL	*halt_label,*cmp_string_label,*eqD_label,
 				*slice_string_label,*print_label,*print_sc_label,
 				*print_symbol_label,*print_symbol_sc_label,*D_to_S_label,
+#if defined (M68000) || defined (ARM)
+				*div_label,*mod_label,
+#endif
 #ifdef M68000
-				*div_label,*mod_label,*mul_label,
+				*mul_label,
 #endif
 				*update_string_label,*equal_string_label,
 				*yet_args_needed_label,
@@ -639,7 +642,7 @@ void code_addI (VOID)
 	s_put_b (0,graph_3);
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_addLU (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
@@ -1127,7 +1130,7 @@ void code_buildB (int value)
 	}
 #endif
 	
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	graph_3=g_load_i (value);
 #else
 	graph_3=g_load_i (-value);
@@ -1500,7 +1503,7 @@ void code_CtoAC (VOID)
 
 	graph_2=g_load_i (1);
 	graph_3=s_pop_b();
-#ifndef I486
+#if !(defined (I486) || defined (ARM))
 	graph_3=g_lsl (g_load_i (24),graph_3);
 #endif
 
@@ -2271,26 +2274,40 @@ void code_del_args (int source_offset,int n_arguments,int destination_offset)
 
 void code_divI (VOID)
 {
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+
+	graph_2=s_get_b (1);
+
 #ifdef M68000
 	if (!mc68000_flag){
 #endif
-		INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
-
+#ifdef ARM
+	if (graph_2->instruction_code==GLOAD_I && graph_2->instruction_parameters[0].i!=0){
+#endif
 		graph_1=s_pop_b();
-		graph_2=s_get_b (0);
+#ifdef ARM
+		graph_2=g_load_i (graph_2->instruction_parameters[0].i);
+#endif
 		graph_3=g_div (graph_2,graph_1);
 		s_put_b (0,graph_3);
+#ifdef ARM
+		return;
+	}
+#endif
 #ifdef sparc
 		if (dot_div_label==NULL)
 			dot_div_label=enter_label (".div",IMPORT_LABEL);
 #endif
 #ifdef M68000
-	} else {
+	} else
+#endif
+#if defined (M68000) || defined (ARM)
+	{
 		if (div_label==NULL)
 			div_label=enter_label ("divide",IMPORT_LABEL);
 		
 		s_push_b (s_get_b (0));
-		s_put_b (1,s_get_b (2));
+		s_put_b (1,graph_2);
 		s_put_b (2,NULL);
 	
 		insert_basic_block (JSR_BLOCK,0,2+1,i_i_vector,div_label);
@@ -2347,7 +2364,7 @@ void code_divR (VOID)
 #endif
 }
 
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 void code_divU (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
@@ -2420,7 +2437,7 @@ void code_eqB_a (int value,int a_offset)
 	
 	graph_1=s_get_a (a_offset);
 	graph_2=g_load_id (ARGUMENTS_OFFSET-NODE_POINTER_OFFSET,graph_1);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	graph_3=g_load_i (value);
 #else
 	graph_3=g_load_i (-value);
@@ -2435,7 +2452,7 @@ void code_eqB_b (int value,int b_offset)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 	
 	graph_1=s_get_b (b_offset);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	graph_2=g_load_i (value);
 #else
 	graph_2=g_load_i (-value);
@@ -3490,7 +3507,7 @@ void code_fillB (int value,int a_offset)
 #endif
 	
 	graph_1=s_get_a (a_offset);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	graph_3=g_load_i (value);
 #else
 	graph_3=g_load_i (-value);
@@ -3791,7 +3808,7 @@ void code_fillcaf (char *label_name,int a_stack_size,int b_stack_size)
 	}
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_floordivI (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
@@ -3976,7 +3993,7 @@ void code_gtR (VOID)
 #endif
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_gtU (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
@@ -4024,7 +4041,7 @@ void code_is_record (int a_offset)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6,graph_7;
 	
 	graph_1=s_get_a (a_offset);
-#if defined (sparc) || defined (I486) || defined (G_POWER)
+#if defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER)
 	graph_2=g_load_id (0,graph_1);
 	graph_5=g_load_des_id (-2,graph_2);
 #else
@@ -4107,7 +4124,7 @@ static void code_jmp_label (LABEL *label);
 static void code_jmp_ap_ (int n_apply_args)
 {
     if (n_apply_args==1){
-#if defined (I486)
+#if defined (I486) || defined (ARM)
 		end_basic_block_with_registers (2,0,e_vector);
 		i_move_id_r (0,REGISTER_A1,REGISTER_A2);
 # ifdef PROFILE
@@ -4341,7 +4358,7 @@ void code_jmp_ap (int n_apply_args)
 
 void code_jmp_ap_upd (int n_apply_args)
 {
-#if defined (I486) && !defined (G_AI64)
+#if (defined (I486) || defined (ARM)) && !defined (G_AI64)
 	char apupd_label_name[32];
 
 	code_d (1+n_apply_args,0,e_vector);
@@ -4376,7 +4393,7 @@ void code_jmp_eval (VOID)
 # else
 	i_bne_l (label);
 # endif
-# ifdef I486
+# if defined (I486) || defined (ARM)
 #  ifdef PROFILE
 	if (profile_function_label!=NULL)
 		i_jmp_r_profile (REGISTER_D0);
@@ -4442,7 +4459,7 @@ void code_jmp_eval_upd (VOID)
 #  else
 	i_bne_l (label);
 # endif
-# ifdef I486
+# if defined (I486) || defined (ARM)
 	i_sub_i_r (20,REGISTER_D0);
 #  ifdef PROFILE
 	if (profile_function_label!=NULL)
@@ -4483,7 +4500,7 @@ void code_jmp_eval_upd (VOID)
 		i_move_id_id (0,REGISTER_A1,8,REGISTER_A0);
 #	else
 		i_move_r_id (REGISTER_D0,0,REGISTER_A0);
-#		ifdef I486
+#		if defined (I486) || defined (ARM)
 #		 ifndef THREAD32
 			i_move_id_id (STACK_ELEMENT_SIZE,REGISTER_A1,STACK_ELEMENT_SIZE,REGISTER_A0);
 			i_move_id_id (2*STACK_ELEMENT_SIZE,REGISTER_A1,2*STACK_ELEMENT_SIZE,REGISTER_A0);
@@ -4602,7 +4619,7 @@ void code_jmp_true (char label_name[])
 #endif
 }
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 static void define_label_in_block (LABEL *label_2)
 {
 	struct block_label *new_label;
@@ -4650,7 +4667,7 @@ static void code_jsr_ap_ (int n_apply_args)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5;
 
 	if (n_apply_args==1){
-#if !defined (I486)
+#if !(defined (I486) || defined (ARM))
 		graph_1=s_get_a (0);
 # if defined (sparc) || defined (G_POWER)
 #  pragma unused (graph_3,graph_4)
@@ -4674,7 +4691,7 @@ static void code_jsr_ap_ (int n_apply_args)
 			offered_after_jsr=1;
 		demand_flag=0;
 
-#if defined (I486)
+#if defined (I486) || defined (ARM)
 		insert_basic_block (APPLY_BLOCK,2,0,e_vector,NULL);
 #else
 		insert_basic_block (APPLY_BLOCK,3,0,e_vector,NULL);
@@ -4698,7 +4715,7 @@ static void code_jsr_label (LABEL *label)
 {
 	INSTRUCTION_GRAPH graph;
 	int b_stack_size,n_data_parameter_registers;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 	LABEL *label_2;
 #endif		
 
@@ -4734,7 +4751,7 @@ static void code_jsr_label (LABEL *label)
 
 	insert_basic_block (JSR_BLOCK,demanded_a_stack_size,b_stack_size,demanded_vector,label);
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 	if (graph!=NULL)
 		define_label_in_block (label_2);
 #endif
@@ -4777,7 +4794,7 @@ void code_jsr_from_c_to_clean (char *label_name)
 	LABEL *label;
 	INSTRUCTION_GRAPH graph;
 	int b_stack_size,n_data_parameter_registers;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 	LABEL *label_2;
 #endif		
 
@@ -4812,7 +4829,7 @@ void code_jsr_from_c_to_clean (char *label_name)
 
 	insert_basic_block (JSR_BLOCK_WITH_INSTRUCTIONS,demanded_a_stack_size,b_stack_size,demanded_vector,label);
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 	if (graph!=NULL)
 		define_label_in_block (label_2);
 #endif
@@ -4964,7 +4981,7 @@ void code_ltR (VOID)
 #endif
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_ltU (VOID)
 {	
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
@@ -5071,26 +5088,40 @@ void code_modI (VOID)
 
 void code_remI (VOID)
 {
+	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
+
+	graph_2=s_get_b (1);
+
 #ifdef M68000
 	if (!mc68000_flag){
 #endif
-		INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
-
+#ifdef ARM
+	if (graph_2->instruction_code==GLOAD_I && graph_2->instruction_parameters[0].i!=0){
+#endif
 		graph_1=s_pop_b();
-		graph_2=s_get_b (0);
+#ifdef ARM
+		graph_2=g_load_i (graph_2->instruction_parameters[0].i);
+#endif
 		graph_3=g_rem (graph_2,graph_1);
 		s_put_b (0,graph_3);
+#ifdef ARM
+		return;
+	}
+#endif
 #ifdef sparc
 		if (dot_rem_label==NULL)
 			dot_rem_label=enter_label (".rem",IMPORT_LABEL);
 #endif
 #ifdef M68000
-	} else {
+	} else
+#endif
+#if defined (M68000) || defined (ARM)
+	{
 		if (mod_label==NULL)
 			mod_label=enter_label ("modulo",IMPORT_LABEL);
 
 		s_push_b (s_get_b (0));
-		s_put_b (1,s_get_b (2));
+		s_put_b (1,graph_2);
 		s_put_b (2,NULL);
 
 		insert_basic_block (JSR_BLOCK,0,2+1,i_i_vector,mod_label);
@@ -5100,7 +5131,7 @@ void code_remI (VOID)
 #endif
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_remU (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
@@ -5206,11 +5237,11 @@ void code_mulI (VOID)
 #endif
 }
 
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 void code_mulUUL (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
-# ifdef I486
+# if defined (I486) || defined (ARM)
 	INSTRUCTION_GRAPH graph_5;
 # endif
 	
@@ -5403,7 +5434,7 @@ void code_not (VOID)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 	
 	graph_1=s_get_b (0);
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 	graph_3=g_not (graph_1);
 #else
 	graph_2=g_load_i (-1);
@@ -5632,7 +5663,7 @@ void code_pushcaf (char *label_name,int a_stack_size,int b_stack_size)
 
 	n_arguments=a_stack_size+b_stack_size;
 
-#ifndef I486
+#if! (defined (I486) || defined (ARM))
 	if (n_arguments>2 && n_arguments<8){
 		INSTRUCTION_GRAPH graph_2;
 		
@@ -5684,7 +5715,7 @@ void code_pushB (int b)
 {
 	INSTRUCTION_GRAPH graph_1;
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	graph_1=g_load_i (b);
 #else
 	graph_1=g_load_i (-b);
@@ -5808,7 +5839,7 @@ void code_pushLc (char *c_function_name)
 	INSTRUCTION_GRAPH graph_1;
 	LABEL *label;
 
-#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (G_AI64) && !defined (LINUX_ELF)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O) || defined (MACH_O64)
+#if (defined (sparc) && !defined (SOLARIS)) || ((defined (I486) || defined (ARM)) && !defined (G_AI64) && !defined (LINUX_ELF)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O)
 	char label_name [202];
 	
 # if defined (G_POWER) && !defined (MACH_O)
@@ -5934,7 +5965,7 @@ void code_push_t_r_a (int a_offset)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 	
 	graph_1=s_get_a (a_offset);
-#if defined (sparc) || defined (I486) || defined (G_POWER)
+#if defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER)
 	graph_2=g_load_id (0,graph_1);
 	graph_3=g_add (g_load_i (2),graph_2);
 #else
@@ -6026,7 +6057,7 @@ void code_push_args (int a_offset,int arity,int n_arguments)
 				graph_4=g_load_id (0-NODE_POINTER_OFFSET,graph_3);
 				s_push_a (graph_4);
 			} else {
-#ifndef I486
+#if ! (defined (I486) || defined (ARM))
 				if (n_arguments>=8){
 #endif
 					while (n_arguments!=0){
@@ -6038,7 +6069,7 @@ void code_push_args (int a_offset,int arity,int n_arguments)
 	
 						s_push_a (graph_5);
 					}
-#ifndef I486
+#if ! (defined (I486) || defined (ARM))
 				} else {
 					graph_4=g_movem (0-NODE_POINTER_OFFSET,graph_3,n_arguments);
 					while (n_arguments!=0){
@@ -6309,7 +6340,7 @@ void code_push_node (char *label_name,int n_arguments)
 	if (n_arguments!=0){
 		if (n_arguments!=1){
 			int argument_n;
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			argument_n=n_arguments;
 			while (argument_n!=0){
 				graph_5=g_load_id ((argument_n<<STACK_ELEMENT_LOG_SIZE)-NODE_POINTER_OFFSET,graph_1);
@@ -6385,7 +6416,7 @@ void code_push_node_u (char *label_name,int a_size,int b_size)
 	if (a_size+b_size!=0){
 		if (a_size+b_size!=1){
 			int argument_n;
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			argument_n=a_size+b_size;
 			while (argument_n!=0){
 				graph_5=g_load_id ((argument_n<<(STACK_ELEMENT_LOG_SIZE))-NODE_POINTER_OFFSET,graph_1);
@@ -6738,7 +6769,7 @@ static void code_replaceI (VOID)
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 # ifdef M68000
 		if (mc68000_flag){
 			graph_2=g_lsl (g_load_i (2),graph_2);
@@ -6842,7 +6873,7 @@ static void code_replaceBC (int offset,int ext_signed)
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		{
 		int new_offset;
 
@@ -6881,7 +6912,7 @@ static void code_lazy_replace (VOID)
 		if (check_index_flag)
 			graph_3=g_bounds (graph_1,graph_3);
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 # ifdef M68000
 		if (mc68000_flag){
 			graph_3=g_lsl (g_load_i (2),graph_3);
@@ -6966,7 +6997,7 @@ static void code_replaceR (VOID)
 			graph_4=g_fload_x (graph_1,offset,0,NULL);
 			graph_8=g_fstore_x (graph_7,graph_1,offset,0,NULL);
 		} else {
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 			int offset;
 
 			graph_2=optimize_array_index (ARRAY_ELEMENTS_OFFSET,3,graph_2,&offset);
@@ -7003,7 +7034,7 @@ static void code_replaceR (VOID)
 	s_push_b (graph_9);
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void code_replaceR32 (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_7,graph_8,graph_9,graph_10;
@@ -7196,7 +7227,7 @@ void code_replace (char element_descriptor[],int a_size,int b_size)
 					code_replaceR();
 					return;
 				}
-#ifdef I486
+#if defined (I486) || defined (ARM)
 				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
 					code_replaceR32();
 					return;
@@ -7279,7 +7310,7 @@ void code_repl_args (int arity,int n_arguments)
 				graph_4=g_load_id (0-NODE_POINTER_OFFSET,graph_3);
 				s_push_a (graph_4);
 			} else {
-#ifndef I486
+#if ! (defined (I486) || defined (ARM))
 				if (n_arguments>=8){
 #endif
 					while (n_arguments!=0){
@@ -7290,7 +7321,7 @@ void code_repl_args (int arity,int n_arguments)
 						graph_5=g_load_id ((n_arguments<<STACK_ELEMENT_LOG_SIZE)-NODE_POINTER_OFFSET,graph_3);
 						s_push_a (graph_5);
 					}
-#ifndef I486
+#if ! (defined (I486) || defined (ARM))
 				} else {
 					graph_4=g_movem (0-NODE_POINTER_OFFSET,graph_3,n_arguments);
 	
@@ -7450,7 +7481,7 @@ void code_rtn (void)
 		if (n_data_registers>n_data_parameter_registers || n_float_registers>n_float_parameter_registers){
 			INSTRUCTION_GRAPH graph;
 
-#ifndef I486
+#if ! (defined (I486) || defined (ARM))
 			graph=s_get_b (b_stack_size);
 			for	(offset=b_stack_size-1; offset>=0; --offset)
 				s_put_b (offset+1,s_get_b (offset));
@@ -7512,11 +7543,11 @@ void code_rtn (void)
 		}
 	}
 
-#ifndef I486
+#if ! (defined (I486) || defined (ARM))
 	if (return_with_rts){
 #endif
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		b_offset+=
 			end_basic_block_with_registers_and_return_address_and_return_b_stack_offset
 				(a_stack_size,b_stack_size,local_demanded_vector,n_data_parameter_registers);
@@ -7547,7 +7578,7 @@ void code_rtn (void)
 # endif
 			i_rts (b_offset-4,b_offset);
 #endif
-#ifndef I486
+#if ! (defined (I486) || defined (ARM))
 	} else {
 		b_offset+=
 			end_basic_block_with_registers_and_return_b_stack_offset
@@ -7593,7 +7624,7 @@ void code_RtoI (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
 
-#if defined (G_POWER) || defined (I486)
+#if defined (G_POWER) || defined (I486) || defined (ARM)
 # ifdef G_POWER
 	if (r_to_i_buffer_label==NULL)
 		r_to_i_buffer_label=enter_label ("r_to_i_buffer",IMPORT_LABEL);
@@ -7647,7 +7678,7 @@ static void code_lazy_select (VOID)
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 # ifdef M68000
 		if (mc68000_flag){
 			graph_2=g_lsl (g_load_i (2),graph_2);
@@ -7684,7 +7715,7 @@ static void code_selectBC (int offset,int ext_signed)
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		{
 		int new_offset;
 
@@ -7730,7 +7761,7 @@ static void code_selectI (VOID)
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 # ifdef M68000
 		if (mc68000_flag){
 			graph_2=g_lsl (g_load_i (2),graph_2);
@@ -7819,7 +7850,7 @@ static void code_selectR (VOID)
 		{
 			graph_4=g_fload_x (graph_1,REAL_ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<3),0,NULL);
 		} else {
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 			int offset;
 
 			graph_2=optimize_array_index (REAL_ARRAY_ELEMENTS_OFFSET,3,graph_2,&offset);
@@ -7850,7 +7881,7 @@ static void code_selectR (VOID)
 	s_push_b (graph_5);
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM) 
 static void code_selectR32 (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
@@ -7981,7 +8012,7 @@ void code_select (char element_descriptor[],int a_size,int b_size)
 					code_selectR();
 					return;
 				}
-#ifdef I486
+#if defined (I486) || defined (ARM)
 				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
 					code_selectR32();
 					return;
@@ -8270,7 +8301,7 @@ void code_subI (VOID)
 	s_put_b (0,graph_3);
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_subLU (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
@@ -8444,7 +8475,7 @@ static void code_lazy_update (VOID)
 		if (check_index_flag)
 			graph_3=g_bounds (graph_1,graph_3);
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 # ifdef M68000
 		if (mc68000_flag){
 			graph_3=g_lsl (g_load_i (2),graph_3);
@@ -8482,7 +8513,7 @@ static void code_updateBC (int offset)
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		{
 		int new_offset;
 
@@ -8526,7 +8557,7 @@ static void code_updateI (VOID)
 		if (check_index_flag)
 			graph_2=g_bounds (graph_1,graph_2);
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 # ifdef M68000
 		if (mc68000_flag){
 			graph_2=g_lsl (g_load_i (2),graph_2);
@@ -8624,7 +8655,7 @@ static void code_updateR (VOID)
 		{
 			graph_8=g_fstore_x (graph_7,graph_1,REAL_ARRAY_ELEMENTS_OFFSET+(graph_2->instruction_parameters[0].i<<3),0,NULL);
 		} else {
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 			int offset;
 
 			graph_2=optimize_array_index (REAL_ARRAY_ELEMENTS_OFFSET,3,graph_2,&offset);
@@ -8646,7 +8677,7 @@ static void code_updateR (VOID)
 	s_put_a (0,graph_8);
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void code_updateR32 (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_7,graph_8;
@@ -8867,7 +8898,7 @@ void code_update (char element_descriptor[],int a_size,int b_size)
 					code_updateR();
 					return;
 				}
-#ifdef I486
+#if defined (I486) || defined (ARM)
 				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
 					code_updateR32();
 					return;
@@ -9002,7 +9033,7 @@ void code_caf (char *label_name,int a_stack_size,int b_stack_size)
 
 void code_comp (int version,char *options)
 {
-#if defined (G_POWER) || defined (I486)
+#if defined (G_POWER) || defined (I486) || defined (ARM)
 	int l;
 	
 	l=strlen (options);
@@ -9227,14 +9258,14 @@ static void code_descriptor (char label_name[],char node_entry_label_name[],char
 
 #ifndef NEW_DESCRIPTORS
 # ifdef GEN_OBJ
-#  ifdef I486
+#  if defined (I486) || defined (ARM)
 	store_long_word_in_data_section ((arity<<16) | lazy_record_flag);
 #  else
 	store_2_words_in_data_section (lazy_record_flag,arity);
 #  endif
 # endif
 	if (assembly_flag){
-# if defined (sparc) || defined (I486) || defined (G_POWER)
+# if defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER)
 		w_as_word_in_data_section (lazy_record_flag);
 # endif
 		w_as_word_in_data_section (arity);
@@ -10530,8 +10561,11 @@ void initialize_coding (VOID)
 	eval_22_label=enter_label ("eval_22",IMPORT_LABEL);
 #endif
 	
+#if defined (M68000) || defined (ARM)
+	div_label=mod_label=NULL;
+#endif
 #ifdef M68000
-	div_label=mod_label=mul_label=NULL;
+	mul_label=NULL;
 #endif
 	
 	first_dependency=NULL;

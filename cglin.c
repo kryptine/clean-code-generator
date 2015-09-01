@@ -164,7 +164,7 @@ void i_add_r_r (int register_1,int register_2)
 												parameter_data.i=register_2);
 }
 
-#if defined (G_POWER) || defined (sparc)
+#if defined (G_POWER) || defined (sparc) || defined (ARM)
 static void i_addi_r_r (LONG value,int register_1,int register_2)
 {
 	struct instruction *instruction;
@@ -182,7 +182,7 @@ static void i_addi_r_r (LONG value,int register_1,int register_2)
 }
 #endif
 
-#if defined (M68000) || defined (G_POWER) || defined (G_AI64)
+#if defined (M68000) || defined (G_POWER) || defined (G_AI64) || defined (ARM)
 # if defined (M68000)
 	static
 # endif
@@ -235,7 +235,7 @@ void i_bnep_l (LABEL *label)
 }
 #endif
 
-#if defined (sparc) || defined (I486)
+#if defined (sparc) || defined (I486) || defined (ARM)
 void i_bne_l (LABEL *label)
 {
 	register struct instruction *instruction;
@@ -281,7 +281,7 @@ static void i_bmove_pi_pi_r (int reg_1,int reg_2,int reg_3)
 }
 #endif
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void i_btst_i_id (LONG i,int offset,int register_1)
 {
 	register struct instruction *instruction;
@@ -297,7 +297,7 @@ void i_btst_i_id (LONG i,int offset,int register_1)
 }
 #endif
 
-#if defined (sparc) || defined (I486) || defined (G_POWER)
+#if defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER)
 void i_btst_i_r (LONG i,int register_1)
 {
 	register struct instruction *instruction;
@@ -444,7 +444,7 @@ static void i_fexg_fr_fr (int register_1,int register_2)
 }
 #endif
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void i_floads_id_fr (int offset,int register_2,int register_1)
 {
 	struct instruction *instruction;
@@ -635,7 +635,7 @@ static void i_fmovel_fr_r (int register_1,int register_2)
 												parameter_data.i=register_2);
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void i_fmoves_fr_id (int register_1,int offset,int register_2)
 {
 	struct instruction *instruction;
@@ -702,7 +702,7 @@ static void i_fmove_x_fr (int offset,int register_1,int register_2,int register_
 	set_float_register_parameter (instruction->instruction_parameters[1],register_3);
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void i_floads_x_fr (int offset,int register_1,int register_2,int register_3)
 {
 	struct instruction *instruction;
@@ -735,7 +735,7 @@ void i_jmp_id (int offset_1,int register_1,int n_a_registers)
 	instruction->instruction_parameters[0].parameter_data.reg.u=n_a_registers;
 }
 
-#if defined (G_POWER) || defined (I486)
+#if defined (G_POWER) || defined (I486) || defined (ARM)
 void i_jmp_id_profile (int offset_1,int register_1,int n_a_registers)
 {
 	struct instruction *instruction;
@@ -762,7 +762,7 @@ void i_jmp_l (LABEL *label,int n_a_registers)
 	instruction->instruction_parameters[0].parameter_offset=n_a_registers;
 }
 
-#if defined (G_POWER) || defined (I486)
+#if defined (G_POWER) || defined (I486) || defined (ARM)
 void i_jmp_l_profile (LABEL *label,int offset)
 {
 	struct instruction *instruction;
@@ -776,7 +776,7 @@ void i_jmp_l_profile (LABEL *label,int offset)
 }
 #endif
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void i_jmp_r (int a_reg)
 {
 	struct instruction *instruction;
@@ -824,6 +824,7 @@ void i_jsr_l (LABEL *label,int n_a_registers)
 	instruction->instruction_parameters[0].parameter_offset=n_a_registers; /* for parallel code on MC680x0 */
 }
 #else
+# ifndef ARM
 void i_jsr_id_id (int offset_1,int register_1,int offset_2)
 {
 	struct instruction *instruction;
@@ -838,22 +839,25 @@ void i_jsr_id_id (int offset_1,int register_1,int offset_2)
 /*	instruction->instruction_parameters[1].parameter_data.reg.r=B_STACK_POINTER; */
 	instruction->instruction_parameters[1].parameter_data.i=offset_2;
 }
-
+# endif
 void i_jsr_l_id (LABEL *label,int offset)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction2 (IJSR);
-	
-	instruction->instruction_parameters[0].parameter_type=P_LABEL;
-	instruction->instruction_parameters[0].parameter_data.l=label;
+
+	S2(instruction->instruction_parameters[0],	parameter_type=P_LABEL,
+												parameter_data.l=label);
 
 	instruction->instruction_parameters[1].parameter_type=P_INDIRECT;
 /*	instruction->instruction_parameters[1].parameter_data.reg.r=B_STACK_POINTER; */
+# ifdef ARM
+	instruction->instruction_parameters[1].parameter_offset=offset;
+# else
 	instruction->instruction_parameters[1].parameter_data.i=offset;
+# endif
 }
-
-# ifdef G_POWER
+# if defined (G_POWER) || defined (ARM)
 	void i_jsr_id_idu (int offset_1,int register_1,int offset_2)
 	{
 		struct instruction *instruction;
@@ -863,10 +867,10 @@ void i_jsr_l_id (LABEL *label,int offset)
 		instruction->instruction_parameters[0].parameter_type=P_INDIRECT;
 		instruction->instruction_parameters[0].parameter_offset=offset_1;
 		instruction->instruction_parameters[0].parameter_data.i=register_1;
-	
+
 		instruction->instruction_parameters[1].parameter_type=P_INDIRECT_WITH_UPDATE;
-/*		instruction->instruction_parameters[1].parameter_data.reg.r=B_STACK_POINTER; */
-		instruction->instruction_parameters[1].parameter_data.i=offset_2;
+		instruction->instruction_parameters[1].parameter_offset=offset_2;
+		instruction->instruction_parameters[1].parameter_data.i=B_STACK_POINTER;
 	}
 
 	void i_jsr_l_idu (LABEL *label,int offset)
@@ -877,10 +881,10 @@ void i_jsr_l_id (LABEL *label,int offset)
 		
 		instruction->instruction_parameters[0].parameter_type=P_LABEL;
 		instruction->instruction_parameters[0].parameter_data.l=label;
-	
+
 		instruction->instruction_parameters[1].parameter_type=P_INDIRECT_WITH_UPDATE;
-/*		instruction->instruction_parameters[1].parameter_data.reg.r=B_STACK_POINTER; */
-		instruction->instruction_parameters[1].parameter_data.i=offset;
+		instruction->instruction_parameters[1].parameter_offset=offset;
+		instruction->instruction_parameters[1].parameter_data.i=B_STACK_POINTER;
 	}
 # endif
 #endif
@@ -897,8 +901,24 @@ void i_jsr_r (int register_1)
 }
 #endif
 
-#if defined (sparc) || defined (G_POWER)
-# ifdef sparc
+#if defined (ARM)
+void i_jsr_r_idu (int register_1,int offset)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction2 (IJSR);
+	
+	S2(instruction->instruction_parameters[0],	parameter_type=P_REGISTER,
+												parameter_data.reg.r=register_1);
+
+	instruction->instruction_parameters[1].parameter_type=P_INDIRECT_WITH_UPDATE;
+	instruction->instruction_parameters[1].parameter_offset=offset;
+	instruction->instruction_parameters[1].parameter_data.i=B_STACK_POINTER;
+}
+#endif
+
+#if defined (sparc) || defined (G_POWER) || defined (ARM)
+# ifndef G_POWER
 void i_call_l (LABEL *label)
 # else
 void i_call_l (LABEL *label,int frame_size)	
@@ -917,7 +937,7 @@ void i_call_l (LABEL *label,int frame_size)
 # endif
 }
 
-# ifdef sparc
+# ifndef G_POWER
 void i_call_r (int register_1)
 # else
 void i_call_r (int register_1,int frame_size)	
@@ -983,7 +1003,7 @@ void i_lea_l_i_r (LABEL *label,int offset,int register_1)
 	instruction->instruction_parameters[1].parameter_data.reg.r=register_1;
 }
 
-#if defined (sparc) || defined (I486) || defined (G_POWER)
+#if defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER)
 static void i_lea_x_r (int register_1,int register_2,int register_3)
 {
 	register struct instruction *instruction;
@@ -1004,7 +1024,7 @@ static void i_lea_x_r (int register_1,int register_2,int register_3)
 }
 #endif
 
-#if defined (G_POWER) || defined (sparc)
+#if defined (G_POWER) || defined (sparc) || defined (ARM)
 static void i_lsli_r_r (LONG value,int register_1,int register_2)
 {
 	struct instruction *instruction;
@@ -1036,7 +1056,7 @@ static void i_moveb_id_r (int offset,int register_1,int register_2)
 												parameter_data.i=register_2);
 }
 
-#if !(defined (M68000) || defined (I486))
+#if !(defined (M68000) || defined (I486) || defined (ARM))
 static void i_moveb_x_r (int register_1,int register_2,int register_3)
 {
 	struct instruction *instruction;
@@ -1079,9 +1099,9 @@ static void i_moveb_x_r (int offset,int register_1,int register_2,int register_3
 #ifdef M68000
 static void i_movem_id (int offset_1,int register_1,int n_arguments,int arguments[])
 {
-	register struct instruction *instruction;
-	register struct parameter *parameter;
-	register int argument_number;
+	struct instruction *instruction;
+	struct parameter *parameter;
+	int argument_number;
 	
 	instruction=i_new_instruction (IMOVEM,n_arguments+1,(n_arguments+1)*sizeof (struct parameter));
 	
@@ -1150,6 +1170,72 @@ void i_movem_id_r (int offset,int register_1,int register_2)
 	
 	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
 												parameter_data.i=register_2);
+}
+#endif
+
+#if defined (ARM)
+void i_movem_pd_rs (int register_1,int n_arguments,int arguments[])
+{
+	struct instruction *instruction;
+	int argument_number;
+	
+	instruction=i_new_instruction (IMOVEM,n_arguments+1,(n_arguments+1)*sizeof (struct parameter));
+	
+	instruction->instruction_parameters[0].parameter_type=P_PRE_DECREMENT;
+	instruction->instruction_parameters[0].parameter_data.i=register_1;
+
+	for (argument_number=0; argument_number<n_arguments; ++argument_number){
+		S2 (instruction->instruction_parameters[1+argument_number], parameter_type=P_REGISTER,
+																	parameter_data.i=arguments[argument_number]);
+	}
+}
+
+void i_movem_pi_rs (int register_1,int n_arguments,int arguments[])
+{
+	struct instruction *instruction;
+	int argument_number;
+	
+	instruction=i_new_instruction (IMOVEM,n_arguments+1,(n_arguments+1)*sizeof (struct parameter));
+	
+	instruction->instruction_parameters[0].parameter_type=P_POST_INCREMENT;
+	instruction->instruction_parameters[0].parameter_data.i=register_1;
+
+	for (argument_number=0; argument_number<n_arguments; ++argument_number){
+		S2 (instruction->instruction_parameters[1+argument_number], parameter_type=P_REGISTER,
+																	parameter_data.i=arguments[argument_number]);
+	}
+}
+
+void i_movem_rs_pd (int n_arguments,int arguments[],int register_1)
+{
+	struct instruction *instruction;
+	int argument_number;
+	
+	instruction=i_new_instruction (IMOVEM,n_arguments+1,(n_arguments+1)*sizeof (struct parameter));
+	
+	instruction->instruction_parameters[n_arguments].parameter_type=P_PRE_DECREMENT;
+	instruction->instruction_parameters[n_arguments].parameter_data.i=register_1;
+
+	for (argument_number=0; argument_number<n_arguments; ++argument_number){
+		S2 (instruction->instruction_parameters[argument_number], parameter_type=P_REGISTER,
+																  parameter_data.i=arguments[argument_number]);
+	}
+}
+
+void i_movem_rs_pi (int n_arguments,int arguments[],int register_1)
+{
+	struct instruction *instruction;
+	int argument_number;
+	
+	instruction=i_new_instruction (IMOVEM,n_arguments+1,(n_arguments+1)*sizeof (struct parameter));
+	
+	instruction->instruction_parameters[n_arguments].parameter_type=P_POST_INCREMENT;
+	instruction->instruction_parameters[n_arguments].parameter_data.i=register_1;
+
+	for (argument_number=0; argument_number<n_arguments; ++argument_number){
+		S2 (instruction->instruction_parameters[argument_number], parameter_type=P_REGISTER,
+																  parameter_data.i=arguments[argument_number]);
+	}
 }
 #endif
 
@@ -1262,7 +1348,7 @@ void i_move_i_r (CleanInt i,int register_1)
 												parameter_data.i=register_1);
 }
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 # ifdef G_A64
 static void i_move_i_x (int_64 i,int offset,int register_1,int register_2)
 # else
@@ -1363,21 +1449,39 @@ void i_move_id_r (int offset,int register_1,int register_2)
 												parameter_data.i=register_2);
 }
 
-#ifdef G_POWER
-	void i_move_idu_r (int offset,int register_1,int register_2)
-	{
-		struct instruction *instruction;
-		
-		instruction=i_new_instruction2 (IMOVE);
-		
-		instruction->instruction_parameters[0].parameter_type=P_INDIRECT_WITH_UPDATE;
-		instruction->instruction_parameters[0].parameter_offset=offset;
-		instruction->instruction_parameters[0].parameter_data.i=register_1;
-		
-		instruction->instruction_parameters[1].parameter_type=P_REGISTER;
-		instruction->instruction_parameters[1].parameter_data.i=register_2;
-	}
+#if defined (G_POWER) || defined (ARM)
+void i_move_idu_r (int offset,int register_1,int register_2)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction2 (IMOVE);
+	
+	instruction->instruction_parameters[0].parameter_type=P_INDIRECT_WITH_UPDATE;
+	instruction->instruction_parameters[0].parameter_offset=offset;
+	instruction->instruction_parameters[0].parameter_data.i=register_1;
+	
+	instruction->instruction_parameters[1].parameter_type=P_REGISTER;
+	instruction->instruction_parameters[1].parameter_data.i=register_2;
+}
+#endif
 
+#if defined (ARM)
+void i_move_r_idpa (int register_1,int register_2,int offset)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction2 (IMOVE);
+			
+	instruction->instruction_parameters[0].parameter_type=P_REGISTER;
+	instruction->instruction_parameters[0].parameter_data.i=register_1;
+
+	instruction->instruction_parameters[1].parameter_type=P_INDIRECT_POST_ADD;
+	instruction->instruction_parameters[1].parameter_offset=offset;
+	instruction->instruction_parameters[1].parameter_data.i=register_2;
+}
+#endif
+
+#ifdef G_POWER
 	void i_move_id_idu (int offset1,int register_1,int offset2,int register_2)
 	{
 		struct instruction *instruction;
@@ -1437,7 +1541,7 @@ void i_move_id_r (int offset,int register_1,int register_2)
 	}
 #endif
 
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 # ifndef THREAD32
 static void i_move_id_x (int offset_1,int register_1,int offset_2,int register_2,int register_3)
 {
@@ -1517,7 +1621,7 @@ static void i_move_pi_pi (int register_1,int register_2)
 }
 #endif
 
-#if defined (M68000) | defined (I486)
+#if defined (M68000) | defined (I486) || defined (ARM)
 void i_move_pi_r (int register_1,int register_2)
 {
 	register struct instruction *instruction;
@@ -1571,7 +1675,7 @@ static struct instruction *instruction_move_r_idhp (int register_1,LONG offset)
 }
 #endif
 
-#if defined (I486)
+#if defined (I486) || defined (ARM)
 	void i_move_r_l (int register_1,LABEL *label)
 	{
 		struct instruction *instruction;
@@ -1598,7 +1702,7 @@ void i_move_r_id (int register_1,int offset,int register_2)
 	instruction->instruction_parameters[1].parameter_data.i=register_2;
 }
 
-#if defined (M68000) | defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 void i_move_r_pd (int register_1,int register_2)
 {
 	register struct instruction *instruction;
@@ -1807,7 +1911,7 @@ void i_movew_r_pd (int register_1,int register_2)
 }
 #endif
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 # ifdef THREAD32
 void i_mulud_r_r_r (int register_1,int register_2,int register_3)
 # else
@@ -1835,7 +1939,7 @@ void i_mulud_r_r (int register_1,int register_2)
 }
 #endif
 
-#if defined (G_POWER) || defined (G_AI64)
+#if defined (G_POWER) || defined (G_AI64) || defined (ARM)
 void i_or_i_r (LONG value,int register_1)
 {
 	struct instruction *instruction;
@@ -1878,7 +1982,8 @@ void i_mtctr (int register_1)
 		S2 (instruction->instruction_parameters[0],	parameter_type=P_IMMEDIATE,
 													parameter_data.imm=offset);
 	}
-	
+# endif
+# if defined (I486) || defined (ARM)
 	void i_rts_profile (void)
 	{
 		i_new_instruction (IRTSP,0,0);
@@ -2185,7 +2290,7 @@ void free_all_dregisters (VOID)
 {
 	free_dregisters.r_s_first_free=d_reg_num (REGISTER_D0);
 	free_dregisters.r_s_highest=8;
-#if defined (I486) && !defined (G_AI64)
+#if (defined (I486) || defined (ARM)) && !defined (G_AI64)
 		free_dregisters.r_s_list.r_l_vector=
 						  (1<<d_reg_num (REGISTER_D0)) | (1<<d_reg_num (REGISTER_D1));
 #else
@@ -2225,7 +2330,7 @@ void free_all_aregisters (VOID)
 	free_aregisters.r_s_highest=N_REAL_A_REGISTERS;
 	free_aregisters.r_s_list.r_l_vector=	  (1<<a_reg_num (REGISTER_A0))
 											| (1<<a_reg_num (REGISTER_A1))
-#ifndef I486
+#if !(defined (I486) || defined (ARM))
 											| (1<<a_reg_num (REGISTER_A2))
 #endif
 											;
@@ -2255,7 +2360,7 @@ void free_all_fregisters (VOID)
 											(1<<REGISTER_FP2) | (1<<REGISTER_FP3) |
 											(1<<REGISTER_FP4) | (1<<REGISTER_FP5) |
 											(1<<REGISTER_FP6)
-#ifndef I486
+#if !(defined (I486) || defined (ARM))
 											| (1<<REGISTER_FP7)
 #endif
 											;
@@ -2699,7 +2804,7 @@ static void instruction_i_r_r_r (int instruction_code,int i,int register_1,int r
 }
 #endif
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void instruction_r_r_r_i (int instruction_code,int register_1,int register_2,int register_3,int i)
 {
 	struct instruction *instruction;
@@ -3034,7 +3139,7 @@ static void in_alterable_data_register (ADDRESS *ad_p)
 	ad_p->ad_count=1;
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void in_preferred_alterable_register (ADDRESS *ad_p,int preferred_reg)
 {
 	int dreg;
@@ -3344,10 +3449,13 @@ static void float_register_node (INSTRUCTION_GRAPH graph,int reg)
 static void linearize_graph (INSTRUCTION_GRAPH,ADDRESS *);
 
 #if defined (G_POWER)
-# define SMALL_IMMEDIATE(i) (((short int)i)==((int)i))
+# define ADDI_IMMEDIATE(i) (((short int)i)==((int)i))
 #endif
 #if defined (sparc)
-# define SMALL_IMMEDIATE(i) ((int)i<4096 && (int)i>=-4095)
+# define ADDI_IMMEDIATE(i) ((int)i<4096 && (int)i>=-4095)
+#endif
+#if defined (ARM)
+# define ADDI_IMMEDIATE(i) 1
 #endif
 
 static void linearize_dyadic_commutative_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
@@ -3379,10 +3487,10 @@ static void linearize_dyadic_commutative_operator (int i_instruction_code,INSTRU
 			--*ad_1.ad_count_p;
 			reg_1=ad_1.ad_register;
 		} else {
-#ifndef M68000 /* optimization added 18-8-1998 */
+#ifndef M68000
 			if (ad_2.ad_mode==P_IMMEDIATE){
-# if defined (G_POWER) || defined (sparc)
-				if (ad_1.ad_mode==P_REGISTER && SMALL_IMMEDIATE (ad_2.ad_offset) && i_instruction_code==IADD){
+# if defined (G_POWER) || defined (sparc) || defined (ARM)
+				if (ad_1.ad_mode==P_REGISTER && ADDI_IMMEDIATE (ad_2.ad_offset) && i_instruction_code==IADD){
 					if (--*ad_1.ad_count_p==0)
 						free_register (ad_1.ad_register);	
 					reg_1=get_dregister();								
@@ -3401,8 +3509,8 @@ static void linearize_dyadic_commutative_operator (int i_instruction_code,INSTRU
 				}
 			} else {
 #endif
-#if defined (G_POWER) || defined (sparc)
-			if (ad_1.ad_mode==P_IMMEDIATE && ad_2.ad_mode==P_REGISTER && SMALL_IMMEDIATE (ad_1.ad_offset) && i_instruction_code==IADD){
+#if defined (G_POWER) || defined (sparc) || defined (ARM)
+			if (ad_1.ad_mode==P_IMMEDIATE && ad_2.ad_mode==P_REGISTER && ADDI_IMMEDIATE (ad_1.ad_offset) && i_instruction_code==IADD){
 				if (--*ad_2.ad_count_p==0)
 					free_register (ad_2.ad_register);
 				reg_1=get_dregister();								
@@ -3423,13 +3531,13 @@ static void linearize_dyadic_commutative_operator (int i_instruction_code,INSTRU
 #endif
 		} 
 	} else {
-# if defined (G_POWER) || defined (sparc)
-		if (ad_1.ad_mode==P_IMMEDIATE && ad_2.ad_mode==P_REGISTER && SMALL_IMMEDIATE (ad_1.ad_offset) && i_instruction_code==IADD){
+# if defined (G_POWER) || defined (sparc) || defined (ARM)
+		if (ad_1.ad_mode==P_IMMEDIATE && ad_2.ad_mode==P_REGISTER && ADDI_IMMEDIATE (ad_1.ad_offset) && i_instruction_code==IADD){
 			if (--*ad_2.ad_count_p==0)
 				free_register (ad_2.ad_register);
 			reg_1=get_aregister();								
 			i_addi_r_r (ad_1.ad_offset,ad_2.ad_register,reg_1);
-		} else if (ad_2.ad_mode==P_IMMEDIATE && ad_1.ad_mode==P_REGISTER && SMALL_IMMEDIATE (ad_2.ad_offset) && i_instruction_code==IADD){
+		} else if (ad_2.ad_mode==P_IMMEDIATE && ad_1.ad_mode==P_REGISTER && ADDI_IMMEDIATE (ad_2.ad_offset) && i_instruction_code==IADD){
 			if (--*ad_1.ad_count_p==0)
 				free_register (ad_1.ad_register);	
 			reg_1=get_aregister();								
@@ -3942,8 +4050,8 @@ static void linearize_dyadic_non_commutative_operator (int i_instruction_code,IN
 		linearize_graph (graph_1,&ad_1);
 	}
 
-# if defined (G_POWER) || defined (sparc)
-	if (ad_1.ad_mode==P_IMMEDIATE && ad_2.ad_mode==P_REGISTER && SMALL_IMMEDIATE (-ad_1.ad_offset) && i_instruction_code==ISUB){
+# if defined (G_POWER) || defined (sparc) || defined (ARM)
+	if (ad_1.ad_mode==P_IMMEDIATE && ad_2.ad_mode==P_REGISTER && ADDI_IMMEDIATE (-ad_1.ad_offset) && i_instruction_code==ISUB){
 		int reg_1;
 		
 		if (--*ad_2.ad_count_p==0)
@@ -4067,7 +4175,7 @@ static void linearize_monadic_data_operator (int i_instruction_code,INSTRUCTION_
 		register_node (graph,reg_1);
 }
 
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
@@ -4084,12 +4192,12 @@ static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH
 		linearize_graph (graph_2,&ad_2);
 		linearize_graph (graph_1,&ad_1);
 	}
-# ifdef I486
+# if defined (I486) || defined (ARM)
 	in_preferred_alterable_register (&ad_2,REGISTER_D0);
 # else
 	in_alterable_data_register (&ad_2);
 # endif
-# ifdef I486
+# if defined (I486) || defined (ARM)
 	if (ad_1.ad_mode==P_IMMEDIATE){
 		if (i_instruction_code==IDIVU || i_instruction_code==IREMU){
 			in_data_register (&ad_1);
@@ -4115,28 +4223,31 @@ static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH
 # endif
 				i=-i;
 
-			if ((i & (i-1))==0 && (i_instruction_code==IREM ? i>1 : i>0)){
-# ifndef THREAD32
-				instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
+# ifdef ARM
+			instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
 # else
+			if ((i & (i-1))==0 && (i_instruction_code==IREM ? i>1 : i>0)){
+#  ifndef THREAD32
+				instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
+#  else
 				int tmp_reg;
 
 				tmp_reg=get_dregister();
 				instruction_ad_r_r (i_instruction_code,&ad_1,ad_2.ad_register,tmp_reg);
 				free_dregister (tmp_reg);
-# endif
-# ifndef G_A64
+#  endif
+#  ifndef G_A64
 			} else if (i>1 || (i<-1 && i!=0x80000000)){
-# else
+#  else
 			} else if (i>1 || (i<-1 && i!=0x8000000000000000ll)){
-# endif
-# ifndef THREAD32
+#  endif
+#  ifndef THREAD32
 				int tmp_reg;
 
 				tmp_reg=get_dregister();
 				instruction_ad_r_r (i_instruction_code==IDIV ? IDIVI : IREMI,&ad_1,ad_2.ad_register,tmp_reg);
 				free_dregister (tmp_reg);
-# else
+#  else
 				int tmp_reg,tmp2_reg;
 
 				tmp_reg=get_dregister();
@@ -4144,12 +4255,12 @@ static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH
 				instruction_i_r_r_r (i_instruction_code==IDIV ? IDIVI : IREMI,i,ad_2.ad_register,tmp_reg,tmp2_reg);
 				free_dregister (tmp2_reg);
 				free_dregister (tmp_reg);
-# endif
+#  endif
 			} else {
 				in_data_register (&ad_1);
-# ifndef THREAD32
+#  ifndef THREAD32
 				instruction_ad_r (i_instruction_code,&ad_1,ad_2.ad_register);
-# else
+#  else
 				{
 				int tmp_reg;
 				
@@ -4157,8 +4268,9 @@ static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH
 				instruction_ad_r_r (i_instruction_code,&ad_1,ad_2.ad_register,tmp_reg);
 				free_dregister (tmp_reg);
 				}
-# endif
+#  endif
 			}
+# endif
 		}
 	} else {
 		to_data_addressing_mode (&ad_1);
@@ -4251,7 +4363,7 @@ static void linearize_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH gra
 }
 #endif
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void linearize_floordiv_mod_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
@@ -4329,7 +4441,7 @@ static void linearize_floordiv_mod_operator (int i_instruction_code,INSTRUCTION_
 }
 #endif
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static int linearize_first_graph_first (INSTRUCTION_GRAPH a_graph_1,INSTRUCTION_GRAPH a_graph_2)
 {
 	int i1,i2,u1,u2;
@@ -4429,7 +4541,9 @@ static void linearize_two_results_operator (INSTRUCTION_GRAPH result_graph,ADDRE
 # else
 		i_mulud_r_r (reg_1,reg_2);
 # endif
-	} else if (graph->instruction_code==GDIVDU){
+	} else
+# ifdef I486
+	if (graph->instruction_code==GDIVDU){
 		ADDRESS ad_3;
 
 		linearize_3_graphs (graph->instruction_parameters[0].p,&ad_1,
@@ -4445,7 +4559,9 @@ static void linearize_two_results_operator (INSTRUCTION_GRAPH result_graph,ADDRE
 		if (--*ad_3.ad_count_p==0)
 			free_register (ad_3.ad_register);
 		i_divdu_r_r_r (ad_3.ad_register,reg_1,reg_2);
-	} else if (graph->instruction_code==GADDDU){
+	} else
+# endif
+	if (graph->instruction_code==GADDDU){
 		ADDRESS ad_3,ad_4;
 
 		linearize_3_graphs (graph->instruction_parameters[0].p,&ad_1,
@@ -4532,7 +4648,7 @@ static void linearize_shift_operator (int i_instruction_code,int i_instruction_c
 		linearize_graph (graph_1,&ad_1);
 	}
 
-#if defined (G_POWER) || defined (sparc)
+#if defined (G_POWER) || defined (sparc) || defined (ARM)
 	if (i_instruction_code==ILSL && ad_1.ad_mode==P_IMMEDIATE && (unsigned)ad_1.ad_offset<(unsigned)32){
 		in_register (&ad_2);
 		if (--*ad_2.ad_count_p==0)
@@ -4542,7 +4658,7 @@ static void linearize_shift_operator (int i_instruction_code,int i_instruction_c
 			reg_1=get_dregister();
 		else
 			reg_1=get_aregister();
-					
+		
 		i_lsli_r_r (ad_1.ad_offset,ad_2.ad_register,reg_1);
 	} else {
 #endif
@@ -4586,7 +4702,7 @@ static void linearize_shift_operator (int i_instruction_code,int i_instruction_c
 		reg_1=areg;
 	}
 
-#if defined (G_POWER) || defined (sparc)
+#if defined (G_POWER) || defined (sparc) || defined (ARM)
 	}
 #endif
 
@@ -4642,7 +4758,7 @@ static void linearize_integer_o_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_r_
 static void linearize_add_o_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_r_p,ADDRESS *ad_f_p)
 {
 	linearize_integer_o_operator (graph,ad_r_p,ad_f_p,linearize_dyadic_commutative_operator,
-#if defined (sparc) || defined (G_POWER)
+#if defined (sparc) || defined (G_POWER) || defined (ARM)
 		IADDO
 #else
 		IADD
@@ -4653,7 +4769,7 @@ static void linearize_add_o_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_r_p,AD
 static void linearize_sub_o_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_r_p,ADDRESS *ad_f_p)
 {
 	linearize_integer_o_operator (graph,ad_r_p,ad_f_p,linearize_dyadic_non_commutative_operator,
-#if defined (sparc) || defined (G_POWER)
+#if defined (sparc) || defined (G_POWER) || defined (ARM)
 		ISUBO
 #else
 		ISUB
@@ -5003,7 +5119,7 @@ static void move_float_ad_id (ADDRESS *ad_p,int offset,int areg)
 					if (--*i_ad_p->ad_count_p==0)
 						free_aregister (i_ad_p->ad_areg);
 # ifndef G_A64
-#  if defined (M68000) || defined (I486)
+#  if defined (M68000) || defined (I486) || defined (ARM)
 					i_move_x_id (i_ad_p->ad_offset+(4<<2),i_ad_p->ad_areg,i_ad_p->ad_dreg,offset+4,areg);
 #  else
 					{
@@ -5170,7 +5286,7 @@ static void linearize_create_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p,int
 	ad_a=evaluate_arguments (graph->instruction_parameters,arity);
 
 #ifndef M68000
-# ifdef I486
+# if defined (I486) || defined (ARM)
 	if (offset_from_heap_register+(arity<<2) >= 127){
 # else
 #	ifdef G_POWER
@@ -5634,7 +5750,7 @@ static void move_float_ad_x (ADDRESS *ad_p,int offset,int areg,int dreg)
 				free_fregister (ad_p->ad_register);
 			}
 			return;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		case P_INDIRECT:
 # ifdef M68000
 			if (ad_p->ad_offset==0 && *ad_p->ad_count_p==1){
@@ -7093,7 +7209,7 @@ static void linearize_dyadic_non_commutative_float_operator (int instruction_cod
 	}
 
 #if 1
-# if (defined (I486) && !defined (G_AI64)) || defined (G_POWER)
+# if ((defined (I486) || defined (ARM)) && !defined (G_AI64)) || defined (G_POWER)
 	if (ad_1.ad_mode==P_F_REGISTER && *ad_1.ad_count_p==1
 		&& !(ad_2.ad_mode==P_F_REGISTER && ad_2.ad_register<ad_1.ad_register && *ad_2.ad_count_p==1)
 	){
@@ -7122,7 +7238,7 @@ static void linearize_dyadic_non_commutative_float_operator (int instruction_cod
 		}
 		reg_1=ad_2.ad_register;
 		instruction_p_fr (instruction_code,&parameter1,reg_1);
-# if defined (I486) || defined (G_POWER)
+# if defined (I486) || defined (ARM) || defined (G_POWER)
 		last_instruction->instruction_parameters[1].parameter_flags=0;
 # endif
 	}
@@ -7130,7 +7246,7 @@ static void linearize_dyadic_non_commutative_float_operator (int instruction_cod
 	in_alterable_float_register (&ad_2);
 	reg_1=ad_2.ad_register;
 	instruction_ad_fr (instruction_code,&ad_1,reg_1);
-# if defined (I486) || defined (G_POWER)
+# if defined (I486) || defined (ARM) || defined (G_POWER)
 	last_instruction->instruction_parameters[1].parameter_flags=0;
 # endif
 #endif
@@ -7338,7 +7454,7 @@ static void linearize_fload_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 	}
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void linearize_fload_s_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
@@ -7532,7 +7648,7 @@ static void linearize_float_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GFLOAD_X:
 			linearize_fload_x_operator (graph,ad_p);
 			return;
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFLOAD_S_X:
 			linearize_fload_s_x_operator (graph,ad_p);
 			return;
@@ -7560,18 +7676,22 @@ static void linearize_float_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GFITOR:
 			linearize_itor_operator (graph,ad_p);
 			return;
+#ifndef ARM
 		case GFCOS:
 			linearize_monadic_float_operator (graph,ad_p,IFCOS);
 			break;
+#endif
 		case GFNEG:
 			linearize_monadic_float_operator (graph,ad_p,IFNEG);
 			break;
 		case GFABS:
 			linearize_monadic_float_operator (graph,ad_p,IFABS);
 			break;
+#ifndef ARM
 		case GFSIN:
 			linearize_monadic_float_operator (graph,ad_p,IFSIN);
 			break;
+#endif
 		case GFTAN:
 			linearize_monadic_float_operator (graph,ad_p,IFTAN);
 			break;
@@ -7642,7 +7762,7 @@ static void linearize_fstore_operator (INSTRUCTION_GRAPH graph)
 }
 
 static void linearize_fstore_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void linearize_fstore_s_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p);
 #endif
 
@@ -7767,7 +7887,7 @@ static void linearize_create_r_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p,i
 #endif
 
 #ifndef M68000
-# ifdef I486
+# if defined (I486) || defined (ARM)
 #  ifdef G_A64
 	if (offset_from_heap_register+(2<<3) >= 127){
 #  else
@@ -8152,8 +8272,9 @@ static void linearize_store_r_node (INSTRUCTION_GRAPH graph)
 				graph=*register_graph_1_p;
 				*register_graph_1_p=*register_graph_2_p;
 				*register_graph_2_p=graph;
-			} else {
+			} else
 #endif
+			{
 				register int reg_2;
 			
 				register_graph_2_p=NULL;
@@ -8181,7 +8302,7 @@ static void linearize_store_r_node (INSTRUCTION_GRAPH graph)
 					*register_graph_2_p=*register_graph_1_p;
 			
 				*register_graph_1_p=NULL;
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 			}
 #endif
 		} else {
@@ -8348,7 +8469,7 @@ static void linearize_load_b_x_operator (register INSTRUCTION_GRAPH graph,regist
 				free_dregister (ad_1.ad_register);
 
 			reg_1=get_dregister();
-# ifdef I486
+# if defined (I486) || defined (ARM)
 			i_moveb_x_r (offset & ~3,ad_p->ad_register,ad_1.ad_register,reg_1);
 # else
 			if (offset & 1){
@@ -8546,7 +8667,7 @@ static void do_array_selects_before_update (INSTRUCTION_GRAPH select_graph,INSTR
 					}
 				}
 				break;
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			case GFLOAD_S_X:
 				if (graph_2==select_graph->instruction_parameters[0].p){
 					if (select_graph->node_count>0 && !(select_graph->inode_arity & LOAD_X_TO_REGISTER)){
@@ -8909,7 +9030,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		{
 			int reg_1;
 
-#if defined (I486) && !defined (MACH_O64)
+#if (defined (I486) || defined (ARM)) && !defined (MACH_O64)
 			if (graph->node_count==1
 # if defined (G_AI64) && defined (LINUX)
 				&& !pic_flag
@@ -8955,7 +9076,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			ad_p->ad_count_p=&graph->node_count;
 			
 			return;
-#if defined (I486) && !defined (MACH_O64)
+#if (defined (I486) || defined (ARM)) && !defined (MACH_O64)
 			}
 #endif
 		}
@@ -9256,7 +9377,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GFSTORE_X:
 			linearize_fstore_x_operator (graph,ad_p);
 			return;
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFSTORE_S_X:
 			linearize_fstore_s_x_operator (graph,ad_p);
 			return;
@@ -9286,7 +9407,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GSUB:
 			linearize_dyadic_non_commutative_operator (ISUB,graph,ad_p);
 			return;
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 		case GDIV:
 			linearize_div_rem_operator (IDIV,graph,ad_p);
 			return;
@@ -9296,7 +9417,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GDIVU:
 			linearize_div_rem_operator (IDIVU,graph,ad_p);
 			return;
-# ifdef I486
+# if defined (I486) || defined (ARM)
 		case GREMU:
 			linearize_div_rem_operator (IREMU,graph,ad_p);
 			return;
@@ -9309,7 +9430,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			linearize_rem_operator (IREM,graph,ad_p);
 			return;
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFLOORDIV:
 			linearize_floordiv_mod_operator (IFLOORDIV,graph,ad_p);
 			return;
@@ -9377,12 +9498,16 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GNEG:
 			linearize_monadic_data_operator (INEG,graph,ad_p);
 			return;
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 		case GNOT:
 			linearize_monadic_data_operator (INOT,graph,ad_p);
 			return;
 #endif
-#ifdef I486
+#ifdef ARM
+		case GROTR:
+			linearize_shift_operator (IROTR,graph,ad_p);
+			return;
+#elif defined (I486)
 		case GROTL:
 			linearize_shift_operator (IROTL,IROTL_S,graph,ad_p);
 			return;
@@ -9444,7 +9569,7 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			linearize_dyadic_commutative_data_operator (IUMULH,graph,ad_p);
 			return;
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GRESULT0:
 		case GRESULT1:
 			linearize_two_results_operator (graph,ad_p);
@@ -9552,7 +9677,7 @@ static void linearize_fstore_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 			free_dregister (ad_3.ad_register);
 
 #ifndef M68000
-# ifdef I486
+# if defined (I486) || defined (ARM)
 		if (ad_1.ad_mode==P_INDEXED)
 # else
 		if (ad_1.ad_mode!=P_F_REGISTER)
@@ -9572,7 +9697,7 @@ static void linearize_fstore_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 	}
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void linearize_fstore_s_x_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
@@ -9912,7 +10037,7 @@ static void show_parameter (struct parameter *parameter)
 			printf ("(A%d)+",a_reg_num (parameter->parameter_data.reg.r));	
 			break;
 #endif
-#if defined (M68000) || defined (I486)
+#if defined (M68000) || defined (I486) || defined (ARM)
 		case P_PRE_DECREMENT:
 			printf ("-(A%d)",a_reg_num (parameter->parameter_data.reg.r));
 			break;

@@ -22,7 +22,7 @@ extern INSTRUCTION_GRAPH g_fload (int offset,int stack);
 extern INSTRUCTION_GRAPH g_fload_i (DOUBLE v);
 extern INSTRUCTION_GRAPH g_fload_id (int offset,INSTRUCTION_GRAPH graph_1);
 extern INSTRUCTION_GRAPH g_fload_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 extern INSTRUCTION_GRAPH g_fload_s_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INSTRUCTION_GRAPH graph_2);
 #endif
 extern INSTRUCTION_GRAPH g_lea (LABEL *label);
@@ -42,7 +42,7 @@ extern INSTRUCTION_GRAPH g_movem (int offset,INSTRUCTION_GRAPH graph_1,int n);
 extern INSTRUCTION_GRAPH g_movemi (int number,INSTRUCTION_GRAPH movem_graph);
 extern INSTRUCTION_GRAPH g_fregister (int float_reg);
 extern INSTRUCTION_GRAPH g_fstore_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,int shift,INSTRUCTION_GRAPH graph_3);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 extern INSTRUCTION_GRAPH g_fstore_s_x (INSTRUCTION_GRAPH graph_1,INSTRUCTION_GRAPH graph_2,int offset,int shift,INSTRUCTION_GRAPH graph_3);
 #endif
 extern INSTRUCTION_GRAPH g_g_register (int reg);

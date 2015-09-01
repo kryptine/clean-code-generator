@@ -244,7 +244,7 @@ static void calculate_eor_operator (INSTRUCTION_GRAPH graph)
 	graph->order_alterable=graph->node_count<=1;
 }
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 static void calculate_mulud_operator (INSTRUCTION_GRAPH graph)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
@@ -1438,7 +1438,7 @@ static void calculate_store_x_operator (INSTRUCTION_GRAPH graph)
 				select_graph=select_graph->instruction_parameters[3].p;			
 				break;
 			case GFLOAD_X:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			case GFLOAD_S_X:
 #endif
 			case GREGISTER:
@@ -1757,7 +1757,7 @@ static void calculate_fstore_x_operator (INSTRUCTION_GRAPH graph)
 	while (select_graph!=NULL){
 		switch (select_graph->instruction_code){
 			case GFLOAD_X:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 			case GFLOAD_S_X:
 #endif
 				if (graph_2==select_graph->instruction_parameters[0].p){
@@ -2411,17 +2411,17 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			calculate_dyadic_non_commutative_operator (graph);
 			return;
 		case GDIV:
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 		case GDIVU:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFLOORDIV:
 		case GMOD:
 #endif
 			calculate_dyadic_non_commutative_data_operator (graph);
 			return;
 		case GREM:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GREMU:
 #endif
 			calculate_rem_operator (graph);
@@ -2429,7 +2429,7 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 		case GLSL:
 		case GLSR:
 		case GASR:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GROTL:
 		case GROTR:
 #endif
@@ -2452,7 +2452,7 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			return;
 		case GCNOT:
 		case GNEG:
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 		case GNOT:
 #endif
 			calculate_cnot_operator (graph);
@@ -2498,13 +2498,13 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			calculate_fstore_operator (graph);
 			return;
 		case GFLOAD_X:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFLOAD_S_X:
 #endif
 			calculate_fload_x_operator (graph);
 			return;
 		case GFSTORE_X:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFSTORE_S_X:
 #endif
 			calculate_fstore_x_operator (graph);
@@ -2606,7 +2606,7 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			graph->order_alterable=graph_2->order_alterable;
 			return;
 		}
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GRESULT0:
 		case GRESULT1:
 		{
@@ -2616,7 +2616,10 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			if (graph_0->order_mode==R_NOMODE)
 				if (graph_0->instruction_code==GMULUD)
 					calculate_mulud_operator (graph_0);
-				else if (	graph_0->instruction_code==GDIVDU ||
+				else if (
+# ifdef I486
+							graph_0->instruction_code==GDIVDU ||
+# endif
 							graph_0->instruction_code==GADDDU ||
 							graph_0->instruction_code==GSUBDU)
 				{
@@ -2738,10 +2741,10 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GCMP_LT:
 		case GCMP_LTU:
 		case GDIV:
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 		case GDIVU:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFLOORDIV:
 		case GMOD:
 #endif
@@ -2759,7 +2762,7 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GLSL:
 		case GLSR:
 		case GREM:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GREMU:
 #endif
 		case GMUL:
@@ -2769,7 +2772,7 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GSUB_O:
 		case GEOR:
 		case GASR:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GROTL:
 		case GROTR:
 #endif
@@ -2778,7 +2781,7 @@ void count_graph (INSTRUCTION_GRAPH graph)
 #ifdef G_POWER
 		case GUMULH:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GMULUD:
 #endif
 			if (++graph->node_count==1){
@@ -2814,12 +2817,12 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GFEXP:
 #endif
 		case GNEG:
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 		case GNOT:
 #endif
 		case GBEFORE0:
 		case GTEST_O:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GRESULT0:
 		case GRESULT1:
 #endif
@@ -2882,7 +2885,7 @@ void count_graph (INSTRUCTION_GRAPH graph)
 #ifdef G_AI64
 		case GLOAD_S_X:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFLOAD_S_X:
 #endif
 			if (++graph->node_count==1){
@@ -2899,7 +2902,7 @@ void count_graph (INSTRUCTION_GRAPH graph)
 			count_gstore_x_node (graph);
 			break;
 		case GFSTORE_X:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFSTORE_S_X:
 #endif
 			if (++graph->node_count==1){
@@ -2933,10 +2936,12 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GREGISTER:
 			++graph->node_count;
 			break;
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GADDDU:
 		case GSUBDU:
+# ifdef I486
 		case GDIVDU:
+# endif
 			if (++graph->node_count==1){
 				count_graph (graph->instruction_parameters[0].p);
 				count_graph (graph->instruction_parameters[1].p);
@@ -2961,10 +2966,10 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GCMP_LT:
 		case GCMP_LTU:
 		case GDIV:
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 		case GDIVU:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFLOORDIV:
 		case GMOD:
 #endif
@@ -2982,7 +2987,7 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GLSL:
 		case GLSR:
 		case GREM:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GREMU:
 #endif
 		case GMUL:
@@ -2992,7 +2997,7 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GSUB_O:
 		case GEOR:
 		case GASR:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GROTL:
 		case GROTR:
 #endif
@@ -3001,7 +3006,7 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 #ifdef G_POWER
 		case GUMULH:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GMULUD:
 #endif
 			if (graph->node_mark<2){
@@ -3038,12 +3043,12 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GFEXP:
 #endif
 		case GNEG:
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 		case GNOT:
 #endif
 		case GBEFORE0:
 		case GTEST_O:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GRESULT0:
 		case GRESULT1:
 #endif
@@ -3118,7 +3123,7 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 #ifdef G_AI64
 		case GLOAD_S_X:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFLOAD_S_X:
 #endif
 			if (graph->node_mark<2){
@@ -3134,7 +3139,7 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GSTORE_S_X:
 #endif
 		case GFSTORE_X:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFSTORE_S_X:
 #endif
 			if (graph->node_mark<2){
@@ -3171,10 +3176,12 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GREGISTER:
 			graph->node_mark=2;
 			break;
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GADDDU:
 		case GSUBDU:
+# ifdef I486
 		case GDIVDU:
+# endif
 			if (graph->node_mark<2){
 				graph->node_mark=2;
 				mark_graph_2 (graph->instruction_parameters[0].p);
@@ -3200,10 +3207,10 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GCMP_LT:
 		case GCMP_LTU:
 		case GDIV:
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 		case GDIVU:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFLOORDIV:
 		case GMOD:
 #endif
@@ -3221,7 +3228,7 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GLSL:
 		case GLSR:
 		case GREM:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GREMU:
 #endif
 		case GMUL:
@@ -3231,7 +3238,7 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GSUB_O:
 		case GEOR:
 		case GASR:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GROTL:
 		case GROTR:
 #endif
@@ -3240,7 +3247,7 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 #ifdef G_POWER
 		case GUMULH:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GMULUD:
 #endif
 			if (!graph->node_mark){
@@ -3271,12 +3278,12 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GFEXP:
 #endif
 		case GNEG:
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 		case GNOT:
 #endif
 		case GBEFORE0:
 		case GTEST_O:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GRESULT0:
 		case GRESULT1:
 #endif
@@ -3345,7 +3352,7 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 #ifdef G_AI64
 		case GLOAD_S_X:
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFLOAD_S_X:
 #endif
 			if (!graph->node_mark){
@@ -3361,7 +3368,7 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GSTORE_S_X:
 #endif
 		case GFSTORE_X:
-#ifdef I486
+#if defined (I486) || defined (ARM)
 		case GFSTORE_S_X:
 #endif
 			if (!graph->node_mark){

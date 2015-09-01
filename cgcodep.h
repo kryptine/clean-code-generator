@@ -19,7 +19,7 @@ void code_absR (void);
 void code_acosR (VOID);
 void code_add_args (int source_offset,int n_arguments,int destination_offset);
 void code_addI (VOID);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_addLU (VOID);
 #endif
 #ifndef M68000
@@ -71,7 +71,7 @@ void code_divI (VOID);
 void code_divLU (VOID);
 #endif
 void code_divR (VOID);
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
  void code_divU (VOID);
 #endif
 void code_entierR (VOID);
@@ -119,7 +119,7 @@ void code_fillI_b (int b_offset,int a_offset);
 void code_fillR  (double value,int a_offset);
 void code_fillR_b (int b_offset,int a_offset);
 void code_fill_a (int from_offset,int to_offset);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_floordivI (VOID);
 #endif
 void code_get_desc_arity (int a_offset);
@@ -129,7 +129,7 @@ void code_get_desc_flags_b (void);
 void code_gtC (VOID);
 void code_gtI (VOID);
 void code_gtR (VOID);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_gtU (VOID);
 #endif
 void code_halt (VOID);
@@ -164,12 +164,12 @@ void code_log10R (VOID);
 void code_ltC (VOID);
 void code_ltI (VOID);
 void code_ltR (VOID);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_ltU (VOID);
 void code_modI (VOID);
 #endif
 void code_remI (VOID);
-#ifdef I486
+#if defined (I486) || defined (ARM)
  void code_remU (VOID);
 #endif
 void code_mulI (VOID);
@@ -177,7 +177,7 @@ void code_mulI (VOID);
 void code_mulIo (VOID);
 #endif
 void code_mulR (VOID);
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 void code_mulUUL (VOID);
 #endif
 void code_negI (void);
@@ -258,7 +258,7 @@ void code_replace (char element_descriptor[],int a_size,int b_size);
 void code_repl_arg (int arity,int argument_n);
 void code_repl_args (int arity,int n_arguments);
 void code_repl_args_b (VOID);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_rotl (void);
 void code_rotr (void);
 #endif
@@ -284,7 +284,7 @@ void code_sliceS (int source_offset,int destination_offset);
 void code_sqrtR (VOID);
 void code_stop_reducer (VOID);
 void code_subI (VOID);
-#ifdef I486
+#if defined (I486) || defined (ARM)
 void code_subLU (VOID);
 #endif
 #ifndef M68000

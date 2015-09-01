@@ -43,6 +43,9 @@ typedef struct label {
 #if defined (G_A64) && defined (LINUX)
 		struct label *				u_got_jump_label;	/* cgaas.c */
 #endif
+#ifdef ARM
+		struct literal_entry *		u_literal_entry;	/* cgarmas.c */
+#endif
 	} label_u2;
 	WORD						label_last_lea_arity;
 } LABEL;
@@ -54,6 +57,9 @@ typedef struct label {
 #endif
 #if defined (G_A64) && defined (LINUX)
 # define label_got_jump_label label_u2.u_got_jump_label
+#endif
+#ifdef ARM
+# define label_literal_entry label_u2.u_literal_entry
 #endif
 
 #define label_last_lea label_u1.u_last_lea
@@ -77,6 +83,9 @@ typedef struct label {
 #if defined (G_A64) && defined (LINUX)
 # define USE_PLT_LABEL			4096
 #endif
+#ifdef ARM
+#	define HAS_LITERAL_ENTRY	256
+#endif
 #define CMP_BRANCH_BLOCK_LABEL	8192
 #if defined (G_A64) && defined (LINUX)
 # define USE_GOT_LABEL			16384
@@ -94,7 +103,7 @@ struct local_label {
 	struct label		local_label_label;
 };
 
-#ifdef I486
+#if defined (I486) || defined (ARM)
 struct reg {
 	WORD r;
 	UWORD u;

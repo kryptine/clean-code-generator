@@ -14,7 +14,7 @@ enum {
 	GMUL,			GMUL_O,			GNEG,			GOR,			GREGISTER,		GSTORE,
 	GSTORE_R,		GSTORE_B_X,		GSTORE_X,		GSUB,			GSUB_O, 		GTEST_O,
 	GEXIT_IF
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 	,GNOT
 #endif
 #ifndef G_A64
@@ -25,13 +25,16 @@ enum {
 #ifdef G_POWER
 	,GCREATE_S,		GUMULH
 #endif
-#if defined (I486) || defined (G_POWER)
+#if defined (I486) || defined (ARM) || defined (G_POWER)
 	,GDIVU
 #endif
-#ifdef I486
+#if defined (I486) || defined (ARM)
 	,GFLOORDIV,	GMOD,	GROTL,	GROTR
-	,GADDDU,	GDIVDU,	GMULUD,	GREMU,	GRESULT0,	GRESULT1,	GSUBDU
+	,GADDDU,	GMULUD,	GREMU,	GRESULT0,	GRESULT1,	GSUBDU
 	,GFLOAD_S_X,GFSTORE_S_X
+#endif
+#ifdef I486
+	,GDIVDU
 #endif
 #if defined (I486) && !defined (G_A64)
 	,GFSINCOS,	GFRESULT0,	GFRESULT1
