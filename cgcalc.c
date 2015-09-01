@@ -2298,6 +2298,7 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 			}
 			
 			graph->order_alterable=graph_1->order_alterable;
+			graph->order_mode=graph_1->order_mode;
 			return;
 		}
 		case GKEEP:
