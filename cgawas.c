@@ -294,7 +294,7 @@ static int w_as_data (int n,char *data,int length)
 		}
 		
 		c=((unsigned char*)data)[i];
-		if (isalnum (c) || c=='_' || c==' '){
+		if (isalnum (c) || c=='_' || c==' ' || c=='.'){
 			if (!in_string){
 				if (n!=0)
 					w_as_newline();
@@ -2755,7 +2755,11 @@ static void w_as_word_instruction (struct instruction *instruction)
 				w_as_define_internal_data_label (float_constant->float_constant_label_number);
 			
 				w_as_opcode (intel_directives ? "dq" : ".double");
+# ifdef MACH_O64
+				fprintf (assembly_file,"%.20e",*float_constant->float_constant_r_p);
+# else
 				fprintf (assembly_file,intel_asm ? "%.20e" : "0r%.20e",*float_constant->float_constant_r_p);
+#endif
 				w_as_newline();		
 			}
 		}
@@ -2770,7 +2774,11 @@ static void w_as_word_instruction (struct instruction *instruction)
 		w_as_define_internal_data_label (label_number);
 	
 		w_as_opcode (intel_directives ? "dq" : ".double");
+# ifdef MACH_O64
+		fprintf (assembly_file,"%.20e",*r_p);
+# else
 		fprintf (assembly_file,intel_asm ? "%.20e" : "0r%.20e",*r_p);
+# emdif
 		w_as_newline();
 	
 		w_as_to_code_section();
