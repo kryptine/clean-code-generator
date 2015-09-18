@@ -2759,7 +2759,7 @@ static void w_as_word_instruction (struct instruction *instruction)
 				fprintf (assembly_file,"%.20e",*float_constant->float_constant_r_p);
 # else
 				fprintf (assembly_file,intel_asm ? "%.20e" : "0r%.20e",*float_constant->float_constant_r_p);
-#endif
+# endif
 				w_as_newline();		
 			}
 		}
@@ -2778,7 +2778,7 @@ static void w_as_word_instruction (struct instruction *instruction)
 		fprintf (assembly_file,"%.20e",*r_p);
 # else
 		fprintf (assembly_file,intel_asm ? "%.20e" : "0r%.20e",*r_p);
-# emdif
+# endif
 		w_as_newline();
 	
 		w_as_to_code_section();
