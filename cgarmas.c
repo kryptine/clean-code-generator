@@ -179,9 +179,10 @@ static void write_l (int c)
 #define CALL_RELOCATION 1
 #define BRANCH_RELOCATION 2
 #define JUMP_RELOCATION 3
-#define DUMMY_BRANCH_RELOCATION 5
-#define LDR_OFFSET_RELOCATION 6 /* R_ARM_LDR_PC_G0 */
-#define VLDR_OFFSET_RELOCATION 7 /* R_ARM_LDC_PC_G0 */
+#define DUMMY_BRANCH_RELOCATION 4
+#define LDR_OFFSET_RELOCATION 5 /* R_ARM_LDR_PC_G0 */
+#define VLDR_OFFSET_RELOCATION 6 /* R_ARM_LDC_PC_G0 */
+#define RELATIVE_LONG_WORD_RELOCATION 7
 
 struct relocation {
 	struct relocation *		next;
@@ -347,11 +348,19 @@ static void store_c (int c)
 	}
 }
 
-static void store_l (register ULONG i)
+static void store_l (ULONG i)
 {
 	if (code_buffer_p>=literal_table_at_buffer_p)
 		write_branch_and_literals();
 
+	store_c (i);
+	store_c (i>>8);
+	store_c (i>>16);
+	store_c (i>>24);
+}
+
+static void store_l_no_literal_table (ULONG i)
+{
 	store_c (i);
 	store_c (i>>8);
 	store_c (i>>16);
@@ -476,6 +485,22 @@ static void store_label_in_code_section (struct label *label)
 	new_relocation->relocation_kind=LONG_WORD_RELOCATION;
 }
 
+static void store_relative_label_in_code_section (struct label *label)
+{
+	struct relocation *new_relocation;
+	
+	new_relocation=fast_memory_allocate_type (struct relocation);
+	++n_code_relocations;
+	
+	*last_code_relocation_l=new_relocation;
+	last_code_relocation_l=&new_relocation->next;
+	new_relocation->next=NULL;
+	
+	new_relocation->relocation_label=label;
+	new_relocation->relocation_offset=CURRENT_CODE_OFFSET-4;
+	new_relocation->relocation_kind=RELATIVE_LONG_WORD_RELOCATION;
+}
+
 struct literal_entry {
 	LABEL				  * le_label;
 	int						le_offset;
@@ -494,24 +519,34 @@ static void write_literals (void)
 
 	if (literal_entry!=NULL){
 		for (; literal_entry!=NULL; literal_entry=literal_entry->le_next){
+			int load_data_offset,current_code_offset;
+			
+			load_data_offset = literal_entry->le_load_instruction_label.label_offset;
+			current_code_offset = CURRENT_CODE_OFFSET;
+
 			literal_entry->le_load_instruction_label.label_flags=0;
 			literal_entry->le_load_instruction_label.label_id=TEXT_LABEL_ID;
 #ifdef FUNCTION_LEVEL_LINKING
 			literal_entry->le_load_instruction_label.label_object_label=code_object_label;
 #endif
-			literal_entry->le_load_instruction_label.label_offset=CURRENT_CODE_OFFSET;
+			literal_entry->le_load_instruction_label.label_offset=current_code_offset;
 
 			if (literal_entry->le_label){
 				literal_entry->le_label->label_flags &= ~HAS_LITERAL_ENTRY;
-				store_l (literal_entry->le_offset);
-				store_label_in_code_section (literal_entry->le_label);
+				if (!pic_flag){
+					store_l_no_literal_table (literal_entry->le_offset);
+					store_label_in_code_section (literal_entry->le_label);
+				} else {
+					store_l_no_literal_table (current_code_offset - load_data_offset -12 + literal_entry->le_offset);
+					store_relative_label_in_code_section (literal_entry->le_label);
+				}
 			} else {
 				if (literal_entry->le_r_p==NULL){
-					store_l (literal_entry->le_offset);
+					store_l_no_literal_table (literal_entry->le_offset);
 				} else {
 					// to do: align 8
-					store_l (((LONG*)(literal_entry->le_r_p))[0]);
-					store_l (((LONG*)(literal_entry->le_r_p))[1]);
+					store_l_no_literal_table (((LONG*)(literal_entry->le_r_p))[0]);
+					store_l_no_literal_table (((LONG*)(literal_entry->le_r_p))[1]);
 				}
 			}
 		}
@@ -586,17 +621,36 @@ static void as_literal_label (struct label *label,int relocation_kind)
 	
 	new_relocation->relocation_label=label;
 	new_relocation->relocation_offset=current_code_offset;
+	label->label_offset=current_code_offset; /* for pic store offset of load instead, label offset stored by write_literals */
 #ifdef FUNCTION_LEVEL_LINKING
 	new_relocation->relocation_object_label=code_object_label;
 #endif
 	new_relocation->relocation_kind=relocation_kind;
 }
 
-static void as_literal_entry (LABEL *label,int offset)
+static void as_literal_constant_entry (int offset)
 {
 	struct literal_entry *new_literal_entry;
 
-	if (label!=NULL && label->label_flags & HAS_LITERAL_ENTRY && label->label_literal_entry->le_offset==offset)
+	new_literal_entry=allocate_memory_from_heap (sizeof (struct literal_entry));
+
+	new_literal_entry->le_label=NULL;
+	new_literal_entry->le_offset=offset;
+	new_literal_entry->le_r_p=NULL;
+
+	*literal_entry_l=new_literal_entry;
+	literal_entry_l=&new_literal_entry->le_next;
+	
+	new_literal_entry->le_next=NULL;
+	
+	as_literal_label (&new_literal_entry->le_load_instruction_label,LDR_OFFSET_RELOCATION);
+}
+
+static void as_literal_label_entry (LABEL *label,int offset)
+{
+	struct literal_entry *new_literal_entry;
+
+	if (label->label_flags & HAS_LITERAL_ENTRY && label->label_literal_entry->le_offset==offset)
 		new_literal_entry=label->label_literal_entry;
 	else {
 		new_literal_entry=allocate_memory_from_heap (sizeof (struct literal_entry));
@@ -610,7 +664,7 @@ static void as_literal_entry (LABEL *label,int offset)
 		
 		new_literal_entry->le_next=NULL;
 		
-		if (label!=NULL){
+		if (!pic_flag){
 			label->label_flags |= HAS_LITERAL_ENTRY;
 			label->label_literal_entry=new_literal_entry;
 		}
@@ -795,21 +849,9 @@ static void as_move_i_r (int i,int reg1)
 			store_l_is (0xe3e00000 | (reg_num (reg1)<<12),~i,shift); /* mvn rd,#i<<s */
 		else {
 			store_l (0xe59f0000 | (reg_num (reg1)<<12)); /* ldr rt,[pc+imm] */
-			as_literal_entry (NULL,i);
+			as_literal_constant_entry (i);
 		}
 	}
-}
-
-static void as_move_d_r (LABEL *label,int arity,int reg1)
-{
-	store_l (0xe59f0000 | (reg_num (reg1)<<12)); /* ldr rt,[pc+imm] */
-	as_literal_entry (label,arity);
-}
-
-static void as_move_l_r (LABEL *label,int reg1)
-{
-	store_l (0xe59f0000 | (reg_num (reg1)<<12)); /* ldr rt,[pc+imm] */
-	as_literal_entry (label,0);
 }
 
 static void as_mov_r_r (int s_reg,int d_reg)
@@ -1102,22 +1144,27 @@ static void as_x_op_is_r_r (int x_op,int i,int shift,int s_reg,int d_reg)
 
 static void as_add_r_r_r (int reg_m,int reg_n,int reg_d)
 {
-	store_l (0xe0000000 | (ARM_OP_ADD<<21) | (reg_num (reg_n)<<16) | (reg_num (reg_d)<<12) | reg_num(reg_m));
+	store_l (0xe0000000 | (ARM_OP_ADD<<21) | (reg_num (reg_n)<<16) | (reg_num (reg_d)<<12) | reg_num (reg_m));
+}
+
+static void as_add_r_r_r_no_literal_table (int reg_m,int reg_n,int reg_d)
+{
+	store_l_no_literal_table (0xe0000000 | (ARM_OP_ADD<<21) | (reg_num (reg_n)<<16) | (reg_num (reg_d)<<12) | reg_num (reg_m));
 }
 
 static void as_add_r_lsl_r_r (int reg_m,int lsl_m,int reg_n,int reg_d)
 {
-	store_l (0xe0000000 | (ARM_OP_ADD<<21) | (reg_num (reg_n)<<16) | (reg_num (reg_d)<<12) | (lsl_m<<7) | reg_num(reg_m));
+	store_l (0xe0000000 | (ARM_OP_ADD<<21) | (reg_num (reg_n)<<16) | (reg_num (reg_d)<<12) | (lsl_m<<7) | reg_num (reg_m));
 }
 
 static void as_add_r_lsr_r_r (int reg_m,int lsr_m,int reg_n,int reg_d)
 {
-	store_l (0xe0000020 | (ARM_OP_ADD<<21) | (reg_num (reg_n)<<16) | (reg_num (reg_d)<<12) | (lsr_m<<7) | reg_num(reg_m));
+	store_l (0xe0000020 | (ARM_OP_ADD<<21) | (reg_num (reg_n)<<16) | (reg_num (reg_d)<<12) | (lsr_m<<7) | reg_num (reg_m));
 }
 
 static void as_add_r_asr_r_r (int reg_m,int asr_m,int reg_n,int reg_d)
 {
-	store_l (0xe0000040 | (ARM_OP_ADD<<21) | (reg_num (reg_n)<<16) | (reg_num (reg_d)<<12) | (asr_m<<7) | reg_num(reg_m));
+	store_l (0xe0000040 | (ARM_OP_ADD<<21) | (reg_num (reg_n)<<16) | (reg_num (reg_d)<<12) | (asr_m<<7) | reg_num (reg_m));
 }
 
 static void as_add_is_r_r (int i,int shift,int s_reg,int d_reg)
@@ -1213,6 +1260,22 @@ static void as_smmla_r_r_r (int n_reg,int m_reg,int a_reg,int d_reg)
 static void as_smmls_r_r_r (int n_reg,int m_reg,int a_reg,int d_reg)
 {
 	store_l (0xe75000d0 | (reg_num (d_reg)<<16) | (reg_num (a_reg)<<12) | (reg_num (m_reg)<<8) | reg_num (n_reg));
+}
+
+static void as_move_d_r (LABEL *label,int arity,int reg1)
+{
+	store_l (0xe59f0000 | (reg_num (reg1)<<12)); /* ldr rt,[pc+imm] */
+	as_literal_label_entry (label,arity);
+	if (pic_flag)
+		as_add_r_r_r_no_literal_table (REGISTER_PC,reg1,reg1);
+}
+
+static void as_move_l_r (LABEL *label,int reg1)
+{
+	store_l (0xe59f0000 | (reg_num (reg1)<<12)); /* ldr rt,[pc+imm] */
+	as_literal_label_entry (label,0);
+	if (pic_flag)
+		as_add_r_r_r_no_literal_table (REGISTER_PC,reg1,reg1);
 }
 
 static void as_load_indexed_reg (int offset,struct index_registers *index_registers,int reg)
@@ -1694,7 +1757,7 @@ static void as_add_instruction (struct instruction *instruction)
 			}
 
 			store_l (0xe59f0000 | (reg_num (REGISTER_S0)<<12)); /* ldr rt,[pc+imm] */
-			as_literal_entry (NULL,i);
+			as_literal_constant_entry (i);
 			break;
 		}
 		default:
@@ -1735,7 +1798,7 @@ static void as_sub_instruction (struct instruction *instruction)
 			}
 
 			store_l (0xe59f0000 | (reg_num (REGISTER_S0)<<12)); /* ldr rt,[pc+imm] */
-			as_literal_entry (NULL,i);
+			as_literal_constant_entry (i);
 			break;
 		}
 		default:
@@ -1767,7 +1830,7 @@ static void as_addi_instruction (struct instruction *instruction)
 	}
 
 	store_l (0xe59f0000 | (reg_num (REGISTER_S0)<<12)); /* ldr rt,[pc+imm] */
-	as_literal_entry (NULL,i);
+	as_literal_constant_entry (i);
 
 	as_add_r_r_r (REGISTER_S0,s_reg,d_reg);
 }
@@ -1802,7 +1865,7 @@ static void as_add_or_sub_x_instruction (struct instruction *instruction,int arm
 			}
 
 			store_l (0xe59f0000 | (reg_num (REGISTER_S0)<<12)); /* ldr rt,[pc+imm] */
-			as_literal_entry (NULL,i);
+			as_literal_constant_entry (i);
 			break;
 		}
 		default:
@@ -1843,7 +1906,7 @@ static void as_cmp_i_parameter (int i,struct parameter *parameter)
 	}
 	
 	store_l (0xe59f0000 | (reg_num (reg_i)<<12)); /* ldr rt,[pc+imm] */
-	as_literal_entry (NULL,i);
+	as_literal_constant_entry (i);
 
 	as_cmp_r_r (reg_i,reg);
 }
@@ -2076,7 +2139,7 @@ static void as_logic_instruction (struct instruction *instruction,int arm_op)
 			}
 
 			store_l (0xe59f0000 | (reg_num (REGISTER_S0)<<12)); /* ldr rt,[pc+imm] */
-			as_literal_entry (NULL,i);
+			as_literal_constant_entry (i);
 			as_op_r_r_r (arm_op,REGISTER_S0,
 				instruction->instruction_parameters[1].parameter_data.reg.r,
 				instruction->instruction_parameters[1].parameter_data.reg.r);
@@ -3139,7 +3202,7 @@ static void as_garbage_collect_test (struct basic_block *block)
 		as_subs_is_r_r (n_cells,shift,REGISTER_R5,REGISTER_R5);
 	} else {
 		store_l (0xe59f0000 | (reg_num (REGISTER_S0)<<12)); /* ldr rt,[pc+imm] */
-		as_literal_entry (NULL,n_cells);
+		as_literal_constant_entry (n_cells);
 
 		as_x_op_r_r_r ((ARM_OP_SUB<<1) | 1,REGISTER_S0,REGISTER_R5,REGISTER_R5); /* subs */
 	}
@@ -3260,14 +3323,14 @@ static void as_node_entry_info (struct basic_block *block)
 			n_node_arguments=1;
 
 		if (n_node_arguments>=0 && block->block_ea_label!=eval_fill_label){
-#if 1
 			if (!block->block_profile){
 				as_move_l_r (block->block_ea_label,REGISTER_A3);
 
 				store_l (0xea000000); /* b */
 				as_branch_label (eval_upd_labels[n_node_arguments],JUMP_RELOCATION);
 
-				as_nop();
+				if (!pic_flag)
+					as_nop();
 			} else {
 				as_move_l_r (block->block_ea_label,REGISTER_D0);
 				as_move_l_r (block->block_profile_function_label,REGISTER_A3);
@@ -3275,13 +3338,6 @@ static void as_node_entry_info (struct basic_block *block)
 				store_l (0xea000000); /* b */
 				as_branch_label (eval_upd_labels[n_node_arguments],JUMP_RELOCATION);
 			}
-#else
-			as_move_l_r (eval_upd_labels[n_node_arguments],REGISTER_D0);
-			as_move_l_r (block->block_ea_label,REGISTER_A3);
-
-			store_c (0377);
-			store_c (0340 | reg_num (REGISTER_D0)); /* jmp d0 */
-#endif
 		} else {
 			store_l (0xea000000); /* b */
 			as_branch_label (block->block_ea_label,JUMP_RELOCATION);
@@ -3292,13 +3348,19 @@ static void as_node_entry_info (struct basic_block *block)
 		
 		if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
 			store_l (0);
-			store_label_in_code_section (block->block_descriptor);
+			if (!pic_flag)
+				store_label_in_code_section (block->block_descriptor);
+			else
+				store_relative_label_in_code_section (block->block_descriptor);
 		} else
 			store_l (0);
 	} else
 	if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
 		store_l (0);
-		store_label_in_code_section (block->block_descriptor);
+		if (!pic_flag)
+			store_label_in_code_section (block->block_descriptor);
+		else
+			store_relative_label_in_code_section (block->block_descriptor);
 	}
 	/* else
 		store_l (0);
@@ -4123,6 +4185,23 @@ static void relocate_code (void)
 					break;
 				} else
 					continue;
+			case RELATIVE_LONG_WORD_RELOCATION:
+				relocation_p=&relocation->next;
+				
+				if (label->label_id==TEXT_LABEL_ID || (label->label_id==DATA_LABEL_ID
+#if defined (RELOCATIONS_RELATIVE_TO_EXPORTED_DATA_LABEL) && defined (FUNCTION_LEVEL_LINKING)
+					&& !((label->label_flags & EXPORT_LABEL) && label->label_object_label->object_label_kind==EXPORTED_DATA_LABEL)
+#endif
+					))
+				{
+					instruction_offset=relocation->relocation_offset;
+					v=label->label_offset;
+#ifdef FUNCTION_LEVEL_LINKING
+					v -= label->label_object_label->object_label_offset;
+#endif
+					break;
+				} else
+					continue;
 #ifdef FUNCTION_LEVEL_LINKING
 			case DUMMY_BRANCH_RELOCATION:
 				if (label->label_id==TEXT_LABEL_ID){
@@ -4691,6 +4770,26 @@ static void write_code_relocations (void)
 				write_l (ELF32_R_INFO (elf_label_number (label),R_ARM_ABS32));
 #else
 				write_l (ELF32_R_INFO (label->label_id,R_ARM_ABS32));
+#endif
+				break;				
+			}
+			case RELATIVE_LONG_WORD_RELOCATION:
+			{
+				struct label *label;
+		
+				label=relocation->relocation_label;
+#ifdef FUNCTION_LEVEL_LINKING
+				if (label->label_id==-1)
+#else
+				if (label->label_id<0)
+#endif
+					internal_error_in_function ("write_code_relocations");
+
+				write_l (relocation->relocation_offset);
+#ifdef FUNCTION_LEVEL_LINKING
+				write_l (ELF32_R_INFO (elf_label_number (label),R_ARM_REL32));
+#else
+				write_l (ELF32_R_INFO (label->label_id,R_ARM_REL32));
 #endif
 				break;				
 			}

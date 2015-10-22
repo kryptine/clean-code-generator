@@ -107,8 +107,10 @@ int profile_table_flag;
 #ifdef G_POWER
 int fmadd_flag=1;
 #endif
-#if defined (LINUX) && defined (G_AI64)
+#if (defined (LINUX) && defined (G_AI64)) || defined (ARM)
 int pic_flag=0;
+#endif
+#if defined (LINUX) && defined (G_AI64)
 int rts_got_flag=0;
 char **sl_mods;
 char *no_sl_mods=NULL;
@@ -758,6 +760,10 @@ int main (int argc,char **argv)
 #ifdef G_AI64
 			else if (!strcmp (s,"sse64"))
 				sse_128=0;
+#endif
+#ifdef ARM
+			else if (!strcmp (s,"pic"))
+				pic_flag=1;
 #endif
 #if defined (LINUX) && defined (G_AI64)
 			else if (!strcmp (s,"pic")){

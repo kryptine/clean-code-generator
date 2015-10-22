@@ -34,8 +34,10 @@ extern int profile_table_flag;
 extern int fmadd_flag;
 #endif
 
-#if defined (LINUX) && defined (G_AI64)
+#if (defined (LINUX) && defined (G_AI64)) || defined (ARM)
 extern int pic_flag;
+#endif
+#if defined (LINUX) && defined (G_AI64)
 extern int rts_got_flag;
 #endif
 
