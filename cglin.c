@@ -1972,7 +1972,7 @@ void i_mtctr (int register_1)
 		i_new_instruction (IRTS,0,0);
 	}
 
-# ifdef I486
+# if defined (I486) || defined (ARM)
 	void i_rts_i (int offset)
 	{
 		struct instruction *instruction;

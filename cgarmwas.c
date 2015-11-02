@@ -2278,6 +2278,22 @@ static void w_as_rts_instruction (void)
 	ltorg_at_instruction_n = 0u-1u;
 }
 
+static void w_as_rtsi_instruction (struct instruction *instruction)
+{
+	int offset;
+
+	offset = instruction->instruction_parameters[0].parameter_data.imm;
+	w_as_opcode ("ldr");
+	fprintf (assembly_file,"pc,[sp],#%d",offset);
+	w_as_newline_after_instruction();
+
+	write_float_constants();
+	w_as_opcode (".ltorg");
+	w_as_newline();
+	instruction_n_after_ltorg = 0u;
+	ltorg_at_instruction_n = 0u-1u;
+}
+
 static void w_as_rtsp_instruction (void)
 {
 	w_as_opcode ("b");
@@ -2285,7 +2301,7 @@ static void w_as_rtsp_instruction (void)
 	w_as_newline_after_instruction();	
 }
 
-static void w_as_instructions (register struct instruction *instruction)
+static void w_as_instructions (struct instruction *instruction)
 {
 	while (instruction!=NULL){
 		switch (instruction->instruction_icode){
@@ -2315,6 +2331,9 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case IRTS:
 				w_as_rts_instruction();
+				break;
+			case IRTSI:
+				w_as_rtsi_instruction (instruction);
 				break;
 			case IRTSP:
 				w_as_rtsp_instruction();

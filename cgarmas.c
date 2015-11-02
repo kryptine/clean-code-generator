@@ -2062,9 +2062,18 @@ static void as_jsr_instruction (struct instruction *instruction)
 	}
 }
 
-static void as_rts_instruction (struct instruction *instruction)
+static void as_rts_instruction()
 {
 	store_l (0xe49df004); /* ldr pc,[sp],#4 */
+	write_literals();
+}
+
+static void as_rtsi_instruction (struct instruction *instruction)
+{
+	int offset;
+	
+	offset = instruction->instruction_parameters[0].parameter_data.imm;
+	store_l (0xe49df000 | (offset & 0xfff)); /* ldr pc,[sp],#offset */
 	write_literals();
 }
 
@@ -2933,7 +2942,10 @@ static void as_instructions (struct instruction *instruction)
 				as_jsr_instruction (instruction);
 				break;
 			case IRTS:
-				as_rts_instruction (instruction);
+				as_rts_instruction();
+				break;
+			case IRTSI:
+				as_rtsi_instruction (instruction);
 				break;
 			case IRTSP:
 				store_l (0xea000000); /* b */
@@ -4525,7 +4537,7 @@ static void write_object_labels (void)
 # endif
 				write_l (0);
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_FUNC));
-				write_c (0);
+				write_c (label->label_flags & C_ENTRY_LABEL ? STV_DEFAULT : STV_HIDDEN);
 # ifdef FUNCTION_LEVEL_LINKING
 				write_w (2+label->label_object_label->object_label_section_n);
 # else
@@ -4570,7 +4582,7 @@ static void write_object_labels (void)
 # endif
 				write_l (0);
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_OBJECT));
-				write_c (0);
+				write_c (label->label_flags & C_ENTRY_LABEL ? STV_DEFAULT : STV_HIDDEN);
 # ifdef FUNCTION_LEVEL_LINKING
 				write_w (2+n_code_sections+label->label_object_label->object_label_section_n);
 # else

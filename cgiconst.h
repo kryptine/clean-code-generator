@@ -79,10 +79,7 @@ enum {
 	,IFEXG
 #endif
 #if defined (I486) || defined (ARM)
-	,IADC ,ISBB
-#endif
-#if defined (I486)
-	,IRTSI
+	,IADC, ISBB, IRTSI
 #endif
 #if defined (I486) || defined (ARM)
 	,IDIVI, IREMI, IREMU, IFLOORDIV, IMOD, IMULUD

@@ -5669,11 +5669,27 @@ void code_ccall (char *c_function_name,char *s,int length)
 		}
 	}
 
+	if (save_state_in_global_variables){
+		i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_D6);
+		i_move_r_id (A_STACK_POINTER,0,REGISTER_D6);
+		i_lea_l_i_r (saved_heap_p_label,0,REGISTER_D6);
+		i_move_r_id (HEAP_POINTER,0,REGISTER_D6);
+		i_move_r_id (REGISTER_D5,4,REGISTER_D6);
+	}
+
 	if (!function_address_parameter)
 		i_call_l (label);
 	else
 		i_call_r (function_address_reg);
-		
+
+	if (save_state_in_global_variables){
+		i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_D6);
+		i_move_id_r (0,REGISTER_D6,A_STACK_POINTER);
+		i_lea_l_i_r (saved_heap_p_label,0,REGISTER_D6);
+		i_move_id_r (0,REGISTER_D6,HEAP_POINTER);
+		i_move_id_r (4,REGISTER_D6,REGISTER_D5);
+	}
+
 	if (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset)==0)
 		i_move_r_r (REGISTER_A2,B_STACK_POINTER);
 	else
@@ -5796,7 +5812,7 @@ static void load_constant_registers (void)
 
 static void save_registers_before_clean_call (void)
 {
-#if defined (I486) || defined (ARM)
+#if defined (I486)
 # ifdef G_AI64
 	i_sub_i_r (144,B_STACK_POINTER);
 
@@ -5861,6 +5877,22 @@ static void save_registers_before_clean_call (void)
 	i_move_r_id (-1/*ECX*/,4,B_STACK_POINTER);
 	i_move_r_id (-3/*EBP*/,0,B_STACK_POINTER);
 # endif
+#elif defined (ARM)
+	i_sub_i_r (36,B_STACK_POINTER);
+	i_move_r_id (REGISTER_D7,32,B_STACK_POINTER);
+	i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_D6);
+	i_move_r_id (A_STACK_POINTER,28,B_STACK_POINTER);
+	i_move_id_r (0,REGISTER_D6,A_STACK_POINTER);
+	i_lea_l_i_r (saved_heap_p_label,0,REGISTER_D6);
+	i_move_r_id (HEAP_POINTER,24,B_STACK_POINTER);
+	i_move_id_r (0,REGISTER_D6,HEAP_POINTER);
+	i_move_r_id (REGISTER_D5,20,B_STACK_POINTER);
+	i_move_id_r (4,REGISTER_D6,REGISTER_D5);
+	i_move_r_id (REGISTER_A3,16,B_STACK_POINTER);
+	i_move_r_id (REGISTER_A0,12,B_STACK_POINTER);
+	i_move_r_id (REGISTER_A1,8,B_STACK_POINTER);
+	i_move_r_id (REGISTER_A2,4,B_STACK_POINTER);
+	i_move_r_id (REGISTER_D0,0,B_STACK_POINTER);
 #elif defined (G_POWER)
 	{
 		int i,offset;
@@ -5889,7 +5921,7 @@ static void save_registers_before_clean_call (void)
 
 static void restore_registers_after_clean_call (void)
 {
-#if defined (I486) || defined (ARM)
+#if defined (I486)
 # ifdef G_AI64
 
 #  ifdef THREAD64
@@ -5943,6 +5975,21 @@ static void restore_registers_after_clean_call (void)
 	i_move_id_r (0,B_STACK_POINTER,-3/*EBP*/);
 	i_add_i_r (20,B_STACK_POINTER);
 # endif
+#elif defined (ARM)
+	i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_D6);
+	i_move_r_id (A_STACK_POINTER,0,REGISTER_D6);
+	i_move_id_r (28,B_STACK_POINTER,A_STACK_POINTER);
+	i_lea_l_i_r (saved_heap_p_label,0,REGISTER_D6);
+	i_move_r_id (HEAP_POINTER,0,REGISTER_D6);
+	i_move_id_r (24,B_STACK_POINTER,HEAP_POINTER);
+	i_move_r_id (REGISTER_D5,4,REGISTER_D6);
+	i_move_id_r (20,B_STACK_POINTER,REGISTER_D5);
+	i_move_id_r (16,B_STACK_POINTER,REGISTER_A3);
+	i_move_id_r (12,B_STACK_POINTER,REGISTER_A0);
+	i_move_id_r (8,B_STACK_POINTER,REGISTER_A1);
+	i_move_id_r (4,B_STACK_POINTER,REGISTER_A2);
+	i_move_id_r (0,B_STACK_POINTER,REGISTER_D0);
+	i_add_i_r (32,B_STACK_POINTER);
 #elif defined (G_POWER)
 	i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_A3);
 	i_move_r_id (A_STACK_POINTER,0,REGISTER_A3);
@@ -6145,6 +6192,10 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 # ifdef THREAD64
 	struct basic_block *block_with_call;
 # endif
+# ifdef ARM
+	INSTRUCTION_GRAPH register_arguments[4];
+	int n_pushed_register_result_pointer_parameters;
+# endif
 
 #if !defined (THREAD64)
 	if (saved_heap_p_label==NULL)
@@ -6292,7 +6343,11 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 #  endif
 		strcpy (&label_name[1],c_function_name);
 		
-		label=enter_label (label_name,EXPORT_LABEL);
+		label=enter_label (label_name,
+#  ifdef ARM
+							C_ENTRY_LABEL |
+#  endif
+							EXPORT_LABEL);
 
 # if defined (G_POWER) && defined (MACH_O)
 		if (dyld_stub_binding_helper_p_label==NULL)
@@ -6300,7 +6355,11 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 # endif
 	}
 # else
-	label=enter_label (c_function_name,EXPORT_LABEL);
+	label=enter_label (c_function_name,
+#  ifdef ARM
+						C_ENTRY_LABEL |
+#  endif
+						EXPORT_LABEL);
 # endif
 	
 	new_label=fast_memory_allocate_type (struct block_label);
@@ -6328,6 +6387,35 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 			last_block->block_link_module=0;
 		}
 	}
+
+#ifdef ARM
+	n_pushed_register_result_pointer_parameters = 0;
+	{
+		int first_result_pointer_n,n_result_pointers;
+
+		first_result_pointer_n = n_integer_and_float_parameters+n_string_or_array_parameters;
+		if (first_result_pointer_n<4){
+			int last_result_pointer_register_n;
+
+			n_result_pointers = n_integer_results-integer_c_function_result+
+								n_float_results-float_c_function_result+
+								n_string_or_array_results-string_or_array_c_function_result;
+
+			last_result_pointer_register_n = first_result_pointer_n+n_result_pointers;
+			if (last_result_pointer_register_n > 4)
+				last_result_pointer_register_n = 4;
+
+			n_pushed_register_result_pointer_parameters = last_result_pointer_register_n - first_result_pointer_n;			
+			if (n_pushed_register_result_pointer_parameters!=0){
+				int register_n;
+				
+				i_sub_i_r (n_pushed_register_result_pointer_parameters<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
+				for (register_n=first_result_pointer_n; register_n<last_result_pointer_register_n; ++register_n)
+					i_move_r_id (REGISTER_D4-register_n,(register_n-first_result_pointer_n)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);			
+			}
+		}
+	}
+#endif
 
 	save_registers_before_clean_call();
 
@@ -6385,26 +6473,47 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 # if defined (G_A64)
 		offset=((18+1+n_integer_parameters+n_string_or_array_parameters)<<STACK_ELEMENT_LOG_SIZE)+(n_float_parameters<<3);
 # else
+#  ifdef ARM
+		offset=36+(n_float_parameters<<3);
+		if (n_integer_parameters+n_string_or_array_parameters>4)
+			offset += ((n_integer_parameters+n_string_or_array_parameters-4)<<STACK_ELEMENT_LOG_SIZE);
+#  else
 		offset=24+((n_integer_parameters+n_string_or_array_parameters)<<STACK_ELEMENT_LOG_SIZE)+(n_float_parameters<<3);
+#  endif
 # endif
-		
+
+# ifdef ARM
+		{
+		int integer_string_or_array_parameter_n;
+			
+		integer_string_or_array_parameter_n = n_integer_parameters+n_string_or_array_parameters-1;
+# endif
+
 		for (i=colon_index-1; i>=first_parameter_index; --i){
 			char c;
 
 			c=s[i];
-			if (c=='I')
+			if (c=='I'){
 				offset-=STACK_ELEMENT_SIZE;
-			else if (c=='R')
+# ifdef ARM
+				--integer_string_or_array_parameter_n;
+# endif
+			} else if (c=='R')
 				offset-=8;
 			else if (c=='S'){
 				if (string_to_string_node_label==NULL)
 					string_to_string_node_label=enter_string_to_string_node_label();
 				offset-=STACK_ELEMENT_SIZE;
-				i_move_id_r (offset,B_STACK_POINTER,REGISTER_A0);
-# ifndef ARM
-				i_jsr_l (string_to_string_node_label,0);
-# else
+# ifdef ARM
+				if (integer_string_or_array_parameter_n<4)
+					i_move_r_r (REGISTER_D4-integer_string_or_array_parameter_n,REGISTER_A0);
+				else
+					i_move_id_r (offset,B_STACK_POINTER,REGISTER_A0);
+				--integer_string_or_array_parameter_n;
 				i_jsr_l_idu (string_to_string_node_label,-4);
+# else
+				i_move_id_r (offset,B_STACK_POINTER,REGISTER_A0);
+				i_jsr_l (string_to_string_node_label,0);
 # endif
 				i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
 				i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
@@ -6413,11 +6522,16 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 				if (int_array_to_node_label==NULL)
 					int_array_to_node_label=enter_label ("int_array_to_node",IMPORT_LABEL);
 				offset-=STACK_ELEMENT_SIZE;
-				i_move_id_r (offset,B_STACK_POINTER,REGISTER_A0);
-# ifndef ARM
-				i_jsr_l (int_array_to_node_label,0);
-# else
+# ifdef ARM
+				if (integer_string_or_array_parameter_n<4)
+					i_move_r_r (REGISTER_D4-integer_string_or_array_parameter_n,REGISTER_A0);
+				else
+					i_move_id_r (offset,B_STACK_POINTER,REGISTER_A0);
+				--integer_string_or_array_parameter_n;
 				i_jsr_l_idu (int_array_to_node_label,-4);
+# else
+				i_move_id_r (offset,B_STACK_POINTER,REGISTER_A0);
+				i_jsr_l (int_array_to_node_label,0);
 # endif
 				i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
 				i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
@@ -6426,11 +6540,16 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 				if (real_array_to_node_label==NULL)
 					real_array_to_node_label=enter_label ("real_array_to_node",IMPORT_LABEL);
 				offset-=STACK_ELEMENT_SIZE;
-				i_move_id_r (offset,B_STACK_POINTER,REGISTER_A0);
-# ifndef ARM
-				i_jsr_l (real_array_to_node_label,0);
-# else
+# ifdef ARM
+				if (integer_string_or_array_parameter_n<4)
+					i_move_r_r (REGISTER_D4-integer_string_or_array_parameter_n,REGISTER_A0);
+				else
+					i_move_id_r (offset,B_STACK_POINTER,REGISTER_A0);
+				--integer_string_or_array_parameter_n;
 				i_jsr_l_idu (real_array_to_node_label,-4);
+# else
+				i_move_id_r (offset,B_STACK_POINTER,REGISTER_A0);
+				i_jsr_l (real_array_to_node_label,0);
 # endif
 				i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
 				i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
@@ -6438,6 +6557,11 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 				break;
 		}
 	}
+
+# ifdef ARM
+	}
+# endif
+
 #endif
 
 	if (last_block->block_labels==NULL)
@@ -6454,9 +6578,19 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	reachable=1;
 	
 	init_a_stack (0);
+#ifdef ARM
+	if (n_integer_parameters>0){
+		init_b_stack (5,i_i_i_i_i_vector);
+		register_arguments[0] = s_pop_b();
+		register_arguments[1] = s_pop_b();
+		register_arguments[2] = s_pop_b();
+		register_arguments[3] = s_pop_b();
+		s_pop_b();
+	} else
+#endif
 	init_b_stack (0,e_vector);
 
-#if defined (I486) || defined (ARM)
+#if defined (I486)
 	if (n_string_or_array_parameters!=0){
 		int i,offset;
 
@@ -6487,17 +6621,18 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		}
 	} else
 #endif
+#ifndef ARM
 		for (n=0; n<n_integer_and_float_parameters; ++n)
-#ifdef G_POWER
+# ifdef G_POWER
 			s_push_b (g_g_register (C_PARAMETER_REGISTER_0+((n_integer_parameters-1)-n)));
-#else
-# ifdef G_AI64
+# else
+#  ifdef G_AI64
 			if (n>=n_integer_and_float_parameters-4){
 				int register_n;
 
 				register_n = (n_integer_and_float_parameters-1)-n;
 				if (s[first_parameter_index+register_n]!='R')
-#  if defined (LINUX_ELF) || defined (MACH_O64)
+#   if defined (LINUX_ELF) || defined (MACH_O64)
 				{
 					switch (register_n){
 						case 0: register_n= 2/*R10 was RDI*/; break;
@@ -6506,26 +6641,59 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 						case 3: register_n=-1/*RCX*/; break;
 						case 4: register_n=-3/*R8*/; break;
 						case 5:
-#   ifndef THREAD64
+#    ifndef THREAD64
 								register_n=-4/*R9*/;
-#   else
+#    else
 								register_n= 4/*R12*/;
-#   endif
+#    endif
 								break;
 						default: error ("error in centry");
 					}
 					s_push_b (g_g_register (register_n));
 				}
-#  else
+#   else
 					s_push_b (g_g_register (REGISTER_A0-register_n));
-#  endif
+#   endif
 				else
 					s_push_b (g_fromf (g_fregister (register_n)));
 			} else
 				s_push_b (s_get_b (18+1+4+(n_integer_and_float_parameters-4-1)));
-# else
+#  else
 			s_push_b (s_get_b (5+1+(n_integer_and_float_parameters-1)));
+#  endif
 # endif
+#endif
+
+#ifdef ARM
+	{
+		int integer_string_or_array_parameter_n,offset,i;
+
+		integer_string_or_array_parameter_n = n_integer_parameters+n_string_or_array_parameters-1;
+		offset = 5+(n_integer_and_float_parameters+n_string_or_array_parameters-1);
+
+		for (i=colon_index-1; i>=first_parameter_index; --i){
+			char c;
+
+			c=s[i];
+			if (c=='I'){
+				if (integer_string_or_array_parameter_n<4)
+					s_push_b (register_arguments[integer_string_or_array_parameter_n]);				
+				else
+					s_push_b (s_get_b (offset));					
+				--integer_string_or_array_parameter_n;
+			} else if (c=='R')
+				;
+			else if (c=='S'){
+				--integer_string_or_array_parameter_n;
+				--offset;
+			} else if (c=='i' || c=='r'){
+				--i;
+				--integer_string_or_array_parameter_n;
+				--offset;
+			} else
+				break;
+		}
+	}
 #endif
 
 	{
@@ -6593,7 +6761,13 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 #ifdef G_AI64
 		result_pointer_parameter_offset=((18+1+4+n_integer_and_float_parameters+n_string_or_array_parameters-4)<<STACK_ELEMENT_LOG_SIZE);
 #else
+# ifdef ARM
+		result_pointer_parameter_offset=36+(n_float_parameters<<3);
+		if (n_integer_parameters+n_string_or_array_parameters>4)
+			result_pointer_parameter_offset += ((n_integer_parameters+n_string_or_array_parameters-4)<<STACK_ELEMENT_LOG_SIZE);
+# else
 		result_pointer_parameter_offset=20+4+((n_integer_and_float_parameters+n_string_or_array_parameters)<<STACK_ELEMENT_LOG_SIZE);
+# endif
 #endif
 		if (n_integer_results-integer_c_function_result>N_DATA_PARAMETER_REGISTERS)
 			result_pointer_parameter_offset+=(n_integer_results-integer_c_function_result-N_DATA_PARAMETER_REGISTERS)<<STACK_ELEMENT_LOG_SIZE;
@@ -6704,12 +6878,25 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		}
 
 		if (integer_c_function_result){
+#ifdef ARM
+			if (n_data_results_registers-1!=REGISTER_D4)
+				i_move_r_r (n_data_results_registers-1,REGISTER_D4);		
+#else
 			if (n_data_results_registers>1)
 				i_move_r_r (n_data_results_registers-1,0);
+#endif
 		} else if (string_c_function_result)
+#ifdef ARM
+			i_lea_id_r (STACK_ELEMENT_SIZE,REGISTER_A0,REGISTER_D4);
+#else
 			i_lea_id_r (STACK_ELEMENT_SIZE,REGISTER_A0,REGISTER_D0);
+#endif
 		else if (array_c_function_result)
+#ifdef ARM
+			i_lea_id_r (STACK_ELEMENT_SIZE*3,REGISTER_A0,REGISTER_D4);
+#else
 			i_lea_id_r (STACK_ELEMENT_SIZE*3,REGISTER_A0,REGISTER_D0);
+#endif
 	}
 
 	if (!float_c_function_result)
@@ -6758,6 +6945,12 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 			i_rts_i ((n_integer_and_float_parameters+n_string_or_array_parameters)<<2);
 		else
 # endif
+
+#ifdef ARM
+		if (n_pushed_register_result_pointer_parameters!=0)
+			i_rts_i ((n_pushed_register_result_pointer_parameters+1)<<STACK_ELEMENT_LOG_SIZE);
+		else
+#endif
 		i_rts();
 #else
 # ifdef G_POWER

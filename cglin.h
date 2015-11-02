@@ -24,7 +24,7 @@ void i_jmp_id (int offset_1,int register_1,int n_a_registers);
 #endif
 #if ! (defined (sparc) || defined (G_POWER))
 	void i_rts (void);
-# ifdef I486
+# if defined (I486) || defined (ARM)
 	void i_rts_i (int offset);
 # endif
 # if defined (I486) || defined (ARM)
