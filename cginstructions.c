@@ -4568,7 +4568,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 					error_s (ccall_error_string,c_function_name);
 			}
 		}
-			
+
 		switch (result){
 			case 'I':
 			case 'p':
@@ -5599,10 +5599,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 				
 					n=new_reg[reg_n];
 					if (n>=0 && n!=reg_n){
-						if (n>4 || n==0){
-							i_move_r_r (REGISTER_D0+n,REGISTER_D0+reg_n);
-							new_reg[reg_n]=-1;
-						} else if (new_reg[1]!=reg_n && new_reg[2]!=reg_n && new_reg[3]!=reg_n && new_reg[4]!=reg_n){
+						if (new_reg[1]!=reg_n && new_reg[2]!=reg_n && new_reg[3]!=reg_n && new_reg[4]!=reg_n){
 							i_move_r_r (REGISTER_D0+n,REGISTER_D0+reg_n);
 							new_reg[reg_n]=-1;
 						} else
