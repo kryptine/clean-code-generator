@@ -5464,7 +5464,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 #elif defined (ARM)
 
 	{
-	int c_offset_before_pushing_arguments,function_address_reg,c_parameter_n;
+	int c_offset_before_pushing_arguments,function_address_reg,function_address_s_index,c_parameter_n;
 
 	a_o=-b_result_offset-a_result_offset;
 	b_o=0;
@@ -5550,6 +5550,15 @@ void code_ccall (char *c_function_name,char *s,int length)
 						if (--c_parameter_n_1>=4)
 							c_offset_1+=STACK_ELEMENT_SIZE;
 						break;
+					case 'O':
+					case 'F':
+					case '*':
+					case ']':
+						while (l>=0 && (s[l]!='F' && s[l]!='O'))
+							--l;
+						if (--c_parameter_n_1>=4)
+							c_offset_1+=STACK_ELEMENT_SIZE;
+						break;
 				}
 			}
 			
@@ -5588,6 +5597,19 @@ void code_ccall (char *c_function_name,char *s,int length)
 					case 's':
 						if (--c_parameter_n_2>=4)
 							c_offset_2-=STACK_ELEMENT_SIZE;
+						break;
+					case 'O':
+					case 'F':
+					case '*':
+					case ']':
+						while (l>=0 && (s[l]!='F' && s[l]!='O'))
+							--l;
+						if (--c_parameter_n_2<4){
+							if (l<=last_register_parameter_index){
+								new_reg [4-c_parameter_n_2] = n_extra_clean_b_register_parameters+reg_n;
+								++reg_n;
+							}
+						}
 						break;
 				}
 			}
@@ -5660,6 +5682,25 @@ void code_ccall (char *c_function_name,char *s,int length)
 					}
 					a_o+=STACK_ELEMENT_SIZE;
 					break;
+				case 'O':
+				case 'F':
+				case '*':
+				case ']':
+					while (l>=0 && (s[l]!='F' && s[l]!='O'))
+						--l;
+					if (--c_parameter_n<4){
+						if (l<=last_register_parameter_index){
+							/* i_move_r_r (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,REGISTER_D4-c_parameter_n); */
+							++reg_n;
+						} else {
+							b_o-=STACK_ELEMENT_SIZE;
+							i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-c_parameter_n);
+						}
+						
+						function_address_reg = REGISTER_D4-c_parameter_n;
+						function_address_s_index = l+1;
+						break;
+					}
 				default:
 					error_s (ccall_error_string,c_function_name);
 			}
@@ -5676,8 +5717,28 @@ void code_ccall (char *c_function_name,char *s,int length)
 
 	if (!function_address_parameter)
 		i_call_l (label);
-	else
+	else {
+		int l;
+		
+		for (l=function_address_s_index; l<length && (s[l]=='*' || s[l]=='['); ++l){
+			int n;
+			
+			n=0;
+			
+			if (s[l]=='['){
+				++l;
+				while (l<length && (unsigned)(s[l]-'0')<(unsigned)10){
+					n=n*10+(s[l]-'0');
+					++l;
+				}
+			}
+			
+			i_move_id_r (n,function_address_reg,REGISTER_D6);
+			function_address_reg = REGISTER_D6;
+		}
+		
 		i_call_r (function_address_reg);
+	}
 
 	if (save_state_in_global_variables){
 		i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_D6);
