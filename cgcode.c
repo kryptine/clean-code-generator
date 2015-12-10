@@ -9644,7 +9644,11 @@ static void code_record_descriptor (LABEL *label,int string_code_label_id,char t
 #endif
 
 #ifdef GEN_OBJ
+#  ifdef MACH_O64
+	store_label_offset_in_data_section (string_label);
+#  else
 	store_label_in_data_section (string_label);
+#  endif
 #endif
 	if (assembly_flag)
 #ifdef MACH_O64

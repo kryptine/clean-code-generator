@@ -28,6 +28,9 @@ void store_2_words_in_data_section (UWORD w1,UWORD w2);
 #ifdef _WINDOWS_
 void as_new_data_module (void);
 #endif
+#ifdef G_MACH_O64
+void as_data_align_quad (void);
+#endif
 
 #ifndef GNU_C
 void write_version_and_options (int version,int options);

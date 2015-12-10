@@ -1186,6 +1186,9 @@ LABEL *w_code_descriptor_length_and_string (char *string,int length)
 #endif
 
 #ifdef GEN_OBJ
+# ifdef MACH_O64
+	as_data_align_quad();
+# endif
 	define_data_label (string_label);
 	if (_STRING__label->label_id<0)
 		_STRING__label->label_id=next_label_id++;
@@ -1222,6 +1225,9 @@ LABEL *w_code_length_and_string (char *string,int length)
 #endif
 
 #ifdef GEN_OBJ
+# ifdef MACH_O64
+	as_data_align_quad();
+# endif
 	define_data_label (string_label);
 	store_abc_string_in_data_section (string,length);
 #endif
