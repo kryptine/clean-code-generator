@@ -5205,8 +5205,52 @@ static void write_code (void)
 		if (block->block_begin_module){
 			if (block->block_link_module){
 				if (code_object_label!=NULL && CURRENT_CODE_OFFSET!=code_object_label->object_label_offset && block->block_labels){
-					align_4();
+#ifdef OPTIMISE_BRANCHES
+					{
+						struct relocation *new_relocation;
+						int align;
 
+						new_relocation=fast_memory_allocate_type (struct relocation);
+						
+						*last_code_relocation_l=new_relocation;
+						last_code_relocation_l=&new_relocation->next;
+						new_relocation->next=NULL;
+						
+						align=3 & -(CURRENT_CODE_OFFSET-code_object_label->object_label_offset);						
+
+						U5 (new_relocation,
+							relocation_offset=CURRENT_CODE_OFFSET,
+							relocation_kind=ALIGN_RELOCATION,
+							relocation_align1=align,
+							relocation_align2=align,			
+							relocation_object_label=code_object_label);
+					}
+#endif
+#ifdef G_MACH_O64
+					align_4();
+#else
+# if 1
+					switch (3 & -(CURRENT_CODE_OFFSET-code_object_label->object_label_offset)){
+						case 0:
+							break;
+						case 1:
+							store_c (0x90);
+							break;
+						case 2:
+							store_c (0x48);
+							store_c (0x90);
+							break;
+						case 3:
+							store_c (0x48);
+							store_c (0213);
+							store_c (0300 | (reg_num (EBP)<<3) | reg_num (EBP));
+							break;
+					}
+# else
+					while (((CURRENT_CODE_OFFSET-code_object_label->object_label_offset) & 3)!=0)
+						store_c (0x90);
+# endif
+#endif
 					{
 						struct relocation *new_relocation;
 						
@@ -5240,7 +5284,33 @@ static void write_code (void)
 
 		if (block->block_n_node_arguments>-100){
 #ifndef FUNCTION_LEVEL_LINKING
+# ifdef G_MACH_O
 			align_4();
+# else
+#  ifdef OPTIMISE_BRANCHES
+			{
+				struct relocation *new_relocation;
+				int align;
+
+				new_relocation=fast_memory_allocate_type (struct relocation);
+				
+				*last_code_relocation_l=new_relocation;
+				last_code_relocation_l=&new_relocation->next;
+				new_relocation->next=NULL;
+				
+				align=code_buffer_free & 3;
+
+				U4 (new_relocation,
+					relocation_offset=CURRENT_CODE_OFFSET,
+					relocation_kind=ALIGN_RELOCATION,
+					relocation_align1=align,
+					relocation_align2=align);
+			}
+#  endif
+
+			while ((code_buffer_free & 3)!=0)
+				store_c (0x90);
+# endif
 #endif
 			if (block->block_ea_label!=NULL){
 				extern LABEL *eval_fill_label,*eval_upd_labels[];
