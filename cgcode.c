@@ -60,7 +60,7 @@
 #	include "cgpas.h"
 #	include "cgpwas.h"
 #else
-# if defined (I486) || defined (ARM)
+# ifdef I486
 #  ifdef G_AI64
 #	include "cgaas.h"
 #	include "cgawas.h"
@@ -69,11 +69,16 @@
 #	include "cgiwas.h"
 #  endif
 # else
-#  ifdef SOLARIS
-#	include "cgswas.h"
+#  ifdef ARM
+#	include "cgarmas.h"
+#	include "cgarmwas.h"
 #  else
-#	include "cgas.h"
-#	include "cgwas.h"
+#   ifdef SOLARIS
+#    include "cgswas.h"
+#   else
+#    include "cgas.h"
+#    include "cgwas.h"
+#   endif
 #  endif
 # endif
 #endif

@@ -55,19 +55,24 @@ TP2PerfGlobals ThePGlobals;
 #include "cgcode.h"
 #include "cglin.h"
 #include "cgopt.h"
-#ifdef _WINDOWS_
+#ifdef I486
 # include "cgias.h"
 # include "cgiwas.h"
 #else
-# ifdef SOLARIS
-#  include "cgswas.h"
+# ifdef ARM
+#  include "cgarmas.h"
+#  include "cgarmwas.h"
 # else
-#  ifdef G_POWER
-#   include "cgpas.h"
-#   include "cgpwas.h"
+#  ifdef SOLARIS
+#   include "cgswas.h"
 #  else
-#   include "cgas.h"
-#   include "cgwas.h"
+#   ifdef G_POWER
+#    include "cgpas.h"
+#    include "cgpwas.h"
+#   else
+#    include "cgas.h"
+#    include "cgwas.h"
+#   endif
 #  endif
 # endif
 #endif
@@ -917,7 +922,7 @@ int main (int argc,char **argv)
 			setvbuf (assembly_file,NULL,_IOFBF,IO_BUF_SIZE);
 #endif
 		}
-	
+
 #ifdef GENERATE_OBJECT_FILE
 		initialize_assembler (obj_file);
 #endif
