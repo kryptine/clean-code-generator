@@ -3646,7 +3646,7 @@ static void push_extra_clean_b_register_parameters (int n_extra_clean_b_register
 #endif
 }
 
-#if (defined (sparc) && !defined (SOLARIS)) || ((defined (I486) || defined (ARM)) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O) || defined (MACH_O64)
+#if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O) || defined (MACH_O64)
 static LABEL *enter_c_function_name_label (char *c_function_name)
 {
 	char label_name [202];
@@ -6396,7 +6396,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	n_integer_and_float_parameters=n_integer_parameters+n_float_parameters;
 #endif
 
-# if (defined (sparc) && !defined (SOLARIS)) || ((defined (I486) || defined (ARM)) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O) || defined (MACH_O64)
+# if (defined (sparc) && !defined (SOLARIS)) || (defined (I486) && !defined (LINUX_ELF) && !defined (G_AI64)) || (defined (G_POWER) && !defined (LINUX_ELF)) || defined (MACH_O) || defined (MACH_O64)
 	{
 		char label_name [202];
 
