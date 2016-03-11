@@ -1,4 +1,11 @@
 
+#ifdef ANDROID
+# define SOFT_FP_CC
+#endif
+
+#define NO_REG_OR_PAD 128
+#define PAD_4_AFTER 129
+
 void code_ccall (char *c_function_name,char *s,int length)
 {
 	LABEL *label;
@@ -9,10 +16,21 @@ void code_ccall (char *c_function_name,char *s,int length)
 	int n_extra_clean_b_register_parameters;
 	int first_pointer_result_index,callee_pops_arguments,save_state_in_global_variables;
 	int function_address_parameter;
-	int c_offset;		
-	int	c_parameter_n;
+	int c_offset,c_register_parameter_n,c_register_pair_parameter_n,c_parameter_offset;
+#ifndef SOFT_FP_CC
+	int c_fp_register_parameter_n;
+#endif
+	int c_parameter_padding;
+	int previous_word_l;
+	unsigned char reg_or_pad[100]; /* 128 = no_reg_or_pad, <128 = reg number, 129 = pad 4 bytes after */
 
 	function_address_parameter=0;
+
+	if (length>100)
+		error_s (ccall_error_string,c_function_name);
+
+	for (l=0; l<length; ++l)
+		reg_or_pad[l] = NO_REG_OR_PAD;
 
 	if (*s=='G'){
 		++s;
@@ -37,7 +55,15 @@ void code_ccall (char *c_function_name,char *s,int length)
 	a_offset=0;
 	b_offset=0;
 	n_clean_b_register_parameters=0;
+	c_register_parameter_n=0;
+	c_register_pair_parameter_n=0;
+	c_parameter_offset = 0;
+	c_parameter_padding = 0;
+#ifndef SOFT_FP_CC
+	c_fp_register_parameter_n=0;
+#endif
 
+	previous_word_l = -1;
 	for (l=0; l<length; ++l){
 		switch (s[l]){
 			case '-':
@@ -46,18 +72,86 @@ void code_ccall (char *c_function_name,char *s,int length)
 				break;
 			case 'I':
 			case 'p':
+				if (c_register_parameter_n<4){
+					reg_or_pad[l] = c_register_parameter_n;
+					if (c_register_parameter_n>=c_register_pair_parameter_n)
+						++c_register_parameter_n;
+					else
+						c_register_parameter_n=c_register_pair_parameter_n+2;
+				} else {
+					previous_word_l = l;
+					c_parameter_offset+=STACK_ELEMENT_SIZE;
+				}
 				b_offset+=STACK_ELEMENT_SIZE;
 				if (!float_parameters)
 					++n_clean_b_register_parameters;
 				continue;
 			case 'r':
+				if (c_register_parameter_n<4){
+					reg_or_pad[l] = c_register_parameter_n;
+					if (c_register_parameter_n>=c_register_pair_parameter_n)
+						++c_register_parameter_n;
+					else
+						c_register_parameter_n=c_register_pair_parameter_n;
+				} else {
+					previous_word_l = l;
+					c_parameter_offset+=STACK_ELEMENT_SIZE;
+				}
+				float_parameters=1;
+				b_offset+=8;
+				continue;
 			case 'R':
 				float_parameters=1;
 				b_offset+=8;
+#ifdef SOFT_FP_CC
+				if (c_register_parameter_n<4){
+					if ((c_register_parameter_n & 1)==0){
+						reg_or_pad[l] = c_register_parameter_n;
+						c_register_parameter_n+=2;
+						c_register_pair_parameter_n = c_register_parameter_n;
+						previous_word_l = -1;
+						continue;
+					} else {
+						if (c_register_pair_parameter_n<=c_register_parameter_n)
+							c_register_pair_parameter_n = c_register_parameter_n+1;
+						if (c_register_pair_parameter_n<4){
+							reg_or_pad[l] = c_register_pair_parameter_n;
+							c_register_pair_parameter_n+=2;
+							previous_word_l = -1;
+							continue;
+						} else
+							c_register_parameter_n=4;
+					}
+				}
+#else
+				if (c_fp_register_parameter_n<8){
+					reg_or_pad[l] = c_fp_register_parameter_n++;
+					continue;
+				}
+#endif
+				if (c_parameter_offset & 4){
+					if (previous_word_l<0 || reg_or_pad[previous_word_l]!=NO_REG_OR_PAD)
+						internal_error_in_function ("code_ccall");
+					reg_or_pad[previous_word_l]=PAD_4_AFTER;
+					c_parameter_padding+=4;
+					c_parameter_offset+=4;
+				}
+				c_parameter_offset+=8;
+				previous_word_l = -1;
 				continue;
 			case 'S':
 			case 's':
 			case 'A':
+				if (c_register_parameter_n<4){
+					reg_or_pad[l] = c_register_parameter_n;
+					if (c_register_parameter_n>=c_register_pair_parameter_n)
+						++c_register_parameter_n;
+					else
+						c_register_parameter_n=c_register_pair_parameter_n+2;
+				} else {
+					previous_word_l = l;
+					c_parameter_offset+=STACK_ELEMENT_SIZE;
+				}
 				a_offset+=STACK_ELEMENT_SIZE;
 				continue;
 			case 'O':
@@ -88,28 +182,21 @@ void code_ccall (char *c_function_name,char *s,int length)
 	if (l>=length)
 		error_s (ccall_error_string,c_function_name);
 	
-	a_result_offset=0;
-	b_result_offset=0;
-
 	n_extra_clean_b_register_parameters=0;
 
 	for (++l; l<length; ++l){
 		switch (s[l]){
 			case 'I':
 			case 'p':
-				b_result_offset+=STACK_ELEMENT_SIZE;
 				continue;
 			case 'R':
 				float_parameters=1;
-				b_result_offset+=8;
 				continue;
 			case 'S':
-				a_result_offset+=STACK_ELEMENT_SIZE;
 				continue;
 			case 'A':
 				++l;
 				if (l<length && (s[l]=='i' || s[l]=='r')){
-					a_result_offset+=STACK_ELEMENT_SIZE;
 					continue;
 				} else {
 					error_s (ccall_error_string,c_function_name);
@@ -177,17 +264,65 @@ void code_ccall (char *c_function_name,char *s,int length)
 		switch (result){
 			case 'I':
 			case 'p':
-				b_result_offset-=STACK_ELEMENT_SIZE;
-				break;
 			case 'R':
-				b_result_offset-=8;
-				break;
 			case 'S':
-				a_result_offset-=STACK_ELEMENT_SIZE;
 				break;
 			case 'A':
-				a_result_offset-=STACK_ELEMENT_SIZE;
 				++first_pointer_result_index;
+		}
+	}
+
+	a_result_offset=0;
+	b_result_offset=0;
+
+	for (l=first_pointer_result_index; l<length; ++l){
+		switch (s[l]){
+			case 'I':
+			case 'p':
+				if (c_register_parameter_n<4){
+					reg_or_pad[l] = c_register_parameter_n;
+					if (c_register_parameter_n>=c_register_pair_parameter_n)
+						++c_register_parameter_n;
+					else
+						c_register_parameter_n=c_register_pair_parameter_n+2;
+				} else
+					c_parameter_offset+=STACK_ELEMENT_SIZE;
+				b_result_offset+=STACK_ELEMENT_SIZE;
+				continue;
+			case 'R':
+				if (c_register_parameter_n<4){
+					reg_or_pad[l] = c_register_parameter_n;
+					if (c_register_parameter_n>=c_register_pair_parameter_n)
+						++c_register_parameter_n;
+					else
+						c_register_parameter_n=c_register_pair_parameter_n+2;
+				} else
+					c_parameter_offset+=STACK_ELEMENT_SIZE;
+				b_result_offset+=8;
+				continue;
+			case 'S':
+				if (c_register_parameter_n<4){
+					reg_or_pad[l] = c_register_parameter_n;
+					if (c_register_parameter_n>=c_register_pair_parameter_n)
+						++c_register_parameter_n;
+					else
+						c_register_parameter_n=c_register_pair_parameter_n+2;
+				} else
+					c_parameter_offset+=STACK_ELEMENT_SIZE;
+				a_result_offset+=STACK_ELEMENT_SIZE;
+				continue;
+			case 'A':
+				if (c_register_parameter_n<4){
+					reg_or_pad[l] = c_register_parameter_n;
+					if (c_register_parameter_n>=c_register_pair_parameter_n)
+						++c_register_parameter_n;
+					else
+						c_register_parameter_n=c_register_pair_parameter_n+2;
+				} else
+					c_parameter_offset+=STACK_ELEMENT_SIZE;
+				++l;
+				a_result_offset+=STACK_ELEMENT_SIZE;
+				continue;
 		}
 	}
 
@@ -195,7 +330,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 		label = enter_c_function_name_label (c_function_name);
 
 	{
-	int c_offset_before_pushing_arguments,function_address_reg,function_address_s_index,c_parameter_n;
+	int c_offset_before_pushing_arguments,function_address_reg,function_address_s_index;
 
 	a_o=-b_result_offset-a_result_offset;
 	b_o=0;
@@ -207,11 +342,9 @@ void code_ccall (char *c_function_name,char *s,int length)
 
 	c_offset_before_pushing_arguments=c_offset;
 
-	c_parameter_n=((a_offset+b_offset+a_result_offset+b_result_offset)>>STACK_ELEMENT_LOG_SIZE)+n_clean_b_register_parameters;
-
 	i_move_r_r (B_STACK_POINTER,REGISTER_A2);
 
-	if (c_parameter_n>=4 && (c_parameter_n & 1)!=0){
+	if (c_parameter_offset & 4){
 		i_sub_i_r (4,B_STACK_POINTER);
 		i_or_i_r (4,B_STACK_POINTER);
 	} else {
@@ -223,8 +356,8 @@ void code_ccall (char *c_function_name,char *s,int length)
 			case 'I':
 			case 'p':
 				b_o-=STACK_ELEMENT_SIZE;
-				if (--c_parameter_n<4)
-					i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-c_parameter_n);
+				if (reg_or_pad[l]<NO_REG_OR_PAD)
+					i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-reg_or_pad[l]);
 				else {
 					i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_A3);
 					i_move_r_pd (REGISTER_A3,B_STACK_POINTER);
@@ -235,14 +368,24 @@ void code_ccall (char *c_function_name,char *s,int length)
 			case 'r':
 				--l;
 			case 'S':
-				if (--c_parameter_n<4)
-					i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-c_parameter_n);
+				if (reg_or_pad[l]<NO_REG_OR_PAD)
+					i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-reg_or_pad[l]);
 				else {
 					i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_A3);
 					i_move_r_pd (REGISTER_A3,B_STACK_POINTER);
 					c_offset+=STACK_ELEMENT_SIZE;
 				}
 				a_o+=STACK_ELEMENT_SIZE;
+				break;
+			case 'R':
+				b_o-=8;
+				if (reg_or_pad[l]<NO_REG_OR_PAD)
+					i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-reg_or_pad[l]);
+				else {
+					i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_A3);
+					i_move_r_pd (REGISTER_A3,B_STACK_POINTER);
+					c_offset+=STACK_ELEMENT_SIZE;
+				}
 				break;
 			case 'V':
 				break;
@@ -268,55 +411,58 @@ void code_ccall (char *c_function_name,char *s,int length)
 		
 		c_offset_1=0;
 
-		{
-			int c_parameter_n_1,l;
-			
-			c_parameter_n_1 = c_parameter_n;
-			for (l=min_index-1; l>=0; --l){
-				switch (s[l]){
-					case 'I':
-					case 'p':
-					case 'S':
-					case 's':
-						if (--c_parameter_n_1>=4)
-							c_offset_1+=STACK_ELEMENT_SIZE;
-						break;
-					case 'O':
-					case 'F':
-					case '*':
-					case ']':
-						while (l>=0 && (s[l]!='F' && s[l]!='O'))
-							--l;
-						if (--c_parameter_n_1>=4)
-							c_offset_1+=STACK_ELEMENT_SIZE;
-						break;
-				}
+		for (l=min_index-1; l>=0; --l){
+			switch (s[l]){
+				case 'I':
+				case 'p':
+				case 'S':
+				case 's':
+					if (reg_or_pad[l]>=NO_REG_OR_PAD){
+						if (reg_or_pad[l]==PAD_4_AFTER)
+							c_offset_1+=4;
+						c_offset_1+=STACK_ELEMENT_SIZE;
+					}
+					break;
+				case 'R':
+					if (reg_or_pad[l]>=NO_REG_OR_PAD)
+						c_offset_1+=8;
+					break;
+				case 'O':
+				case 'F':
+				case '*':
+				case ']':
+					while (l>=0 && (s[l]!='F' && s[l]!='O'))
+						--l;
+					if (reg_or_pad[l]>=NO_REG_OR_PAD)
+						c_offset_1+=STACK_ELEMENT_SIZE;
+					break;
 			}
-			
-			if (c_offset_1!=0){
-				i_sub_i_r (c_offset_1,B_STACK_POINTER);
-				c_offset += c_offset_1;
-			}
+		}
+		
+		if (c_offset_1!=0){
+			i_sub_i_r (c_offset_1,B_STACK_POINTER);
+			c_offset += c_offset_1;
 		}
 
 		{
-			int c_parameter_n_2,l,c_offset_2,not_finished,new_reg[5];
+			int l,c_offset_2,not_finished,new_reg[5];
 			
 			new_reg[0]=new_reg[1]=new_reg[2]=new_reg[3]=new_reg[4]=-1; /* [0] not used */
 
 			c_offset_2 = c_offset_1;
-			c_parameter_n_2 = c_parameter_n;
 			reg_n=0;
 			for (l=min_index-1; l>=0; --l){
 				switch (s[l]){
 					case 'I':
 					case 'p':
-						if (--c_parameter_n_2<4){
+						if (reg_or_pad[l]<NO_REG_OR_PAD){
 							if (l<=last_register_parameter_index){
-								new_reg [4-c_parameter_n_2] = n_extra_clean_b_register_parameters+reg_n;
+								new_reg [4-reg_or_pad[l]] = n_extra_clean_b_register_parameters+reg_n;
 								++reg_n;
 							}
 						} else {
+							if (reg_or_pad[l]==PAD_4_AFTER)
+								c_offset_2-=4;
 							c_offset_2-=STACK_ELEMENT_SIZE;
 							if (l<=last_register_parameter_index){
 								i_move_r_id (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,c_offset_2,B_STACK_POINTER);
@@ -326,8 +472,15 @@ void code_ccall (char *c_function_name,char *s,int length)
 						break;
 					case 'S':
 					case 's':
-						if (--c_parameter_n_2>=4)
+						if (reg_or_pad[l]>=NO_REG_OR_PAD){
+							if (reg_or_pad[l]==PAD_4_AFTER)
+								c_offset_2-=4;
 							c_offset_2-=STACK_ELEMENT_SIZE;
+						}
+						break;
+					case 'R':
+						if (reg_or_pad[l]>=NO_REG_OR_PAD)
+							c_offset_2-=8;
 						break;
 					case 'O':
 					case 'F':
@@ -335,9 +488,9 @@ void code_ccall (char *c_function_name,char *s,int length)
 					case ']':
 						while (l>=0 && (s[l]!='F' && s[l]!='O'))
 							--l;
-						if (--c_parameter_n_2<4){
+						if (reg_or_pad[l]<NO_REG_OR_PAD){
 							if (l<=last_register_parameter_index){
-								new_reg [4-c_parameter_n_2] = n_extra_clean_b_register_parameters+reg_n;
+								new_reg [4-reg_or_pad[l]] = n_extra_clean_b_register_parameters+reg_n;
 								++reg_n;
 							}
 						}
@@ -369,15 +522,17 @@ void code_ccall (char *c_function_name,char *s,int length)
 			switch (s[l]){
 				case 'I':
 				case 'p':
-					if (--c_parameter_n<4){
+					if (reg_or_pad[l]<NO_REG_OR_PAD){
 						if (l<=last_register_parameter_index){
-							/* i_move_r_r (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,REGISTER_D4-c_parameter_n); */
+							/* i_move_r_r (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,REGISTER_D4-reg_or_pad[l]); */
 							++reg_n;
 						} else {
 							b_o-=STACK_ELEMENT_SIZE;
-							i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-c_parameter_n);
+							i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-reg_or_pad[l]);
 						}
 					} else {
+						if (reg_or_pad[l]==PAD_4_AFTER)
+							c_offset_1-=4;
 						c_offset_1-=STACK_ELEMENT_SIZE;
 						if (l<=last_register_parameter_index){
 							/* i_move_r_id (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,c_offset_1,B_STACK_POINTER); */
@@ -390,10 +545,12 @@ void code_ccall (char *c_function_name,char *s,int length)
 					}
 					break;
 				case 'S':
-					if (--c_parameter_n<4){
-						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_D4-c_parameter_n);
-						i_add_i_r (STACK_ELEMENT_SIZE,REGISTER_D4-c_parameter_n);
+					if (reg_or_pad[l]<NO_REG_OR_PAD){
+						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_D4-reg_or_pad[l]);
+						i_add_i_r (STACK_ELEMENT_SIZE,REGISTER_D4-reg_or_pad[l]);
 					} else {
+						if (reg_or_pad[l]==PAD_4_AFTER)
+							c_offset_1-=4;
 						c_offset_1-=STACK_ELEMENT_SIZE;
 						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
 						i_add_i_r (STACK_ELEMENT_SIZE,REGISTER_A0);
@@ -401,11 +558,31 @@ void code_ccall (char *c_function_name,char *s,int length)
 					}
 					a_o+=STACK_ELEMENT_SIZE;
 					break;
-				case 's':
-					if (--c_parameter_n<4){
-						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_D4-c_parameter_n);
-						i_add_i_r (2*STACK_ELEMENT_SIZE,REGISTER_D4-c_parameter_n);							
+				case 'R':
+					if (reg_or_pad[l]<NO_REG_OR_PAD){
+						b_o-=8;
+#ifdef SOFT_FP_CC
+						i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-reg_or_pad[l]);
+						i_move_id_r (b_o+c_offset_before_pushing_arguments+4,REGISTER_A2,REGISTER_D4-(reg_or_pad[l]+1));
+#else
+						i_fmove_id_fr (b_o+c_offset_before_pushing_arguments,REGISTER_A2,reg_or_pad[l]);
+#endif
 					} else {
+						c_offset_1-=8;
+						b_o-=8;
+						i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,6/*r12*/);
+						i_move_r_id (6/*r12*/,c_offset_1,B_STACK_POINTER);
+						i_move_id_r (b_o+c_offset_before_pushing_arguments+4,REGISTER_A2,6/*r12*/);
+						i_move_r_id (6/*r12*/,c_offset_1+4,B_STACK_POINTER);
+					}
+					break;
+				case 's':
+					if (reg_or_pad[l]<NO_REG_OR_PAD){
+						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_D4-reg_or_pad[l]);
+						i_add_i_r (2*STACK_ELEMENT_SIZE,REGISTER_D4-reg_or_pad[l]);							
+					} else {
+						if (reg_or_pad[l]==PAD_4_AFTER)
+							c_offset_1-=4;
 						c_offset_1-=STACK_ELEMENT_SIZE;
 						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
 						i_add_i_r (2*STACK_ELEMENT_SIZE,REGISTER_A0);
@@ -419,16 +596,16 @@ void code_ccall (char *c_function_name,char *s,int length)
 				case ']':
 					while (l>=0 && (s[l]!='F' && s[l]!='O'))
 						--l;
-					if (--c_parameter_n<4){
+					if (reg_or_pad[l]<NO_REG_OR_PAD){
 						if (l<=last_register_parameter_index){
-							/* i_move_r_r (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,REGISTER_D4-c_parameter_n); */
+							/* i_move_r_r (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,REGISTER_D4-reg_or_pad[l]); */
 							++reg_n;
 						} else {
 							b_o-=STACK_ELEMENT_SIZE;
-							i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-c_parameter_n);
+							i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-reg_or_pad[l]);
 						}
 						
-						function_address_reg = REGISTER_D4-c_parameter_n;
+						function_address_reg = REGISTER_D4-reg_or_pad[l];
 						function_address_s_index = l+1;
 						break;
 					}
@@ -518,6 +695,9 @@ void code_ccall (char *c_function_name,char *s,int length)
 			case 'S':
 			case 'V':
 				break;
+			case 'R':
+				b_o+=8;
+				break;
 			default:
 				error_s (ccall_error_string,c_function_name);
 		}
@@ -536,6 +716,19 @@ void code_ccall (char *c_function_name,char *s,int length)
 			break;
 		case 'V':
 			begin_new_basic_block();
+			break;
+		case 'R':
+			begin_new_basic_block();
+#ifdef SOFT_FP_CC
+			init_b_stack (5,i_i_i_i_i_vector);
+			s_put_b (3,s_get_b (0));
+			s_put_b (4,s_get_b (1));
+			s_remove_b();
+			s_remove_b();
+			s_remove_b();
+#else
+			init_b_stack (2,r_vector);
+#endif
 			break;
 		default:
 			error_s (ccall_error_string,c_function_name);
