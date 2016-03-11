@@ -8,6 +8,8 @@ OBJECTS = cg.o cgcalc.o cgcode.o cginput.o cginstructions.o \
 cg: $(OBJECTS)
 	gcc -s $(OBJECTS) -o $@ 
 
+cginstructions.o : cgarmc.c
+
 clean:
 	rm $(OBJECTS)
 

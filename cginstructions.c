@@ -3727,6 +3727,10 @@ LABEL *pthread_getspecific_label=NULL;
 # endif
 #endif
 
+#ifdef ARM
+# include "cgarmc.c"
+#else
+
 void code_ccall (char *c_function_name,char *s,int length)
 {
 	LABEL *label;
@@ -3740,10 +3744,10 @@ void code_ccall (char *c_function_name,char *s,int length)
 	int n_a_c_in_clean_out_parameters_size,n_b_c_in_clean_out_parameters_size;
 	int c_offset;		
 
-#if ! (defined (sparc) || defined (G_POWER) || defined (I486) || defined (ARM))
+#if ! (defined (sparc) || defined (G_POWER) || defined (I486))
 	error ("ABC instruction 'ccall' not implemented");
 #endif
-#if defined (sparc) || defined (G_POWER) || defined (ARM)
+#if defined (sparc) || defined (G_POWER)
 	int	c_parameter_n;
 #endif
 #if defined (G_POWER) || (defined (G_A64) && (defined (LINUX_ELF) || defined (MACH_O64)))
@@ -3758,7 +3762,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 		++s;
 		--length;
 		save_state_in_global_variables=1;
-#if ((defined (I486) || defined (ARM)) && !defined (THREAD64)) || defined (G_POWER)
+#if (defined (I486) && !defined (THREAD64)) || defined (G_POWER)
 		if (saved_heap_p_label==NULL)
 			saved_heap_p_label=enter_label ("saved_heap_p",IMPORT_LABEL);
 		if (saved_a_stack_p_label==NULL)
@@ -3778,7 +3782,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 	} else
 		callee_pops_arguments=0;
 
-#if defined (sparc) || defined (I486) || defined (G_POWER) || defined (ARM)
+#if defined (sparc) || defined (I486) || defined (G_POWER)
 	float_parameters=0;
 			
 	a_offset=0;
@@ -3798,14 +3802,14 @@ void code_ccall (char *c_function_name,char *s,int length)
 				b_offset+=STACK_ELEMENT_SIZE;
 				if (!float_parameters)
 					++n_clean_b_register_parameters;
-# if (defined (I486) || defined (ARM)) && !defined (G_AI64)
+# if defined (I486) && !defined (G_AI64)
 				if (s[l+1]=='>'){
 					++l;
 					n_b_c_in_clean_out_parameters_size+=STACK_ELEMENT_SIZE;
 				}
 # endif
 				continue;
-# if defined (I486) || defined (ARM) || defined (G_POWER)
+# if defined (I486) || defined (G_POWER)
 			case 'r':
 # endif
 			case 'R':
@@ -3819,7 +3823,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 			case 's':
 			case 'A':
 				a_offset+=STACK_ELEMENT_SIZE;
-# if (defined (I486) || defined (ARM)) && !defined (G_AI64)
+# if defined (I486) && !defined (G_AI64)
 				if (s[l+1]=='>'){
 					++l;
 					n_a_c_in_clean_out_parameters_size+=STACK_ELEMENT_SIZE;
@@ -5467,356 +5471,10 @@ void code_ccall (char *c_function_name,char *s,int length)
 		}
 # endif
 
-#elif defined (ARM)
-
-	{
-	int c_offset_before_pushing_arguments,function_address_reg,function_address_s_index,c_parameter_n;
-
-	a_o=-b_result_offset-a_result_offset;
-	b_o=0;
-
-	if (a_result_offset+b_result_offset>b_offset){
-		i_sub_i_r (a_result_offset+b_result_offset-b_offset,B_STACK_POINTER);
-		c_offset=a_result_offset+b_result_offset;
-	}
-
-	c_offset_before_pushing_arguments=c_offset;
-
-	c_parameter_n=((a_offset+b_offset+a_result_offset+b_result_offset)>>STACK_ELEMENT_LOG_SIZE)+n_clean_b_register_parameters;
-
-	i_move_r_r (B_STACK_POINTER,REGISTER_A2);
-
-	if (c_parameter_n>=4 && (c_parameter_n & 1)!=0){
-		i_sub_i_r (4,B_STACK_POINTER);
-		i_or_i_r (4,B_STACK_POINTER);
-	} else {
-		i_and_i_r (-8,B_STACK_POINTER);		
-	}
-
-	for (l=length-1; l>=first_pointer_result_index; --l){
-		switch (s[l]){
-			case 'I':
-			case 'p':
-				b_o-=STACK_ELEMENT_SIZE;
-				if (--c_parameter_n<4)
-					i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-c_parameter_n);
-				else {
-					i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_A3);
-					i_move_r_pd (REGISTER_A3,B_STACK_POINTER);
-					c_offset+=STACK_ELEMENT_SIZE;
-				}
-				break;
-			case 'i':
-			case 'r':
-				--l;
-			case 'S':
-				if (--c_parameter_n<4)
-					i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-c_parameter_n);
-				else {
-					i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_A3);
-					i_move_r_pd (REGISTER_A3,B_STACK_POINTER);
-					c_offset+=STACK_ELEMENT_SIZE;
-				}
-				a_o+=STACK_ELEMENT_SIZE;
-				break;
-			case 'V':
-				break;
-			default:
-				error_s (ccall_error_string,c_function_name);
-		}
-	}
-
-	{
-		int last_register_parameter_index,reg_n,c_offset_1;
-		
-		last_register_parameter_index=-1;
-			
-		reg_n=0;
-		l=0;
-		while (reg_n<n_clean_b_register_parameters && l<min_index){
-			if (s[l]=='I' || s[l]=='p' || s[l]=='F' || s[l]=='O'){
-				++reg_n;
-				last_register_parameter_index=l;
-			}
-			++l;
-		}
-		
-		c_offset_1=0;
-
-		{
-			int c_parameter_n_1,l;
-			
-			c_parameter_n_1 = c_parameter_n;
-			for (l=min_index-1; l>=0; --l){
-				switch (s[l]){
-					case 'I':
-					case 'p':
-					case 'S':
-					case 's':
-						if (--c_parameter_n_1>=4)
-							c_offset_1+=STACK_ELEMENT_SIZE;
-						break;
-					case 'O':
-					case 'F':
-					case '*':
-					case ']':
-						while (l>=0 && (s[l]!='F' && s[l]!='O'))
-							--l;
-						if (--c_parameter_n_1>=4)
-							c_offset_1+=STACK_ELEMENT_SIZE;
-						break;
-				}
-			}
-			
-			if (c_offset_1!=0){
-				i_sub_i_r (c_offset_1,B_STACK_POINTER);
-				c_offset += c_offset_1;
-			}
-		}
-
-		{
-			int c_parameter_n_2,l,c_offset_2,not_finished,new_reg[5];
-			
-			new_reg[0]=new_reg[1]=new_reg[2]=new_reg[3]=new_reg[4]=-1; /* [0] not used */
-
-			c_offset_2 = c_offset_1;
-			c_parameter_n_2 = c_parameter_n;
-			reg_n=0;
-			for (l=min_index-1; l>=0; --l){
-				switch (s[l]){
-					case 'I':
-					case 'p':
-						if (--c_parameter_n_2<4){
-							if (l<=last_register_parameter_index){
-								new_reg [4-c_parameter_n_2] = n_extra_clean_b_register_parameters+reg_n;
-								++reg_n;
-							}
-						} else {
-							c_offset_2-=STACK_ELEMENT_SIZE;
-							if (l<=last_register_parameter_index){
-								i_move_r_id (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,c_offset_2,B_STACK_POINTER);
-								++reg_n;
-							}
-						}
-						break;
-					case 'S':
-					case 's':
-						if (--c_parameter_n_2>=4)
-							c_offset_2-=STACK_ELEMENT_SIZE;
-						break;
-					case 'O':
-					case 'F':
-					case '*':
-					case ']':
-						while (l>=0 && (s[l]!='F' && s[l]!='O'))
-							--l;
-						if (--c_parameter_n_2<4){
-							if (l<=last_register_parameter_index){
-								new_reg [4-c_parameter_n_2] = n_extra_clean_b_register_parameters+reg_n;
-								++reg_n;
-							}
-						}
-						break;
-				}
-			}
-			
-			do {		
-				not_finished=0;
-				for (reg_n=1; reg_n<=4; ++reg_n){
-					int n;
-				
-					n=new_reg[reg_n];
-					if (n>=0 && n!=reg_n){
-						if (new_reg[1]!=reg_n && new_reg[2]!=reg_n && new_reg[3]!=reg_n && new_reg[4]!=reg_n){
-							i_move_r_r (REGISTER_D0+n,REGISTER_D0+reg_n);
-							new_reg[reg_n]=-1;
-						} else
-							not_finished=1;
-					}
-				}
-			} while (not_finished); /* infinite loop in case of cycle */
-		}
-
-		reg_n=0;
-		a_o=-a_offset;
-		b_o=0;
-		for (l=min_index-1; l>=0; --l){
-			switch (s[l]){
-				case 'I':
-				case 'p':
-					if (--c_parameter_n<4){
-						if (l<=last_register_parameter_index){
-							/* i_move_r_r (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,REGISTER_D4-c_parameter_n); */
-							++reg_n;
-						} else {
-							b_o-=STACK_ELEMENT_SIZE;
-							i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-c_parameter_n);
-						}
-					} else {
-						c_offset_1-=STACK_ELEMENT_SIZE;
-						if (l<=last_register_parameter_index){
-							/* i_move_r_id (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,c_offset_1,B_STACK_POINTER); */
-							++reg_n;
-						} else {
-							b_o-=STACK_ELEMENT_SIZE;
-							i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,6/*r12*/);
-							i_move_r_id (6/*r12*/,c_offset_1,B_STACK_POINTER);
-						}
-					}
-					break;
-				case 'S':
-					if (--c_parameter_n<4){
-						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_D4-c_parameter_n);
-						i_add_i_r (STACK_ELEMENT_SIZE,REGISTER_D4-c_parameter_n);
-					} else {
-						c_offset_1-=STACK_ELEMENT_SIZE;
-						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
-						i_add_i_r (STACK_ELEMENT_SIZE,REGISTER_A0);
-						i_move_r_id (REGISTER_A0,c_offset_1,B_STACK_POINTER);
-					}
-					a_o+=STACK_ELEMENT_SIZE;
-					break;
-				case 's':
-					if (--c_parameter_n<4){
-						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_D4-c_parameter_n);
-						i_add_i_r (2*STACK_ELEMENT_SIZE,REGISTER_D4-c_parameter_n);							
-					} else {
-						c_offset_1-=STACK_ELEMENT_SIZE;
-						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
-						i_add_i_r (2*STACK_ELEMENT_SIZE,REGISTER_A0);
-						i_move_r_id (REGISTER_A0,c_offset_1,B_STACK_POINTER);
-					}
-					a_o+=STACK_ELEMENT_SIZE;
-					break;
-				case 'O':
-				case 'F':
-				case '*':
-				case ']':
-					while (l>=0 && (s[l]!='F' && s[l]!='O'))
-						--l;
-					if (--c_parameter_n<4){
-						if (l<=last_register_parameter_index){
-							/* i_move_r_r (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,REGISTER_D4-c_parameter_n); */
-							++reg_n;
-						} else {
-							b_o-=STACK_ELEMENT_SIZE;
-							i_move_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_D4-c_parameter_n);
-						}
-						
-						function_address_reg = REGISTER_D4-c_parameter_n;
-						function_address_s_index = l+1;
-						break;
-					}
-				default:
-					error_s (ccall_error_string,c_function_name);
-			}
-		}
-	}
-
-	if (save_state_in_global_variables){
-		i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_D6);
-		i_move_r_id (A_STACK_POINTER,0,REGISTER_D6);
-		i_lea_l_i_r (saved_heap_p_label,0,REGISTER_D6);
-		i_move_r_id (HEAP_POINTER,0,REGISTER_D6);
-		i_move_r_id (REGISTER_D5,4,REGISTER_D6);
-	}
-
-	if (!function_address_parameter)
-		i_call_l (label);
-	else {
-		int l;
-		
-		for (l=function_address_s_index; l<length && (s[l]=='*' || s[l]=='['); ++l){
-			int n;
-			
-			n=0;
-			
-			if (s[l]=='['){
-				++l;
-				while (l<length && (unsigned)(s[l]-'0')<(unsigned)10){
-					n=n*10+(s[l]-'0');
-					++l;
-				}
-			}
-			
-			i_move_id_r (n,function_address_reg,REGISTER_D6);
-			function_address_reg = REGISTER_D6;
-		}
-		
-		i_call_r (function_address_reg);
-	}
-
-	if (save_state_in_global_variables){
-		i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_D6);
-		i_move_id_r (0,REGISTER_D6,A_STACK_POINTER);
-		i_lea_l_i_r (saved_heap_p_label,0,REGISTER_D6);
-		i_move_id_r (0,REGISTER_D6,HEAP_POINTER);
-		i_move_id_r (4,REGISTER_D6,REGISTER_D5);
-	}
-
-	if (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset)==0)
-		i_move_r_r (REGISTER_A2,B_STACK_POINTER);
-	else
-		i_lea_id_r (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset),REGISTER_A2,B_STACK_POINTER);		
-	}
-
-	if (a_offset!=0)
-		i_sub_i_r (a_offset,A_STACK_POINTER);
-
-	for (l=length-1; l>=first_pointer_result_index; --l){
-		switch (s[l]){
-			case 'I':
-			case 'p':
-			case 'R':
-			case 'V':
-				break;
-			case 'S':
-				if (string_to_string_node_label==NULL)
-					string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
-				i_move_pi_r (B_STACK_POINTER,REGISTER_A0);
-				i_jsr_l_idu (string_to_string_node_label,-4);
-				i_move_r_id (REGISTER_A0,0,A_STACK_POINTER);
-				i_add_i_r (STACK_ELEMENT_SIZE,A_STACK_POINTER);
-				break;
-			default:
-				error_s (ccall_error_string,c_function_name);
-		}
-	}
-		
-	b_o=0;
-	for (l=first_pointer_result_index; l<length; ++l){
-		switch (s[l]){
-			case 'I':
-			case 'p':
-				b_o+=STACK_ELEMENT_SIZE;
-				break;
-			case 'S':
-			case 'V':
-				break;
-			default:
-				error_s (ccall_error_string,c_function_name);
-		}
-	}
-
-	switch (result){
-		case 'I':
-		case 'p':
-			begin_new_basic_block();
-			init_b_stack (5,i_i_i_i_i_vector);
-			s_put_b (4,s_get_b (0));
-			s_remove_b();
-			s_remove_b();
-			s_remove_b();
-			s_remove_b();
-			break;
-		case 'V':
-			begin_new_basic_block();
-			break;
-		default:
-			error_s (ccall_error_string,c_function_name);
-	}
 #endif
 }
+
+#endif
 
 #define SMALL_VECTOR_SIZE 32
 #define LOG_SMALL_VECTOR_SIZE 5
