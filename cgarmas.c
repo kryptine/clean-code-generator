@@ -2173,7 +2173,8 @@ static void as_mul_instruction (struct instruction *instruction)
 			break;
 		case P_IMMEDIATE:
 			as_move_i_r (instruction->instruction_parameters[0].parameter_data.i,REGISTER_S0);
-			s_regn = REGISTER_S0;
+			s_regn = REGISTER_S1;
+			break;
 		default:
 			as_load_parameter_to_scratch_register (&instruction->instruction_parameters[0]);
 			s_regn = REGISTER_S0;
