@@ -417,6 +417,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 				case 'p':
 				case 'S':
 				case 's':
+				case 'A':
 					if (reg_or_pad[l]>=NO_REG_OR_PAD){
 						if (reg_or_pad[l]==PAD_4_AFTER)
 							c_offset_1+=4;
@@ -472,6 +473,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 						break;
 					case 'S':
 					case 's':
+					case 'A':
 						if (reg_or_pad[l]>=NO_REG_OR_PAD){
 							if (reg_or_pad[l]==PAD_4_AFTER)
 								c_offset_2-=4;
@@ -586,6 +588,20 @@ void code_ccall (char *c_function_name,char *s,int length)
 						c_offset_1-=STACK_ELEMENT_SIZE;
 						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
 						i_add_i_r (2*STACK_ELEMENT_SIZE,REGISTER_A0);
+						i_move_r_id (REGISTER_A0,c_offset_1,B_STACK_POINTER);
+					}
+					a_o+=STACK_ELEMENT_SIZE;
+					break;
+				case 'A':
+					if (reg_or_pad[l]<NO_REG_OR_PAD){
+						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_D4-reg_or_pad[l]);
+						i_add_i_r (3*STACK_ELEMENT_SIZE,REGISTER_D4-reg_or_pad[l]);							
+					} else {
+						if (reg_or_pad[l]==PAD_4_AFTER)
+							c_offset_1-=4;
+						c_offset_1-=STACK_ELEMENT_SIZE;
+						i_move_id_r (a_o,A_STACK_POINTER,REGISTER_A0);
+						i_add_i_r (3*STACK_ELEMENT_SIZE,REGISTER_A0);
 						i_move_r_id (REGISTER_A0,c_offset_1,B_STACK_POINTER);
 					}
 					a_o+=STACK_ELEMENT_SIZE;
@@ -734,3 +750,4 @@ void code_ccall (char *c_function_name,char *s,int length)
 			error_s (ccall_error_string,c_function_name);
 	}
 }
+
