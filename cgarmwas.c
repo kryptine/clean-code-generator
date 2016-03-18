@@ -1923,7 +1923,7 @@ static void w_as_rem_instruction (struct instruction *instruction)
 
 static void w_as_word_instruction (struct instruction *instruction)
 {
-	fprintf (assembly_file,"\t.byte\t%d\n",
+	fprintf (assembly_file,"\t.word\t%d\n",
 			(int)instruction->instruction_parameters[0].parameter_data.i);
 }
 

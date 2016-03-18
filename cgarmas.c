@@ -3085,7 +3085,7 @@ static void as_instructions (struct instruction *instruction)
 				as_add_or_sub_x_instruction (instruction,ARM_OP_SBC<<1,ARM_OP_ADC<<1);
 				break;
 			case IWORD:
-				store_c (instruction->instruction_parameters[0].parameter_data.i);
+				store_l (instruction->instruction_parameters[0].parameter_data.i);
 				break;
 			case IROTR:
 				as_shift_instruction (instruction,ARM_OP_ROR);
