@@ -5141,25 +5141,6 @@ static void as_apply_update_entry (struct basic_block *block)
 		store_c (0x90);
 
 		store_c (0x90);
-#if defined (OPTIMISE_BRANCHES) && !defined (FUNCTION_LEVEL_LINKING)
-		store_c (0x90);
-		{
-			struct relocation *new_relocation;
-
-			new_relocation=fast_memory_allocate_type (struct relocation);
-			
-			*last_code_relocation_l=new_relocation;
-			last_code_relocation_l=&new_relocation->next;
-			new_relocation->next=NULL;
-			
-			U4 (new_relocation,
-				relocation_offset=CURRENT_CODE_OFFSET,
-				relocation_kind=ALIGN_RELOCATION,
-				relocation_align1=0,
-				relocation_align2=0);
-		}
-		return;
-#endif
 	} else {
 #ifdef LINUX
 		if (rts_got_flag){
@@ -5187,6 +5168,24 @@ static void as_apply_update_entry (struct basic_block *block)
 	}
 
 	store_c (0x90);
+
+#if defined (OPTIMISE_BRANCHES) && !defined (FUNCTION_LEVEL_LINKING)
+	{
+		struct relocation *new_relocation;
+
+		new_relocation=fast_memory_allocate_type (struct relocation);
+		
+		*last_code_relocation_l=new_relocation;
+		last_code_relocation_l=&new_relocation->next;
+		new_relocation->next=NULL;
+		
+		U4 (new_relocation,
+			relocation_offset=CURRENT_CODE_OFFSET,
+			relocation_kind=ALIGN_RELOCATION,
+			relocation_align1=0,
+			relocation_align2=0);
+	}
+#endif
 }
 #endif
 
