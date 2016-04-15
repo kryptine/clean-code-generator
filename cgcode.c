@@ -85,9 +85,7 @@
 
 #define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
 
-#ifndef MACH_O64
-# define GEN_OBJ
-#endif
+#define GEN_OBJ
 
 #ifdef NEW_DESCRIPTORS
 # ifdef G_A64

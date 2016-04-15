@@ -39,9 +39,7 @@
 #if defined (THREAD32) || defined (THREAD64)
 # include "cgiconst.h"
 #endif
-#ifndef MACH_O64
-# define GEN_OBJ
-#endif
+#define GEN_OBJ
 
 #define LTEXT 0
 #define LDATA 1

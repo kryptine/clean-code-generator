@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#if ! (defined (M68000) && defined (SUN)) && !defined (MACH_O64)
+#if ! (defined (M68000) && defined (SUN))
 #	define GENERATE_OBJECT_FILE
 #endif
 
