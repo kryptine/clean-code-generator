@@ -246,6 +246,16 @@ struct call_and_jump {
 
 static struct call_and_jump *first_call_and_jump,*last_call_and_jump;
 
+struct mapping_symbol {
+	struct mapping_symbol *ms_next;
+	unsigned long ms_data_offset;
+	unsigned long ms_code_offset;
+};
+
+static struct mapping_symbol *first_mapping_symbol,*last_mapping_symbol;
+int n_mapping_symbols; /* not length of struct mapping_symbol list */
+unsigned long end_code_offset;
+
 void initialize_assembler (FILE *output_file_d)
 {
 	output_file=output_file_d;
@@ -267,8 +277,14 @@ void initialize_assembler (FILE *output_file_d)
 	n_data_relocations=0;
 	
 	first_call_and_jump=NULL;
+	first_mapping_symbol=NULL;
+	n_mapping_symbols=0;
 #ifdef ELF
+# ifndef FUNCTION_LEVEL_LINKING
 	string_table_offset=13;
+# else
+	string_table_offset=7;
+# endif
 #else
 	string_table_offset=4;
 #endif
@@ -511,6 +527,31 @@ struct literal_entry {
 
 struct literal_entry *first_literal_entry,**literal_entry_l;
 
+static void begin_data_mapping (void)
+{
+	unsigned long current_code_offset;
+	struct mapping_symbol *new_mapping_symbol;
+	
+	current_code_offset = CURRENT_CODE_OFFSET;
+	
+	if (! (first_mapping_symbol!=NULL && last_mapping_symbol->ms_code_offset==current_code_offset && last_mapping_symbol->ms_data_offset>=current_code_offset)){
+		if (code_object_label->object_label_offset==current_code_offset)
+			n_mapping_symbols+=1; /* $d at begin of section, $a */
+		else
+			n_mapping_symbols+=2; /* $d and $a */
+
+		new_mapping_symbol = allocate_memory_from_heap (sizeof (struct mapping_symbol));
+		new_mapping_symbol->ms_next = NULL;
+		new_mapping_symbol->ms_data_offset = current_code_offset;
+		
+		if (first_mapping_symbol==NULL)
+			first_mapping_symbol = new_mapping_symbol;
+		else
+			last_mapping_symbol->ms_next = new_mapping_symbol;
+		last_mapping_symbol = new_mapping_symbol;
+	}
+}	
+
 static void write_literals (void)
 {
 	struct literal_entry *literal_entry;
@@ -518,8 +559,10 @@ static void write_literals (void)
 	literal_entry=first_literal_entry;
 
 	if (literal_entry!=NULL){
+		begin_data_mapping();
+
 		for (; literal_entry!=NULL; literal_entry=literal_entry->le_next){
-			int load_data_offset,current_code_offset;
+			unsigned long load_data_offset,current_code_offset;
 			
 			load_data_offset = literal_entry->le_load_instruction_label.label_offset;
 			current_code_offset = CURRENT_CODE_OFFSET;
@@ -553,6 +596,8 @@ static void write_literals (void)
 
 		literal_entry_l=&first_literal_entry;
 		first_literal_entry=NULL;
+		
+		last_mapping_symbol->ms_code_offset = CURRENT_CODE_OFFSET;
 	}
 
 	literal_table_at_offset = 0ul-1ul;
@@ -746,6 +791,10 @@ static void as_new_code_module (void)
 	unsigned long current_code_offset;
 	int code_section_label_number;
 
+	current_code_offset=CURRENT_CODE_OFFSET;
+	if (first_mapping_symbol!=NULL && last_mapping_symbol->ms_code_offset==current_code_offset)
+		--n_mapping_symbols; /* $a at end of section */
+
 	new_object_label=fast_memory_allocate_type (struct object_label);
 	code_object_label=new_object_label;
 
@@ -755,7 +804,6 @@ static void as_new_code_module (void)
 	code_section_label_number=n_object_labels;
 	n_object_labels+=2;
 # endif
-	current_code_offset=CURRENT_CODE_OFFSET;
 
 	*last_object_label_l=new_object_label;
 	last_object_label_l=&new_object_label->next;
@@ -767,6 +815,7 @@ static void as_new_code_module (void)
 	++n_code_sections;
 	new_object_label->object_label_length=0;
 	new_object_label->object_label_kind=CODE_CONTROL_SECTION;
+	++n_mapping_symbols; /* $a at begin of section */
 }
 #endif
 
@@ -3359,6 +3408,8 @@ static void as_node_entry_info (struct basic_block *block)
 			as_nop();
 		}
 		
+		begin_data_mapping();
+
 		if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
 			store_l (0);
 			if (!pic_flag)
@@ -3367,7 +3418,9 @@ static void as_node_entry_info (struct basic_block *block)
 				store_relative_label_in_code_section (block->block_descriptor);
 		} else
 			store_l (0);
-	} else
+	} else {
+		begin_data_mapping();
+
 	if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
 		store_l (0);
 		if (!pic_flag)
@@ -3378,8 +3431,11 @@ static void as_node_entry_info (struct basic_block *block)
 	/* else
 		store_l (0);
 	*/
+	}
 	
 	store_l (block->block_n_node_arguments);
+
+	last_mapping_symbol->ms_code_offset = CURRENT_CODE_OFFSET;
 }
 
 static void write_code (void)
@@ -3560,6 +3616,7 @@ static int n_digits (int n)
 }
 
 static int n_sections;
+static int n_local_section_and_mapping_symbols;
 #endif
 
 static void write_file_header_and_section_headers (void)
@@ -3570,6 +3627,7 @@ static void write_file_header_and_section_headers (void)
 	
 #ifdef FUNCTION_LEVEL_LINKING
 	n_sections=n_code_sections+n_data_sections;
+	n_local_section_and_mapping_symbols=n_sections+n_mapping_symbols;
 
 	{
 		struct object_label *object_label,*previous_code_object_label,*previous_data_object_label;
@@ -3916,9 +3974,9 @@ static void write_file_header_and_section_headers (void)
 	write_l (0);
 	write_l (offset);
 #ifdef FUNCTION_LEVEL_LINKING
-	write_l (16*(n_object_labels+n_sections));
+	write_l (16*(n_object_labels+n_local_section_and_mapping_symbols));
 	write_l (n_sections+n_code_relocation_sections+n_data_relocation_sections+3);
-	write_l (1+n_sections);
+	write_l (1+n_local_section_and_mapping_symbols);
 #else
 	write_l (16*n_object_labels);
 	write_l (7);
@@ -3927,7 +3985,7 @@ static void write_file_header_and_section_headers (void)
 	write_l (4);
 	write_l (16);
 #ifdef FUNCTION_LEVEL_LINKING
-	offset+=16*(n_object_labels+n_sections);
+	offset+=16*(n_object_labels+n_local_section_and_mapping_symbols);
 #else
 	offset+=16*n_object_labels;
 #endif
@@ -4429,6 +4487,73 @@ static void write_object_labels (void)
 			write_c (0);
 			write_w (2+n_code_sections+section_n);
 		}
+
+		/* $a and $d symbols */
+		section_n=0;
+		{
+			int n_generated_mapping_symbols;
+			struct mapping_symbol *mapping_symbol_p;
+
+			mapping_symbol_p=first_mapping_symbol;
+			n_generated_mapping_symbols=0;
+
+			object_label=first_object_label;
+			while (object_label!=NULL && object_label->object_label_kind!=CODE_CONTROL_SECTION)
+				object_label=object_label->next;
+
+			while (object_label!=NULL){
+				struct object_label *previous_object_label;
+				unsigned long current_control_section_code_offset,next_control_section_code_offset;
+				
+				current_control_section_code_offset=object_label->object_label_offset;
+				previous_object_label=object_label;
+
+				object_label=object_label->next;
+				while (object_label!=NULL && object_label->object_label_kind!=CODE_CONTROL_SECTION)
+					object_label=object_label->next;
+
+				if (object_label!=NULL)
+					next_control_section_code_offset = object_label->object_label_offset;	
+				else
+					next_control_section_code_offset = end_code_offset;
+
+				if (mapping_symbol_p==NULL || mapping_symbol_p->ms_data_offset!=current_control_section_code_offset){
+					write_l (1); /* $a */
+					write_l (0);
+					write_l (0);
+					write_c (ELF32_ST_INFO (STB_LOCAL,STT_NOTYPE));
+					write_c (0);
+					write_w (2+section_n);
+					++n_generated_mapping_symbols;
+				}
+
+				while (mapping_symbol_p!=NULL && mapping_symbol_p->ms_data_offset<next_control_section_code_offset){
+					write_l (4); /* $d */
+					write_l (mapping_symbol_p->ms_data_offset-current_control_section_code_offset);
+					write_l (0);
+					write_c (ELF32_ST_INFO (STB_LOCAL,STT_NOTYPE));
+					write_c (0);
+					write_w (2+section_n);
+					++n_generated_mapping_symbols;				
+
+					if (mapping_symbol_p->ms_code_offset!=next_control_section_code_offset){
+						write_l (1); /* $a */
+						write_l (mapping_symbol_p->ms_code_offset-current_control_section_code_offset);
+						write_l (0);
+						write_c (ELF32_ST_INFO (STB_LOCAL,STT_NOTYPE));
+						write_c (0);
+						write_w (2+section_n);
+						++n_generated_mapping_symbols;
+					}
+					
+					mapping_symbol_p=mapping_symbol_p->ms_next;
+				}
+				++section_n;				
+			}
+
+			if (section_n!=n_code_sections || n_generated_mapping_symbols!=n_mapping_symbols)
+				internal_error_in_function ("write_object_labels");
+		}		
 	}
 # endif
 #endif
@@ -4626,8 +4751,13 @@ static void write_string_table (void)
 
 #ifdef ELF
 	write_c (0);
+# ifndef FUNCTION_LEVEL_LINKING
 	write_zstring (".text");
 	write_zstring (".data");
+# else
+	write_zstring ("$a");
+	write_zstring ("$d");
+# endif
 #else
 	if (string_table_offset==4)
 		return;
@@ -4667,15 +4797,15 @@ static int elf_label_number (struct label *label)
 		if (label_n==0)
 			return 1+label->label_object_label->object_label_section_n;
 		else
-			return label_n+n_sections;
+			return label_n+n_local_section_and_mapping_symbols;
 	} else if (label_n==DATA_LABEL_ID){
 		label_n=label->label_object_label->object_label_number;
 		if (label_n==0)
 			return 1+n_code_sections+label->label_object_label->object_label_section_n;
 		else
-			return label_n+n_sections;
+			return label_n+n_local_section_and_mapping_symbols;
 	} else
-			return label_n+n_sections;
+			return label_n+n_local_section_and_mapping_symbols;
 }
 #endif
 
@@ -4879,6 +5009,10 @@ void assemble_code (void)
 
 	if (code_buffer_free & 1)
 		store_c (0x90);
+
+	end_code_offset=CURRENT_CODE_OFFSET;
+	if (first_mapping_symbol!=NULL && last_mapping_symbol->ms_code_offset==end_code_offset)
+		--n_mapping_symbols; /* $a at end of section */
 
 	flush_data_buffer();
 	flush_code_buffer();
