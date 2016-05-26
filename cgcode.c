@@ -6220,17 +6220,21 @@ void code_push_r_arg_D (VOID)
 	
 	graph_1=s_pop_b();
 	graph_2=s_get_b (0);
+#ifdef MACH_O64
+	graph_1=g_and (g_load_i (-8),g_add (g_load_i (8-1),graph_1));
+#else
 	graph_1=g_and (g_load_i (-4),g_add (g_load_i (4-1),graph_1));
+#endif
 #if defined (G_AI64)
 # if defined (MACH_O64) || defined (LINUX)
-#  ifdef LINUX
+#  ifndef MACH_O64
 	if (pic_flag)
 #  endif
 	{
 		graph_1=g_add (g_lsl (g_load_i (3),graph_2),graph_1);
 		graph_2=g_load_id (0,graph_1);
 	}
-#  ifdef LINUX
+#  ifndef MACH_O64
 	else
 #  endif
 # endif
