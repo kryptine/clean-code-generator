@@ -111,6 +111,10 @@ struct object_label {
 	unsigned char			object_section_align_p2; /* 2 for 4, 3 for 8, 4 for 16 */
 };
 
+#ifdef G_MACH_O64
+static unsigned char data_object_section_align_p2; /* 2 for 4, 3 for 8, 4 for 16 */
+#endif
+
 #define object_label_offset object_label_u1.offset
 #define object_label_label object_label_u1.label
 
@@ -374,6 +378,10 @@ void initialize_assembler (FILE *output_file_d)
 	data_object_label->object_label_kind=DATA_CONTROL_SECTION;
 	data_object_label->object_section_align_p2=2;
 # endif
+#endif
+
+#ifdef G_MACH_O64
+	data_object_section_align_p2=2;
 #endif
 }
 
@@ -3986,11 +3994,13 @@ static void as_f_i (int code1,int code2,DOUBLE *r_p,int d_freg)
 	if (data_object_label==NULL)
 		as_new_data_module();
 #endif
+#ifndef G_MACH_O64
 	if (data_object_label->object_section_align_p2<3)
 		data_object_label->object_section_align_p2=3;
-#ifndef G_MACH_O64
 	if ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 4)
 #else
+	if (data_object_section_align_p2<3)
+		data_object_section_align_p2=3;
 	if ((data_buffer_p-current_data_buffer->data) & 4)
 #endif
 		store_long_word_in_data_section (0);
@@ -4193,11 +4203,13 @@ static void as_float_neg_instruction (struct instruction *instruction)
 		if (data_object_label==NULL)
 			as_new_data_module();
 #endif
+#ifndef G_MACH_O64
 		if (data_object_label->object_section_align_p2<4)
 			data_object_label->object_section_align_p2=4;
-#ifndef G_MACH_O64
 		while ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 0xc)
 #else
+		if (data_object_section_align_p2<4)
+			data_object_section_align_p2=4;
 		while ((data_buffer_p-current_data_buffer->data) & 0xc)
 #endif
 			store_long_word_in_data_section (0);
@@ -4269,11 +4281,13 @@ static void as_float_abs_instruction (struct instruction *instruction)
 		if (data_object_label==NULL)
 			as_new_data_module();
 #endif
+#ifndef G_MACH_O64
 		if (data_object_label->object_section_align_p2<4)
 			data_object_label->object_section_align_p2=4;
-#ifndef G_MACH_O64
 		while ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 0xc)
 #else
+		if (data_object_section_align_p2<4)
+			data_object_section_align_p2=4;
 		while ((data_buffer_p-current_data_buffer->data) & 0xc)
 #endif
 			store_long_word_in_data_section (0);
