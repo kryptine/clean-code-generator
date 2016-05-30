@@ -381,7 +381,7 @@ void initialize_assembler (FILE *output_file_d)
 #endif
 
 #ifdef G_MACH_O64
-	data_object_section_align_p2=2;
+	data_object_section_align_p2=3;
 #endif
 }
 
@@ -3999,8 +3999,6 @@ static void as_f_i (int code1,int code2,DOUBLE *r_p,int d_freg)
 		data_object_label->object_section_align_p2=3;
 	if ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 4)
 #else
-	if (data_object_section_align_p2<3)
-		data_object_section_align_p2=3;
 	if ((data_buffer_p-current_data_buffer->data) & 4)
 #endif
 		store_long_word_in_data_section (0);
