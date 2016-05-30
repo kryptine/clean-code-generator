@@ -108,7 +108,7 @@ struct object_label {
 	short					object_label_section_n;		/* CODE_CONTROL_SECTION,DATA_CONTROL_SECTION */
 #endif
 	unsigned char			object_label_kind;
-	unsigned char			object_section_align; /* 2 for 4, 3 for 8, 4 for 16 */
+	unsigned char			object_section_align_p2; /* 2 for 4, 3 for 8, 4 for 16 */
 };
 
 #define object_label_offset object_label_u1.offset
@@ -372,7 +372,7 @@ void initialize_assembler (FILE *output_file_d)
 	data_object_label->object_label_offset=0;
 	data_object_label->object_label_length=0;
 	data_object_label->object_label_kind=DATA_CONTROL_SECTION;
-	data_object_label->object_section_align=2;
+	data_object_label->object_section_align_p2=2;
 # endif
 #endif
 }
@@ -588,7 +588,7 @@ void as_new_data_module (void)
 	++n_data_sections;
 	new_object_label->object_label_length=0;
 	new_object_label->object_label_kind=DATA_CONTROL_SECTION;
-	new_object_label->object_section_align=2;
+	new_object_label->object_section_align_p2=2;
 }
 
 static void as_new_code_module (void)
@@ -3982,8 +3982,8 @@ static void as_f_i (int code1,int code2,DOUBLE *r_p,int d_freg)
 		as_new_data_module();
 #endif
 #ifndef G_MACH_O64
-	if (data_object_label->object_section_align<3)
-		data_object_label->object_section_align=3;
+	if (data_object_label->object_section_align_p2<3)
+		data_object_label->object_section_align_p2=3;
 	if ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 4)
 		store_long_word_in_data_section (0);
 #else
@@ -4190,8 +4190,8 @@ static void as_float_neg_instruction (struct instruction *instruction)
 			as_new_data_module();
 #endif
 #ifndef G_MACH_O64
-		if (data_object_label->object_section_align<4)
-			data_object_label->object_section_align=4;
+		if (data_object_label->object_section_align_p2<4)
+			data_object_label->object_section_align_p2=4;
 		while ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 0xc)
 			store_long_word_in_data_section (0);
 #else
@@ -4267,8 +4267,8 @@ static void as_float_abs_instruction (struct instruction *instruction)
 			as_new_data_module();
 #endif
 #ifndef G_MACH_O64
-		if (data_object_label->object_section_align<4)
-			data_object_label->object_section_align=4;
+		if (data_object_label->object_section_align_p2<4)
+			data_object_label->object_section_align_p2=4;
 		while ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 0xc)
 			store_long_word_in_data_section (0);
 #else
@@ -5784,7 +5784,7 @@ static void write_file_header_and_section_headers (void)
 					write_l (0);
 					write_w (n_data_relocations_in_section);
 					write_w (0);
-					write_l (((1+previous_data_object_label->object_section_align)<<20)+0x40);
+					write_l (((1+previous_data_object_label->object_section_align_p2)<<20)+0x40);
 					
 					data_relocations_offset+=10*n_data_relocations_in_section;
 				}
@@ -5820,7 +5820,7 @@ static void write_file_header_and_section_headers (void)
 			write_l (0);
 			write_w (n_data_relocations_in_section);
 			write_w (0);
-			write_l (((1+previous_data_object_label->object_section_align)<<20)+0x40);
+			write_l (((1+previous_data_object_label->object_section_align_p2)<<20)+0x40);
 		}
 	}
 # else
@@ -6068,7 +6068,7 @@ static void write_file_header_and_section_headers (void)
 				write_q (data_section_length);
 				write_l (0);
 				write_l (0);
- 		  	 	write_q (1<<object_label->object_section_align);
+ 		  	 	write_q (1<<object_label->object_section_align_p2);
 				write_q (0);
 
 				section_string_offset+=8+n_digits (object_label->object_label_section_n);
