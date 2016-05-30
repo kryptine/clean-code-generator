@@ -6362,7 +6362,7 @@ static void write_file_header_and_section_headers (void)
 	write_q (data_section_begin);
 	write_q (data_buffer_offset);
 	write_l (text_section_offset+code_buffer_offset);
-	write_l (data_object_label->object_section_align_p2);
+	write_l (data_object_section_align_p2);
 	write_l (text_section_relocation_offset+8*n_code_relocations);
 	write_l (n_data_relocations);
 	write_l (S_REGULAR);
