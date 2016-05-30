@@ -8196,7 +8196,7 @@ void assemble_code (void)
 #endif
 
 #ifdef G_MACH_O64
-	data_section_begin = (code_buffer_offset+7) & -8;
+	data_section_begin = (code_buffer_offset+((1<<data_object_section_align_p2)-1)) & -(1<<data_object_section_align_p2);
 #endif
 
 	relocate_code();
