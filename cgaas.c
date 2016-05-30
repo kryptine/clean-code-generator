@@ -591,6 +591,11 @@ void as_new_data_module (void)
 	new_object_label->object_section_align_p2=2;
 }
 
+void as_data_module_set_align (int p2align)
+{
+	data_object_label->object_section_align_p2=p2align;
+}
+
 static void as_new_code_module (void)
 {
 	struct object_label *new_object_label;
@@ -3981,15 +3986,14 @@ static void as_f_i (int code1,int code2,DOUBLE *r_p,int d_freg)
 	if (data_object_label==NULL)
 		as_new_data_module();
 #endif
-#ifndef G_MACH_O64
 	if (data_object_label->object_section_align_p2<3)
 		data_object_label->object_section_align_p2=3;
+#ifndef G_MACH_O64
 	if ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 4)
-		store_long_word_in_data_section (0);
 #else
 	if ((data_buffer_p-current_data_buffer->data) & 4)
-		store_long_word_in_data_section (0);
 #endif
+		store_long_word_in_data_section (0);
 
 	define_data_label (new_label);
 	store_long_word_in_data_section (((LONG*)r_p)[0]);
@@ -4189,15 +4193,14 @@ static void as_float_neg_instruction (struct instruction *instruction)
 		if (data_object_label==NULL)
 			as_new_data_module();
 #endif
-#ifndef G_MACH_O64
 		if (data_object_label->object_section_align_p2<4)
 			data_object_label->object_section_align_p2=4;
+#ifndef G_MACH_O64
 		while ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 0xc)
-			store_long_word_in_data_section (0);
 #else
 		while ((data_buffer_p-current_data_buffer->data) & 0xc)
-			store_long_word_in_data_section (0);
 #endif
+			store_long_word_in_data_section (0);
 
 		define_data_label (new_label);
 		store_long_word_in_data_section (0);
@@ -4266,15 +4269,14 @@ static void as_float_abs_instruction (struct instruction *instruction)
 		if (data_object_label==NULL)
 			as_new_data_module();
 #endif
-#ifndef G_MACH_O64
 		if (data_object_label->object_section_align_p2<4)
 			data_object_label->object_section_align_p2=4;
+#ifndef G_MACH_O64
 		while ((data_buffer_p-current_data_buffer->data-data_object_label->object_label_offset) & 0xc)
-			store_long_word_in_data_section (0);
 #else
 		while ((data_buffer_p-current_data_buffer->data) & 0xc)
-			store_long_word_in_data_section (0);
 #endif
+			store_long_word_in_data_section (0);
 		define_data_label (new_label);
 		store_long_word_in_data_section (0xffffffff);
 		store_long_word_in_data_section (0x7fffffff);
@@ -6346,7 +6348,7 @@ static void write_file_header_and_section_headers (void)
 	write_q (data_section_begin);
 	write_q (data_buffer_offset);
 	write_l (text_section_offset+code_buffer_offset);
-	write_l (3);
+	write_l (data_object_label->object_section_align_p2);
 	write_l (text_section_relocation_offset+8*n_code_relocations);
 	write_l (n_data_relocations);
 	write_l (S_REGULAR);
