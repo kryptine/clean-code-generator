@@ -28,6 +28,8 @@
 #include "cgarmas.h"
 #include "cginstructions.h"
 
+#define FP_REVERSE_SUB_DIV_OPERANDS 1
+
 #ifdef ELF
 # include <elf.h>
 # ifdef ANDROID
@@ -2704,6 +2706,43 @@ static void as_dyadic_float_instruction (struct instruction *instruction,int cod
 	store_l (0xee000b00 | code | (d_freg<<16) | (d_freg<<12) | s_freg);
 }
 
+static void as_float_sub_or_div_instruction (struct instruction *instruction,int code)
+{
+	int d_freg,s_freg;
+	
+	switch (instruction->instruction_parameters[0].parameter_type){
+		case P_F_IMMEDIATE:
+			as_vldr_r_id (15,0,REGISTER_PC);
+			as_float_literal_entry (instruction->instruction_parameters[0].parameter_data.r);
+			s_freg=15;
+			break;
+		case P_INDIRECT:
+			as_vldr_r_id (15,instruction->instruction_parameters[0].parameter_offset,
+				instruction->instruction_parameters[0].parameter_data.reg.r);
+			s_freg=15;
+			break;
+		case P_INDEXED:
+			as_add_r_lsl_r_r (instruction->instruction_parameters[0].parameter_data.ir->d_reg.r,
+				instruction->instruction_parameters[0].parameter_offset & 3,
+				instruction->instruction_parameters[0].parameter_data.ir->a_reg.r,REGISTER_S0);
+			as_vldr_r_id (15,instruction->instruction_parameters[0].parameter_offset>>2,REGISTER_S0);
+			s_freg=15;
+			break;
+		case P_F_REGISTER:
+			s_freg = instruction->instruction_parameters[0].parameter_data.reg.r;
+			break;
+		default:
+			internal_error_in_function ("as_float_sub_or_div_instruction");
+			return;
+	}
+
+	d_freg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	if (instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS)
+		store_l (0xee000b00 | code | (s_freg<<16) | (d_freg<<12) | d_freg);
+	else
+		store_l (0xee000b00 | code | (d_freg<<16) | (d_freg<<12) | s_freg);
+}
+
 static void as_vcmp_f64_r_r (int freg_1,int freg_2)
 {
 	store_l (0xeeb40b40 | (freg_2<<12) | freg_1); /* vcmp.f64 dd,dm */
@@ -3152,13 +3191,13 @@ static void as_instructions (struct instruction *instruction)
 				as_dyadic_float_instruction (instruction,0x00300000);
 				break;
 			case IFSUB:
-				as_dyadic_float_instruction (instruction,0x00300040);
+				as_float_sub_or_div_instruction (instruction,0x00300040);
 				break;
 			case IFCMP:
 				as_compare_float_instruction (instruction);
 				break;
 			case IFDIV:
-				as_dyadic_float_instruction (instruction,0x00800000);
+				as_float_sub_or_div_instruction (instruction,0x00800000);
 				break;
 			case IFMUL:
 				as_dyadic_float_instruction (instruction,0x00200000);
@@ -3421,16 +3460,16 @@ static void as_node_entry_info (struct basic_block *block)
 	} else {
 		begin_data_mapping();
 
-	if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
-		store_l (0);
-		if (!pic_flag)
-			store_label_in_code_section (block->block_descriptor);
-		else
-			store_relative_label_in_code_section (block->block_descriptor);
-	}
-	/* else
-		store_l (0);
-	*/
+		if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag)){
+			store_l (0);
+			if (!pic_flag)
+				store_label_in_code_section (block->block_descriptor);
+			else
+				store_relative_label_in_code_section (block->block_descriptor);
+		}
+		/* else
+			store_l (0);
+		*/
 	}
 	
 	store_l (block->block_n_node_arguments);

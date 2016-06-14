@@ -23,6 +23,8 @@
 
 #define IO_BUF_SIZE 8192
 
+#define FP_REVERSE_SUB_DIV_OPERANDS 1
+
 static FILE *assembly_file;
 
 static void w_as_newline (VOID)
@@ -2003,6 +2005,36 @@ static void w_as_dyadic_float_instruction (struct instruction *instruction,char 
 	}
 }
 
+static void w_as_float_sub_or_div_instruction (struct instruction *instruction,char *opcode)
+{
+	int d_freg;
+	
+	d_freg=instruction->instruction_parameters[1].parameter_data.reg.r;
+	if (instruction->instruction_parameters[0].parameter_type==P_F_REGISTER){
+		w_as_opcode (opcode);
+		w_as_fp_register_comma (d_freg);
+		if (instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS){
+			w_as_fp_register_comma (instruction->instruction_parameters[0].parameter_data.reg.r);
+			w_as_fp_register_newline (d_freg);
+		} else {
+			w_as_fp_register_comma (d_freg);
+			w_as_fp_register_newline (instruction->instruction_parameters[0].parameter_data.reg.r);
+		}
+	} else {
+		w_as_fld_parameter (&instruction->instruction_parameters[0]);
+
+		w_as_opcode (opcode);
+		w_as_fp_register_comma (d_freg);
+		if (instruction->instruction_parameters[1].parameter_flags & FP_REVERSE_SUB_DIV_OPERANDS){
+			w_as_fp_register_comma (15);
+			w_as_fp_register_newline (d_freg);
+		} else {
+			w_as_fp_register_comma (d_freg);
+			w_as_fp_register_newline (15);
+		}
+	}
+}
+
 static void w_as_compare_float_instruction (struct instruction *instruction)
 {
 	if (instruction->instruction_parameters[0].parameter_type!=P_F_REGISTER){
@@ -2486,13 +2518,13 @@ static void w_as_instructions (struct instruction *instruction)
 				w_as_dyadic_float_instruction (instruction,"faddd");
 				break;
 			case IFSUB:
-				w_as_dyadic_float_instruction (instruction,"fsubd");
+				w_as_float_sub_or_div_instruction (instruction,"fsubd");
 				break;
 			case IFCMP:
 				w_as_compare_float_instruction (instruction);
 				break;
 			case IFDIV:
-				w_as_dyadic_float_instruction (instruction,"fdivd");
+				w_as_float_sub_or_div_instruction (instruction,"fdivd");
 				break;
 			case IFMUL:
 				w_as_dyadic_float_instruction (instruction,"fmuld");
