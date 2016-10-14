@@ -1434,7 +1434,7 @@ static void calculate_store_x_operator (INSTRUCTION_GRAPH graph)
 					else
 						++i_aregs;
 				}
-						
+				
 				select_graph=select_graph->instruction_parameters[3].p;			
 				break;
 			case GFLOAD_X:
@@ -1443,6 +1443,7 @@ static void calculate_store_x_operator (INSTRUCTION_GRAPH graph)
 #endif
 			case GREGISTER:
 			case GFREGISTER:
+			case GGREGISTER:
 				select_graph=select_graph->instruction_parameters[3].p;
 				break;
 #if defined (G_A64)
