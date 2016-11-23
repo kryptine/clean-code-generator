@@ -5897,6 +5897,21 @@ static void call_pthread_getspecific (int n_integer_parameters,int n_float_param
 # endif
 #endif
 
+#if defined (G_AI64) && (defined (LINUX_ELF) || defined (MACH_O64))
+static int centry_c_parameter_register_n[6] = {
+	2 /*R10 was RDI*/,
+	3 /*R11 was RSI*/,
+	-2/*RDX*/,
+	-1/*RCX*/,
+	-3/*R8*/,
+# ifndef THREAD64
+	-4/*R9*/
+# else
+	4 /*R12*/
+# endif
+	};
+#endif
+
 void code_centry (char *c_function_name,char *clean_function_label,char *s,int length)
 {
 #if defined (I486) || defined (ARM) || defined (G_POWER)
@@ -6152,7 +6167,11 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 
 			c=s[i];
 			if (c!='R'){
+# if defined (LINUX_ELF) || defined (MACH_O64)
+				i_move_r_id (centry_c_parameter_register_n[register_n],(18+1+register_n)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
+# else
 				i_move_r_id (REGISTER_A0-register_n,(18+1+register_n)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);
+# endif
 				if (c=='A')
 					++i;
 			} else
@@ -6172,7 +6191,11 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 								n_string_or_array_results-string_or_array_c_function_result;
 
 			for (register_n=first_result_pointer_n; register_n<4 && register_n<first_result_pointer_n+n_result_pointers; ++register_n)
+# if defined (LINUX_ELF) || defined (MACH_O64)
+				i_move_r_id (centry_c_parameter_register_n[register_n],(18+1+register_n)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);				
+# else
 				i_move_r_id (REGISTER_A0-register_n,(18+1+register_n)<<STACK_ELEMENT_LOG_SIZE,B_STACK_POINTER);				
+# endif
 		}
 	}
 #endif
@@ -6354,21 +6377,10 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 				if (s[first_parameter_index+register_n]!='R')
 #   if defined (LINUX_ELF) || defined (MACH_O64)
 				{
-					switch (register_n){
-						case 0: register_n= 2/*R10 was RDI*/; break;
-						case 1: register_n= 3/*R11 was RSI*/; break;
-						case 2: register_n=-2/*RDX*/; break;
-						case 3: register_n=-1/*RCX*/; break;
-						case 4: register_n=-3/*R8*/; break;
-						case 5:
-#    ifndef THREAD64
-								register_n=-4/*R9*/;
-#    else
-								register_n= 4/*R12*/;
-#    endif
-								break;
-						default: error ("error in centry");
-					}
+					if ((unsigned)register_n>=6u)
+						error ("error in centry");
+
+					register_n = centry_c_parameter_register_n[register_n];
 					s_push_b (g_g_register (register_n));
 				}
 #   else
