@@ -2569,7 +2569,7 @@ static void w_as_instructions (struct instruction *instruction)
 				w_as_set_float_condition_instruction (instruction,"moveq","movne");
 				break;
 			case IFSGE:
-				w_as_set_float_condition_instruction (instruction,"bpl","bmi");
+				w_as_set_float_condition_instruction (instruction,"movpl","movmi");
 				break;
 			case IFSGT:
 				w_as_set_float_condition_instruction (instruction,"movgt","movle");
@@ -2578,7 +2578,7 @@ static void w_as_instructions (struct instruction *instruction)
 				w_as_set_float_condition_instruction (instruction,"movle","movgt");
 				break;
 			case IFSLT:
-				w_as_set_float_condition_instruction (instruction,"bmi","bpl");
+				w_as_set_float_condition_instruction (instruction,"movmi","movpl");
 				break;
 			case IFSNE:
 				w_as_set_float_condition_instruction (instruction,"movne","moveq");
