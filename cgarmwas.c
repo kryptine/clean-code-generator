@@ -2148,7 +2148,7 @@ static void w_as_fmove_instruction (struct instruction *instruction)
 	internal_error_in_function ("w_as_fmove_instruction");
 }
 
-static w_as_floads_instruction (struct instruction *instruction)
+static void w_as_floads_instruction (struct instruction *instruction)
 {
 	switch (instruction->instruction_parameters[1].parameter_type){
 		case P_F_REGISTER:
