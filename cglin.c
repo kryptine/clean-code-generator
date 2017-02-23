@@ -168,6 +168,11 @@ void i_add_r_r (int register_1,int register_2)
 static void i_addi_r_r (LONG value,int register_1,int register_2)
 {
 	struct instruction *instruction;
+
+	if (register_1==register_2){
+		i_add_i_r (value,register_1);
+		return;
+	}
 	
 	instruction=i_new_instruction (IADDI,3,3*sizeof (struct parameter));
 	
@@ -4050,7 +4055,12 @@ static void linearize_dyadic_non_commutative_operator (int i_instruction_code,IN
 		linearize_graph (graph_1,&ad_1);
 	}
 
-# if defined (G_POWER) || defined (sparc) || defined (ARM)
+	if (graph->instruction_d_min_a_cost<=0)
+		in_alterable_data_register (&ad_2);
+	else
+		in_alterable_address_register (&ad_2);
+
+#if defined (G_POWER) || defined (sparc) || defined (ARM)
 	if (ad_1.ad_mode==P_IMMEDIATE && ad_2.ad_mode==P_REGISTER && ADDI_IMMEDIATE (-ad_1.ad_offset) && i_instruction_code==ISUB){
 		int reg_1;
 		
@@ -4073,12 +4083,7 @@ static void linearize_dyadic_non_commutative_operator (int i_instruction_code,IN
 		
 		return;
 	}
-# endif
-	
-	if (graph->instruction_d_min_a_cost<=0)
-		in_alterable_data_register (&ad_2);
-	else
-		in_alterable_address_register (&ad_2);
+#endif
 
 #ifdef G_A64
 	if (ad_1.ad_mode==P_IMMEDIATE && ((int)ad_1.ad_offset)!=ad_1.ad_offset){
