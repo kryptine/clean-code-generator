@@ -6381,7 +6381,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 						error ("error in centry");
 
 					register_n = centry_c_parameter_register_n[register_n];
-					s_push_b (g_g_register (register_n));
+					s_push_b (g_register (register_n));
 				}
 #   else
 					s_push_b (g_g_register (REGISTER_A0-register_n));
