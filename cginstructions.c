@@ -5538,7 +5538,7 @@ static void save_registers_before_clean_call (void)
 
 #  if defined (LINUX_ELF) || defined (MACH_O64)
 #   ifndef THREAD64
-	i_move_r_r (-6/*RSI*/,3/*R11*/);
+	i_move_r_r (-6/*RSI*/,2/*R10*/);
 #   endif
 #  else
 	i_move_r_id (-6/*RSI*/,136,B_STACK_POINTER);
@@ -5548,7 +5548,7 @@ static void save_registers_before_clean_call (void)
 #  endif
 #  if defined (LINUX_ELF) || defined (MACH_O64)
 #   ifndef THREAD64
-	i_move_r_r (-7/*RDI*/,2/*R10*/);
+	i_move_r_r (-7/*RDI*/,3/*R11*/);
 #   endif
 #  else
 	i_move_r_id (-7/*RDI*/,128,B_STACK_POINTER);
@@ -5566,7 +5566,6 @@ static void save_registers_before_clean_call (void)
 	i_move_r_id ( 4/*R12*/,104,B_STACK_POINTER);
 	i_move_r_id ( 5/*R13*/,96,B_STACK_POINTER);
 	i_move_r_id ( 6/*R14*/,88,B_STACK_POINTER);
-
 #  if ! (defined (LINUX_ELF) || defined (MACH_O64))
 	{
 		int i;
@@ -5657,13 +5656,11 @@ static void restore_registers_after_clean_call (void)
 	i_move_r_id (-7/*RDI*/,  0,-6/*RSI*/);
 	i_move_r_id (REGISTER_D7,8,-6/*RSI*/);
 #  endif
-
 #  if ! (defined (LINUX_ELF) || defined (MACH_O64))
 	i_move_id_r (136,B_STACK_POINTER,-6/*RSI*/);
 	i_move_id_r (128,B_STACK_POINTER,-7/*RDI*/);
 #  endif
 	i_move_id_r ( 80,B_STACK_POINTER, 7/*R15*/);
-
 	i_move_id_r (120,B_STACK_POINTER, 1/*RBX*/);
 	i_move_id_r (112,B_STACK_POINTER,-5/*RBP*/);
 	i_move_id_r (104,B_STACK_POINTER, 4/*R12*/);
@@ -5899,8 +5896,8 @@ static void call_pthread_getspecific (int n_integer_parameters,int n_float_param
 
 #if defined (G_AI64) && (defined (LINUX_ELF) || defined (MACH_O64))
 static int centry_c_parameter_register_n[6] = {
-	2 /*R10 was RDI*/,
-	3 /*R11 was RSI*/,
+	3 /*R11 was RDI*/,
+	2 /*R10 was RSI*/,
 	-2/*RDX*/,
 	-1/*RCX*/,
 	-3/*R8*/,
