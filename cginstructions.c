@@ -6367,7 +6367,11 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 			s_push_b (g_g_register (C_PARAMETER_REGISTER_0+((n_integer_parameters-1)-n)));
 # else
 #  ifdef G_AI64
+#   if defined (LINUX_ELF) || defined (MACH_O64)
+			if (n>=n_integer_and_float_parameters-6){
+#   else
 			if (n>=n_integer_and_float_parameters-4){
+#   endif
 				int register_n;
 
 				register_n = (n_integer_and_float_parameters-1)-n;
@@ -6386,7 +6390,11 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 				else
 					s_push_b (g_fromf (g_fregister (register_n)));
 			} else
+#   if defined (LINUX_ELF) || defined (MACH_O64)
+				s_push_b (s_get_b (18+1+(n_integer_and_float_parameters-6-1)));
+#   else
 				s_push_b (s_get_b (18+1+4+(n_integer_and_float_parameters-4-1)));
+#   endif
 #  else
 			s_push_b (s_get_b (5+1+(n_integer_and_float_parameters-1)));
 #  endif
@@ -6488,7 +6496,11 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 		int result_pointer_parameter_offset,n_data_results_registers,n_float_results_registers,n_string_or_array_results_registers;
 
 #ifdef G_AI64
+# if defined (LINUX_ELF) || defined (MACH_O64)
+		result_pointer_parameter_offset=((18+1+n_integer_and_float_parameters+n_string_or_array_parameters-6)<<STACK_ELEMENT_LOG_SIZE);
+# else
 		result_pointer_parameter_offset=((18+1+4+n_integer_and_float_parameters+n_string_or_array_parameters-4)<<STACK_ELEMENT_LOG_SIZE);
+# endif
 #else
 # ifdef ARM
 		result_pointer_parameter_offset=36+(n_float_parameters<<3);
