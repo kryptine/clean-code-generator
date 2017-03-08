@@ -1898,7 +1898,7 @@ static void w_as_rem_instruction (struct instruction *instruction)
 				w_as_lsl_register_newline (REGISTER_S0,n_shifts);
 				
 				n>>=1;
-				n_shifts=1;
+				n_shifts+=1;
 			}
 		} else {
 #if 1

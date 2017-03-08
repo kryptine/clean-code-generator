@@ -2491,7 +2491,7 @@ static void as_rem_instruction (struct instruction *instruction)
 					as_sub_r_r_r (REGISTER_S0,d_reg,d_reg);
 				
 				n>>=1;
-				n_shifts=1;
+				n_shifts+=1;
 			}
 		} else {
 #if 1
