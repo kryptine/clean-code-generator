@@ -6226,12 +6226,25 @@ static void write_code (void)
 		as_instructions (block->block_instructions);
 	}
 
-	for_l (call_and_jump,first_call_and_jump,cj_next){
 #ifdef FUNCTION_LEVEL_LINKING
+	call_and_jump=first_call_and_jump;
+	while (call_and_jump!=NULL){
+		struct object_label *previous_code_object_label;
+
 		as_new_code_module();
-#endif
 		as_call_and_jump (call_and_jump);
+		previous_code_object_label=call_and_jump->cj_jump.label_object_label;
+
+		call_and_jump=call_and_jump->cj_next;
+		while (call_and_jump!=NULL && call_and_jump->cj_jump.label_object_label==previous_code_object_label){
+			as_call_and_jump (call_and_jump);
+			call_and_jump=call_and_jump->cj_next;
+		}
 	}
+#else
+	for_l (call_and_jump,first_call_and_jump,cj_next)
+		as_call_and_jump (call_and_jump);
+#endif
 }
 
 static void write_string_8 (char *string)
