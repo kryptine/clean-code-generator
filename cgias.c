@@ -95,7 +95,7 @@ struct object_label {
 	int						object_label_number;
 #ifdef FUNCTION_LEVEL_LINKING
 	int						object_label_n_relocations;	/* CODE_CONTROL_SECTION,DATA_CONTROL_SECTION */
-	short					object_label_section_n;		/* CODE_CONTROL_SECTION,DATA_CONTROL_SECTION */
+	unsigned short			object_label_section_n;		/* CODE_CONTROL_SECTION,DATA_CONTROL_SECTION */
 #endif
 	unsigned char			object_label_kind;
 	unsigned char			object_section_align8;
