@@ -29,6 +29,7 @@ void i_jmp_id (int offset_1,int register_1,int n_a_registers);
 # endif
 # if defined (I486) || defined (ARM)
 	void i_rts_profile (void);
+	void i_jmp_r (int a_reg);
 	void i_jmp_r_profile (int a_reg);
 	void i_jmp_l_profile (LABEL *label,int offset);
 	void i_jmp_id_profile (int offset_1,int register_1,int n_a_registers);
@@ -77,6 +78,9 @@ void i_beq_l (LABEL *label);
 	void i_bnep_l (LABEL *label);
 	void i_mtctr (int register_1);
 #endif
+#if defined (ARM) && defined (G_A64)
+	void i_bne_l (LABEL *label);
+#endif
 #if defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER)
 	void i_btst_i_r (LONG i,int register_1);
 #endif
@@ -101,6 +105,9 @@ void i_fmoves_fr_id (int register_1,int offset,int register_2);
 #endif
 void i_move_id_id (int offset_1,int register_1,int offset_2,int register_2);
 void i_move_id_r (int offset,int register_1,int register_2);
+#if defined (ARM) && defined (G_A64)
+void i_move_idaa_r (int offset,int register_1,int register_2);
+#endif
 #if defined (G_POWER) || defined (ARM)
 	void i_move_idu_r (int offset,int register_1,int register_2);
 #endif
@@ -124,6 +131,9 @@ void i_move_pd_r (int register_1,int register_2);
 	void i_move_r_l (int register_1,LABEL *label);
 #endif
 void i_move_r_id (int register_1,int offset,int register_2);
+#if defined (ARM) && defined (G_A64)
+void i_move_r_idaa (int offset,int register_1,int register_2);
+#endif
 #ifdef M68000
 void i_move_r_pd (int register_1,int register_2);
 void i_move_r_pi (int register_1,int register_2);

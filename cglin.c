@@ -7,6 +7,10 @@
 #include <stdio.h>
 #if defined (LINUX) && defined (G_AI64)
 # include <stdint.h>
+#elif defined (__GNUC__) && defined (__SIZEOF_POINTER__)
+# if __SIZEOF_POINTER__==8
+#  include <stdint.h>
+# endif
 #endif
 
 #include "cgport.h"
@@ -1454,6 +1458,22 @@ void i_move_id_r (int offset,int register_1,int register_2)
 												parameter_data.i=register_2);
 }
 
+#if defined (ARM) && defined (G_A64)
+void i_move_idaa_r (int offset,int register_1,int register_2)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction2 (IMOVE);
+	
+	S3 (instruction->instruction_parameters[0],	parameter_type=P_INDIRECT_ANY_ADDRESS,
+												parameter_offset=offset,
+												parameter_data.i=register_1);
+	
+	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
+												parameter_data.i=register_2);
+}
+#endif
+
 #if defined (G_POWER) || defined (ARM)
 void i_move_idu_r (int offset,int register_1,int register_2)
 {
@@ -1706,6 +1726,22 @@ void i_move_r_id (int register_1,int offset,int register_2)
 	instruction->instruction_parameters[1].parameter_offset=offset;
 	instruction->instruction_parameters[1].parameter_data.i=register_2;
 }
+
+#if defined (ARM) && defined (G_A64)
+void i_move_r_idaa (int register_1,int offset,int register_2)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction2 (IMOVE);
+	
+	S2 (instruction->instruction_parameters[0],	parameter_type=P_REGISTER,
+												parameter_data.i=register_1);
+	
+	S3 (instruction->instruction_parameters[1],	parameter_type=P_INDIRECT_ANY_ADDRESS,
+												parameter_offset=offset,
+												parameter_data.i=register_2);
+}
+#endif
 
 #if defined (M68000) || defined (I486) || defined (ARM)
 void i_move_r_pd (int register_1,int register_2)
@@ -2885,7 +2921,7 @@ static void to_data_addressing_mode (ADDRESS *ad_p)
 		ad_p->ad_count_p=&ad_p->ad_count;
 		ad_p->ad_count=1;
 	}
-#ifdef G_A64
+#ifdef G_AI64
 	else if (ad_p->ad_mode==P_IMMEDIATE && ((int)ad_p->ad_offset)!=ad_p->ad_offset){
 		int dreg;
 		
