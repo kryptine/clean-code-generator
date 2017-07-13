@@ -3675,7 +3675,7 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 			i_move_r_pd (num_to_d_reg (0),B_STACK_POINTER);
 			b_offset=0;
 		} else {
-			i_movem_rs_pd (n_d_registers,&reversed_d_registers[5-n_d_registers],B_STACK_POINTER);
+			i_movem_rs_pd (n_d_registers,&reversed_d_registers[N_DATA_PARAMETER_REGISTERS-n_d_registers],B_STACK_POINTER);
 			b_offset=0;
 			/*
 			i_sub_i_r (b_offset,B_STACK_POINTER);
@@ -3721,7 +3721,7 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 #elif defined (I486)
 	i_jsr_id (0,num_to_a_reg (node_a_register),0);
 #elif defined (ARM)
-	i_jsr_r_idu (REGISTER_D6,-4);
+	i_jsr_r_idu (REGISTER_D6,-STACK_ELEMENT_SIZE);
 #elif defined (G_POWER)
 #	ifdef SMALLER_EVAL
 		if (n_a_registers>1){
@@ -3774,7 +3774,7 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 				i_move_pi_r (B_STACK_POINTER,num_to_d_reg (0));				
 				offset -= STACK_ELEMENT_SIZE;
 			} else if (n_d_registers>1){
-				i_movem_pi_rs (B_STACK_POINTER,n_d_registers,&reversed_d_registers[5-n_d_registers]);
+				i_movem_pi_rs (B_STACK_POINTER,n_d_registers,&reversed_d_registers[N_DATA_PARAMETER_REGISTERS-n_d_registers]);
 				offset -= n_d_registers << STACK_ELEMENT_LOG_SIZE;
 			}
 		} else
@@ -4146,10 +4146,10 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 			i_move_id_r (0,REGISTER_A1,REGISTER_A2);
 # ifdef MACH_O64
 			i_jsr_id (8-2,REGISTER_A2,0);
-# elif defined (G_A64) && defined (LINUX)
+# elif defined (G_AI64) && defined (LINUX)
 			i_jsr_id (pic_flag ? 8-2 : 4-2,REGISTER_A2,0);
 # elif defined (ARM)
-			i_jsr_id_idu (4-2,REGISTER_A2,-4);
+			i_jsr_id_idu (4-2,REGISTER_A2,-STACK_ELEMENT_SIZE);
 # else
 			i_jsr_id (4-2,REGISTER_A2,0);
 # endif
