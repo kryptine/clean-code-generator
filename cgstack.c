@@ -7,6 +7,10 @@
 #include <stdio.h>
 #if defined (LINUX) && defined (G_AI64)
 # include <stdint.h>
+#elif defined (__GNUC__) && defined (__SIZEOF_POINTER__)
+# if __SIZEOF_POINTER__==8
+#  include <stdint.h>
+# endif
 #endif
 
 #include "cgport.h"
@@ -3574,6 +3578,9 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 #endif
 #if defined (ARM)
 	static int reversed_d_registers[]={
+# ifdef G_A64
+		REGISTER_D6,REGISTER_D5,
+# endif
 		REGISTER_D4,REGISTER_D3,REGISTER_D2,REGISTER_D1,REGISTER_D0
 	};
 #endif
@@ -3721,7 +3728,11 @@ generate_code_for_jsr_eval (int n_a_registers,int n_d_registers,int n_f_register
 #elif defined (I486)
 	i_jsr_id (0,num_to_a_reg (node_a_register),0);
 #elif defined (ARM)
+# ifdef G_A64
+	i_jsr_r_idu (REGISTER_D7,-STACK_ELEMENT_SIZE);
+# else
 	i_jsr_r_idu (REGISTER_D6,-STACK_ELEMENT_SIZE);
+# endif
 #elif defined (G_POWER)
 #	ifdef SMALLER_EVAL
 		if (n_a_registers>1){
@@ -3972,7 +3983,11 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 			i_move_id_r (0-NODE_POINTER_OFFSET,num_to_a_reg (block_graph->block_graph_end_a_stack_size
 						 -block_graph->block_graph_jsr_eval_offset-1),
 #	if defined (ARM)
+#    ifdef G_A64
+						 REGISTER_D7);
+#    else
 						 REGISTER_D6);
+#    endif
 #	else
 						 num_to_d_reg (n_allocated_d_regs));
 #	endif
@@ -3983,7 +3998,11 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 				branch_offset_p=i_bmi_i();
 #	else
 #		if defined (ARM)
+#        ifdef G_A64
+			i_btst_i_r (2,REGISTER_D7);
+#        else
 			i_btst_i_r (2,REGISTER_D6);
+#        endif
 #		else
 			i_btst_i_r (2,num_to_d_reg (n_allocated_d_regs));
 #		endif
