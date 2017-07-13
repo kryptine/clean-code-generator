@@ -116,5 +116,8 @@ enum {
 #endif
 #if defined (ARM)
 	,P_INDIRECT_POST_ADD
+# if defined (G_A64)
+	,P_INDIRECT_ANY_ADDRESS
+# endif
 #endif
 };
