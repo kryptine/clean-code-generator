@@ -8,6 +8,10 @@
 #include <string.h>
 #if defined (LINUX) && defined (G_AI64)
 # include <stdint.h>
+#elif defined (__GNUC__) && defined (__SIZEOF_POINTER__)
+# if __SIZEOF_POINTER__==8
+#  include <stdint.h>
+# endif
 #endif
 #include <stdlib.h>
 
@@ -33,8 +37,13 @@
 #	include "cgiwas.h"
 # endif
 #elif defined (ARM)
+# ifdef G_A64
+#	include "cgarm64as.h"
+#	include "cgarm64was.h"
+# else
 #	include "cgarmas.h"
 #	include "cgarmwas.h"
+# endif
 #elif defined (SOLARIS)
 #	include "cgswas.h"
 #else
@@ -74,7 +83,11 @@ extern struct basic_block *last_block;
 
 extern ULONG e_vector[],i_vector[],i_i_vector[],i_i_i_vector[],
 #ifdef ARM
+# ifndef G_A64
 	i_i_i_i_i_vector[],
+# else
+	i_i_i_i_i_i_i_vector[],
+# endif
 #endif
 	r_vector[];
 extern int reachable;
@@ -1199,7 +1212,7 @@ LABEL *w_code_descriptor_length_and_string (char *string,int length)
 	store_abc_string_in_data_section (string,length);
 #endif
 	if (assembly_flag){
-# ifdef MACH_O64
+# if defined (MACH_O64) || (defined (ARM) && defined (G_A64))
 		w_as_align_and_define_data_label (string_label->label_number);
 # else
 		w_as_define_data_label (string_label->label_number);
@@ -1472,7 +1485,7 @@ void code_fill3_r (char descriptor_name[],int a_size,int b_size,int root_offset,
 		graph_0->instruction_code=GBEFORE;
 	--root_offset;
 	
-#if !(defined (sparc) || defined (G_POWER))
+#ifndef RESERVE_CODE_REGISTER
 	if (!parallel_flag){
 		if (cycle_in_spine_label==NULL){
 			cycle_in_spine_label=enter_label ("__cycle__in__spine",IMPORT_LABEL | NODE_ENTRY_LABEL);
@@ -1852,24 +1865,30 @@ UW _umul128 (UW multiplier, UW multiplicand, UW* highproduct);
 #endif
 
 #ifdef A64
-# ifdef __GNUC__
-#  ifdef __clang__
-#   define umul_hl(h,l,a,b) \
+# ifdef ARM
+#    define umul_hl(h,l,a,b) \
+	(l)=(a)*(b); \
+	__asm__ ("umulh %0,%1,%2" : "=r" (h) : "r" (a), "r" (b))
+# else
+#  ifdef __GNUC__
+#   ifdef __clang__
+#    define umul_hl(h,l,a,b) \
 	__asm__ ("mulq %3" \
 			: "=a" (l), \
 			  "=d" (h)  \
 			: "%0" (a), \
 			  "rm" (b))
-#  else
+#   else
 #   define umul_hl(h,l,a,b) \
 	__asm__ ("mulq %3" \
 			: "=a" ((UW)(l)), \
 			  "=d" ((UW)(h))  \
 			: "%0" ((UW)(a)), \
 			  "rm" ((UW)(b)))
+#   endif
+#  else
+#   define umul_hl(h,l,a,b) l=_umul128 (a,b,&h)
 #  endif
-# else
-#  define umul_hl(h,l,a,b) l=_umul128 (a,b,&h)
 # endif
 #endif
 
@@ -3679,7 +3698,7 @@ static LABEL *enter_c_function_name_label (char *c_function_name)
 static LABEL *enter_string_to_string_node_label (void)
 {
 	return enter_label ("string_to_string_node",
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 						rts_got_flag ? (USE_GOT_LABEL | IMPORT_LABEL) :
 #endif
 						IMPORT_LABEL);
@@ -3731,7 +3750,11 @@ LABEL *pthread_getspecific_label=NULL;
 #endif
 
 #ifdef ARM
-# include "cgarmc.c"
+# ifndef G_A64
+#  include "cgarmc.c"
+# else
+#  include "cgarm64c.c"
+# endif
 #else
 
 void code_ccall (char *c_function_name,char *s,int length)
@@ -5930,7 +5953,11 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	struct basic_block *block_with_call;
 # endif
 # ifdef ARM
+#  ifndef G_A64
 	INSTRUCTION_GRAPH register_arguments[4];
+#  else
+	INSTRUCTION_GRAPH register_arguments[6];
+#  endif
 	int n_pushed_register_result_pointer_parameters;
 # endif
 
@@ -6325,11 +6352,19 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 	init_a_stack (0);
 #ifdef ARM
 	if (n_integer_parameters>0){
+# ifndef G_A64
 		init_b_stack (5,i_i_i_i_i_vector);
+# else
+		init_b_stack (7,i_i_i_i_i_i_i_vector);
+# endif
 		register_arguments[0] = s_pop_b();
 		register_arguments[1] = s_pop_b();
 		register_arguments[2] = s_pop_b();
 		register_arguments[3] = s_pop_b();
+# ifdef G_A64
+		register_arguments[4] = s_pop_b();
+		register_arguments[5] = s_pop_b();
+# endif
 		s_pop_b();
 	} else
 #endif
@@ -6387,7 +6422,7 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 						error ("error in centry");
 
 					register_n = centry_c_parameter_register_n[register_n];
-					s_push_b (g_register (register_n));
+					s_push_b (g_g_register (register_n));
 				}
 #   else
 					s_push_b (g_g_register (REGISTER_A0-register_n));
@@ -7124,7 +7159,7 @@ void code_catS (int source_offset_1,int source_offset_2,int destination_offset)
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 	
 	if (cat_string_label==NULL)
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
     if (rts_got_flag)
 		cat_string_label=enter_label ("cat_string",IMPORT_LABEL | USE_GOT_LABEL);
 	else
