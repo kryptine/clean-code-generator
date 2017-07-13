@@ -674,7 +674,7 @@ static void optimize_b_stack_access2 (struct instruction *instruction)
 }
 #	endif
 
-static void compute_maximum_b_stack_offsets (register int b_offset)
+static void compute_maximum_b_stack_offsets (int b_offset)
 {
 	struct instruction *instruction;
 	
@@ -2290,34 +2290,34 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 				real_reg_n=REAL_A1;
 				i=reg_alloc[REAL_A1].instruction_n;
 			}
-#if !(defined (I486) && !defined (G_AI64)) || defined (I486_USE_SCRATCH_REGISTER)
+# if !(defined (I486) && !defined (G_AI64)) || defined (I486_USE_SCRATCH_REGISTER)
 			if (reg_alloc[REAL_A2].instruction_n<i
-# if defined (I486_USE_SCRATCH_REGISTER)
+#  if defined (I486_USE_SCRATCH_REGISTER)
 				&& allocate_scratch_register
-# endif
+#  endif
 			){
 				real_reg_n=REAL_A2;
 				i=reg_alloc[REAL_A2].instruction_n;
 			}
-#endif
-#ifndef THREAD64
+# endif
+# ifndef THREAD64
 			if (reg_alloc[REAL_A3].instruction_n<i){
 				real_reg_n=REAL_A3;
 				i=reg_alloc[REAL_A3].instruction_n;
 			}
-#endif
-#ifndef POWER_PC_A_STACK_OPTIMIZE
+# endif
+# ifndef POWER_PC_A_STACK_OPTIMIZE
 			if (reg_alloc[REAL_A4].instruction_n<i){
 				real_reg_n=REAL_A4;
 				i=reg_alloc[REAL_A4].instruction_n;
 			}
-#endif
-#if ! (defined (I486) || defined (ARM) || defined (G_POWER))
+# endif
+# if ! (defined (I486) || defined (ARM) || defined (G_POWER))
 			if (reg_alloc[REAL_A6].instruction_n<i){
 				real_reg_n=REAL_A6;
 				i=reg_alloc[REAL_A6].instruction_n;
 			}
-#endif
+# endif
 		} else {
 			real_reg_n=0;
 			i=reg_alloc[0].instruction_n;
@@ -2346,7 +2346,7 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 				real_reg_n=6;
 				i=reg_alloc[6].instruction_n;
 			}
-#  if ! ((defined (I486) || defined (ARM)) && !defined (G_AI64))
+# if ! ((defined (I486) || defined (ARM)) && !defined (G_AI64))
 			if (reg_alloc[7].instruction_n<i){
 				real_reg_n=7;
 				i=reg_alloc[7].instruction_n;
@@ -2519,34 +2519,34 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 				real_reg_n=REAL_A1;
 				i=reg_alloc[REAL_A1].instruction_n;
 			}
-#if !(defined (I486) && !defined (G_AI64)) || defined (I486_USE_SCRATCH_REGISTER)
+# if !(defined (I486) && !defined (G_AI64)) || defined (I486_USE_SCRATCH_REGISTER)
 			if (reg_alloc[REAL_A2].instruction_n<i && avoid_reg_n!=REAL_A2
-# if defined (I486_USE_SCRATCH_REGISTER)
+#  if defined (I486_USE_SCRATCH_REGISTER)
 				&& allocate_scratch_register
-# endif
+#  endif
 			){
 				real_reg_n=REAL_A2;
 				i=reg_alloc[REAL_A2].instruction_n;
 			}
-#endif
-#ifndef THREAD64
+# endif
+# ifndef THREAD64
 			if (reg_alloc[REAL_A3].instruction_n<i && avoid_reg_n!=REAL_A3){
 				real_reg_n=REAL_A3;
 				i=reg_alloc[REAL_A3].instruction_n;
 			}
-#endif
-#ifndef POWER_PC_A_STACK_OPTIMIZE
+# endif
+# ifndef POWER_PC_A_STACK_OPTIMIZE
 			if (reg_alloc[REAL_A4].instruction_n<i && avoid_reg_n!=REAL_A4){
 				real_reg_n=REAL_A4;
 				i=reg_alloc[REAL_A4].instruction_n;
 			}
-#endif
-#if ! (defined (I486) || defined (ARM) || defined (G_POWER))
+# endif
+# if ! (defined (I486) || defined (ARM) || defined (G_POWER))
 			if (reg_alloc[REAL_A6].instruction_n<i && avoid_reg_n!=REAL_A6){
 				real_reg_n=REAL_A6;
 				i=reg_alloc[REAL_A6].instruction_n;
 			}
-#endif
+# endif
 		} else {
 			if (reg_alloc[0].instruction_n<i && avoid_reg_n!=0){
 				real_reg_n=0;
@@ -2576,7 +2576,7 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 				real_reg_n=6;
 				i=reg_alloc[6].instruction_n;
 			}
-#  if ! ((defined (I486) || defined (ARM)) && !defined (G_AI64))
+# if ! ((defined (I486) || defined (ARM)) && !defined (G_AI64))
 			if (reg_alloc[7].instruction_n<i && avoid_reg_n!=7){
 				real_reg_n=7;
 				i=reg_alloc[7].instruction_n;
@@ -2769,13 +2769,13 @@ static int find_reg_not_in_set
 				i=reg_alloc[REAL_A3].instruction_n;
 			}
 #  endif
-#ifndef POWER_PC_A_STACK_OPTIMIZE
+#  ifndef POWER_PC_A_STACK_OPTIMIZE
 			if (reg_alloc[REAL_A4].instruction_n<i && !(avoid_reg_set & (1<<REAL_A4))){
 				real_reg_n=REAL_A4;
 				i=reg_alloc[REAL_A4].instruction_n;
 			}
-#endif
-#if ! (defined (I486) || defined (ARM) || defined (G_POWER))
+#  endif
+#  if ! (defined (I486) || defined (ARM) || defined (G_POWER))
 			if (reg_alloc[REAL_A6].instruction_n<i && !(avoid_reg_set & (1<<REAL_A6))){
 				real_reg_n=REAL_A6;
 				i=reg_alloc[REAL_A6].instruction_n;
