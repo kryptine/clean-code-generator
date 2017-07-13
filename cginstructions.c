@@ -25,8 +25,13 @@
 #	include "cgpas.h"
 #	include "cgpwas.h"
 #elif defined (I486)
+# ifdef G_A64
+#	include "cgaas.h"
+#	include "cgawas.h"
+# else
 #	include "cgias.h"
 #	include "cgiwas.h"
+# endif
 #elif defined (ARM)
 #	include "cgarmas.h"
 #	include "cgarmwas.h"
