@@ -4055,11 +4055,6 @@ static void linearize_dyadic_non_commutative_operator (int i_instruction_code,IN
 		linearize_graph (graph_1,&ad_1);
 	}
 
-	if (graph->instruction_d_min_a_cost<=0)
-		in_alterable_data_register (&ad_2);
-	else
-		in_alterable_address_register (&ad_2);
-
 #if defined (G_POWER) || defined (sparc) || defined (ARM)
 	if (ad_1.ad_mode==P_IMMEDIATE && ad_2.ad_mode==P_REGISTER && ADDI_IMMEDIATE (-ad_1.ad_offset) && i_instruction_code==ISUB){
 		int reg_1;
@@ -4084,6 +4079,11 @@ static void linearize_dyadic_non_commutative_operator (int i_instruction_code,IN
 		return;
 	}
 #endif
+
+	if (graph->instruction_d_min_a_cost<=0)
+		in_alterable_data_register (&ad_2);
+	else
+		in_alterable_address_register (&ad_2);
 
 #ifdef G_A64
 	if (ad_1.ad_mode==P_IMMEDIATE && ((int)ad_1.ad_offset)!=ad_1.ad_offset){
