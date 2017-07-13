@@ -7,6 +7,10 @@
 #include <stdio.h>
 #if defined (LINUX) && defined (G_AI64)
 # include <stdint.h>
+#elif defined (__GNUC__) && defined (__SIZEOF_POINTER__)
+# if __SIZEOF_POINTER__==8
+#  include <stdint.h>
+# endif
 #endif
 
 #include "cgport.h"
@@ -46,7 +50,9 @@
 
 #define for_l(v,l,n) for(v=(l);v!=NULL;v=v->n)
 
-#define POWER_PC_A_STACK_OPTIMIZE
+#if ! (defined (ARM) && defined (G_A64))
+# define POWER_PC_A_STACK_OPTIMIZE
+#endif
 #if defined (I486) || defined (ARM)
 # define OPTIMIZE_LOOPS
 #endif
@@ -498,6 +504,37 @@ static void optimize_a_stack_access (struct parameter *parameter,int instruction
 extern struct basic_block *last_block;
 extern struct instruction *last_instruction;
 
+#if defined (ARM) && defined (G_A64)
+static void insert_decrement_a_stack_pointer (struct instruction *next_instruction,int offset)
+{
+	struct instruction *previous_instruction,*instruction;
+				
+	instruction=(struct instruction*)fast_memory_allocate (sizeof (struct instruction)+2*sizeof (struct parameter));
+
+	instruction->instruction_arity=2;
+	instruction->instruction_icode=ILEA;
+
+	instruction->instruction_parameters[0].parameter_type=P_INDIRECT;
+	instruction->instruction_parameters[0].parameter_offset=-offset;
+	instruction->instruction_parameters[0].parameter_data.reg.r=A_STACK_POINTER;
+
+	instruction->instruction_parameters[1].parameter_type=P_REGISTER;
+	instruction->instruction_parameters[1].parameter_data.i=A_STACK_POINTER;
+
+	previous_instruction=next_instruction->instruction_prev;
+	if (previous_instruction==NULL)
+		last_block->block_instructions=instruction;
+	else
+		previous_instruction->instruction_next=instruction;
+	
+	instruction->instruction_next=next_instruction;
+	instruction->instruction_prev=previous_instruction;
+
+	if (next_instruction!=NULL)
+		next_instruction->instruction_prev=instruction;
+}
+#endif
+
 #if defined (M68000) || defined (I486) || defined (ARM)
 static void insert_decrement_b_stack_pointer (struct instruction *next_instruction,int offset)
 {
@@ -765,6 +802,60 @@ static int is_int_instruction (int icode)
 			return 0;
 	}
 }
+
+# ifdef G_A64
+static void adjust_a_stack_pointer_in_previous_instructions (struct instruction *current_instruction,int smallest_a_offset)
+{
+	struct instruction *instruction;
+
+	for (instruction=current_instruction->instruction_prev; ; instruction=instruction->instruction_prev)
+		switch (instruction->instruction_arity){
+			default:
+				if (
+					instruction->instruction_icode!=IADDI &&
+					instruction->instruction_icode!=ILSLI &&
+					instruction->instruction_icode!=IDIVI &&
+					instruction->instruction_icode!=IREMI &&
+					instruction->instruction_icode!=IREMU &&
+					instruction->instruction_icode!=IFLOORDIV &&
+					instruction->instruction_icode!=IMOD &&
+					instruction->instruction_icode!=IREM)
+						internal_error_in_function ("adjust_a_stack_pointer_in_previous_instructions");
+					/* only first argument might be register indirect */
+					/* no break ! */
+			case 1:
+				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
+					instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER)
+				{
+					if (instruction->instruction_parameters[0].parameter_offset==smallest_a_offset){
+						instruction->instruction_parameters[0].parameter_type=P_INDIRECT_WITH_UPDATE;
+						return;
+					}
+					instruction->instruction_parameters[0].parameter_offset -= smallest_a_offset;
+				}
+				break;
+			case 2:
+				if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT &&
+					instruction->instruction_parameters[1].parameter_data.reg.r==A_STACK_POINTER)
+				{
+					if (instruction->instruction_parameters[1].parameter_offset==smallest_a_offset){
+						instruction->instruction_parameters[1].parameter_type=P_INDIRECT_WITH_UPDATE;
+						return;
+					}
+					instruction->instruction_parameters[1].parameter_offset -= smallest_a_offset;
+				}
+				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
+					instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER)
+				{
+					if (instruction->instruction_parameters[0].parameter_offset==smallest_a_offset){
+						instruction->instruction_parameters[0].parameter_type=P_INDIRECT_WITH_UPDATE;
+						return;
+					}
+					instruction->instruction_parameters[0].parameter_offset -= smallest_a_offset;
+				}
+		}
+}
+# endif
 #endif
 
 void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_offset_p
@@ -782,7 +873,10 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 # ifdef ARM
 	struct parameter *previous_a_stack_parameter,*previous_b_stack_parameter;
 	int previous_a_stack_parameter_icode,previous_b_stack_parameter_icode;
-	
+#  ifdef G_A64
+	int smallest_a_offset,a_offset;
+#  endif
+
 	previous_a_stack_parameter=NULL;
 	previous_b_stack_parameter=NULL;
 # endif
@@ -870,6 +964,11 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 	*a_offset_p-=a_offset;
 # endif
 
+# if defined (ARM) && defined (G_A64)
+	smallest_a_offset=0;
+	a_offset=0;
+# endif
+
 # if defined (I486) || defined (ARM)
 	for_l (instruction,block->block_instructions,instruction_next){
 		if (instruction->instruction_icode==IMOVE){
@@ -879,11 +978,99 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 			{
 				previous_a_stack_parameter=&instruction->instruction_parameters[1];
 				previous_a_stack_parameter_icode=IMOVE;
+#  ifdef G_A64
+				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
+					instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER)
+				{
+					int new_a_offset;
+					
+					new_a_offset = (instruction->instruction_parameters[0].parameter_offset -= a_offset);
+					if (new_a_offset<smallest_a_offset){
+						if (new_a_offset < -256){
+							if (new_a_offset - smallest_a_offset >= -256){
+								adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
+								a_offset+=smallest_a_offset;
+								new_a_offset-=smallest_a_offset;
+							} else {
+								insert_decrement_a_stack_pointer (instruction,-new_a_offset);
+								a_offset+=new_a_offset;
+								new_a_offset=0;
+							}
+							instruction->instruction_parameters[0].parameter_offset = new_a_offset;
+						}
+						smallest_a_offset=new_a_offset;
+					}
+					
+					new_a_offset = (instruction->instruction_parameters[1].parameter_offset -= a_offset);
+					if (new_a_offset<smallest_a_offset){
+						if (new_a_offset < -256){
+							if (new_a_offset - smallest_a_offset >= -256){
+								if (instruction->instruction_parameters[0].parameter_offset==smallest_a_offset){
+									instruction->instruction_parameters[0].parameter_type=P_INDIRECT_WITH_UPDATE;
+								} else {
+									instruction->instruction_parameters[0].parameter_offset -= smallest_a_offset;
+									adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
+								}
+								a_offset+=smallest_a_offset;
+								new_a_offset-=smallest_a_offset;
+							} else {
+								insert_decrement_a_stack_pointer (instruction,-new_a_offset);
+								instruction->instruction_parameters[0].parameter_offset -= new_a_offset;							
+								a_offset+=new_a_offset;
+								new_a_offset=0;
+							}
+							instruction->instruction_parameters[1].parameter_offset = new_a_offset;
+						}
+						smallest_a_offset=new_a_offset;
+					}
+				} else {
+					int new_a_offset;
+					
+					new_a_offset = (instruction->instruction_parameters[1].parameter_offset -= a_offset);
+					if (new_a_offset<smallest_a_offset){
+						if (new_a_offset < -256){
+							if (new_a_offset - smallest_a_offset >= -256){
+								adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
+								a_offset+=smallest_a_offset;
+								new_a_offset-=smallest_a_offset;
+							} else {
+								insert_decrement_a_stack_pointer (instruction,-new_a_offset);
+								a_offset+=new_a_offset;
+								new_a_offset=0;
+							}
+							instruction->instruction_parameters[1].parameter_offset = new_a_offset;
+						}
+						smallest_a_offset=new_a_offset;
+					}
+				}
+#  endif
 			} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
 					   instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER)
 			{
 				previous_a_stack_parameter=&instruction->instruction_parameters[0];
 				previous_a_stack_parameter_icode=IMOVE;
+#  ifdef G_A64
+				{
+					int new_a_offset;
+					
+					new_a_offset = (instruction->instruction_parameters[0].parameter_offset -= a_offset);
+					if (new_a_offset<smallest_a_offset){
+						if (new_a_offset < -256){
+							if (new_a_offset - smallest_a_offset >= -256){
+								adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
+								a_offset+=smallest_a_offset;
+								new_a_offset-=smallest_a_offset;
+							} else {
+								insert_decrement_a_stack_pointer (instruction,-new_a_offset);
+								a_offset+=new_a_offset;
+								new_a_offset=0;
+							}
+							instruction->instruction_parameters[0].parameter_offset = new_a_offset;
+						}
+						smallest_a_offset=new_a_offset;
+					}
+				}
+#  endif
 			}
 # endif
 			if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
@@ -1062,8 +1249,29 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 						previous_b_stack_parameter=&instruction->instruction_parameters[0];
 						previous_b_stack_parameter_icode=instruction->instruction_icode;
 					} else if (instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER){
+#  ifdef G_A64
+						int new_a_offset;
+#  endif
 						previous_a_stack_parameter=&instruction->instruction_parameters[0];
 						previous_a_stack_parameter_icode=instruction->instruction_icode;
+#  ifdef G_A64
+						new_a_offset = (instruction->instruction_parameters[0].parameter_offset -= a_offset);
+						if (new_a_offset<smallest_a_offset){
+							if (new_a_offset < -256){
+								if (new_a_offset - smallest_a_offset >= -256){
+									adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
+									a_offset+=smallest_a_offset;
+									new_a_offset-=smallest_a_offset;
+								} else {
+									insert_decrement_a_stack_pointer (instruction,-new_a_offset);
+									a_offset+=new_a_offset;
+									new_a_offset=0;
+								}
+								instruction->instruction_parameters[0].parameter_offset = new_a_offset;
+							}
+							smallest_a_offset=new_a_offset;
+						}
+#  endif
 # endif
 					}
 				}
@@ -1100,13 +1308,61 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 				if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT &&
 					instruction->instruction_parameters[1].parameter_data.reg.r==A_STACK_POINTER)
 				{
+#  ifdef G_A64
+					int new_a_offset;
+#  endif
 					previous_a_stack_parameter=&instruction->instruction_parameters[1];
 					previous_a_stack_parameter_icode=instruction->instruction_icode;
+#  ifdef G_A64
+					new_a_offset = (instruction->instruction_parameters[1].parameter_offset -= a_offset);
+					if (new_a_offset<smallest_a_offset){
+						if (new_a_offset < -256){
+							if (new_a_offset - smallest_a_offset >= -256){
+								adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
+								a_offset+=smallest_a_offset;
+								new_a_offset-=smallest_a_offset;
+							} else {
+								insert_decrement_a_stack_pointer (instruction,-new_a_offset);
+								a_offset+=new_a_offset;
+								new_a_offset=0;
+							}
+							instruction->instruction_parameters[1].parameter_offset = new_a_offset;
+						}
+						smallest_a_offset=new_a_offset;
+					}
+
+					if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
+						instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER)
+					{
+						internal_error_in_function ("optimize_stack_access");
+					}
+#  endif
 				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
 						   instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER)
 				{
+#  ifdef G_A64
+					int new_a_offset;
+#  endif
 					previous_a_stack_parameter=&instruction->instruction_parameters[0];
 					previous_a_stack_parameter_icode=instruction->instruction_icode;
+#  ifdef G_A64
+					new_a_offset = (instruction->instruction_parameters[0].parameter_offset -= a_offset);
+					if (new_a_offset<smallest_a_offset){
+						if (new_a_offset < -256){
+							if (new_a_offset - smallest_a_offset >= -256){
+								adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
+								a_offset+=smallest_a_offset;
+								new_a_offset-=smallest_a_offset;
+							} else {
+								insert_decrement_a_stack_pointer (instruction,-new_a_offset);
+								a_offset+=new_a_offset;
+								new_a_offset=0;
+							}
+							instruction->instruction_parameters[0].parameter_offset = new_a_offset;
+						}
+						smallest_a_offset=new_a_offset;
+					}
+#  endif
 				}
 # endif
 		}
@@ -1114,6 +1370,9 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 # endif
 
 # ifdef ARM
+#  ifdef G_A64
+	*a_offset_p-=a_offset;
+#  endif
 	{
 		int offset;
 		
@@ -1139,7 +1398,12 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 			}
 		}
 
-		if (previous_a_stack_parameter!=NULL && *a_offset_p!=0 && is_int_instruction (previous_a_stack_parameter_icode)){
+		if (previous_a_stack_parameter!=NULL && *a_offset_p!=0 &&
+#  ifdef G_A64
+			*a_offset_p>=-256 && *a_offset_p<256 &&
+#  endif
+			is_int_instruction (previous_a_stack_parameter_icode)
+		){
 			if (previous_a_stack_parameter->parameter_type==P_INDIRECT){
 				if (previous_a_stack_parameter->parameter_offset==0){
 					previous_a_stack_parameter->parameter_type=P_INDIRECT_POST_ADD;
@@ -2312,10 +2576,22 @@ static int find_register (int reg_n,register struct register_allocation *reg_all
 				i=reg_alloc[REAL_A4].instruction_n;
 			}
 # endif
-# if ! (defined (I486) || defined (ARM) || defined (G_POWER))
+# if defined (ARM) && defined (G_A64)
+			if (reg_alloc[REAL_A5].instruction_n<i){
+				real_reg_n=REAL_A5;
+				i=reg_alloc[REAL_A5].instruction_n;
+			}
+# endif
+# if ! (defined (I486) || (defined (ARM) && !defined (G_A64)) || defined (G_POWER))
 			if (reg_alloc[REAL_A6].instruction_n<i){
 				real_reg_n=REAL_A6;
 				i=reg_alloc[REAL_A6].instruction_n;
+			}
+# endif
+# if defined (ARM) && defined (G_A64)
+			if (reg_alloc[REAL_A7].instruction_n<i){
+				real_reg_n=REAL_A7;
+				i=reg_alloc[REAL_A7].instruction_n;
 			}
 # endif
 		} else {
@@ -2541,10 +2817,22 @@ static int find_non_reg_2_register (int reg_n,int avoid_reg_n,
 				i=reg_alloc[REAL_A4].instruction_n;
 			}
 # endif
-# if ! (defined (I486) || defined (ARM) || defined (G_POWER))
+# if defined (ARM) && defined (G_A64)
+			if (reg_alloc[REAL_A5].instruction_n<i && avoid_reg_n!=REAL_A5){
+				real_reg_n=REAL_A5;
+				i=reg_alloc[REAL_A5].instruction_n;
+			}
+# endif
+# if ! (defined (I486) || (defined (ARM) && !defined (G_A64)) || defined (G_POWER))
 			if (reg_alloc[REAL_A6].instruction_n<i && avoid_reg_n!=REAL_A6){
 				real_reg_n=REAL_A6;
 				i=reg_alloc[REAL_A6].instruction_n;
+			}
+# endif
+# if defined (ARM) && defined (G_A64)
+			if (reg_alloc[REAL_A7].instruction_n<i && avoid_reg_n!=REAL_A7){
+				real_reg_n=REAL_A7;
+				i=reg_alloc[REAL_A7].instruction_n;
 			}
 # endif
 		} else {
@@ -2775,10 +3063,22 @@ static int find_reg_not_in_set
 				i=reg_alloc[REAL_A4].instruction_n;
 			}
 #  endif
-#  if ! (defined (I486) || defined (ARM) || defined (G_POWER))
+#  if defined (ARM) && defined (G_A64)
+			if (reg_alloc[REAL_A5].instruction_n<i && !(avoid_reg_set & (1<<REAL_A5))){
+				real_reg_n=REAL_A5;
+				i=reg_alloc[REAL_A5].instruction_n;
+			}
+#  endif
+#  if ! (defined (I486) || (defined (ARM) && !defined (G_A64)) || defined (G_POWER))
 			if (reg_alloc[REAL_A6].instruction_n<i && !(avoid_reg_set & (1<<REAL_A6))){
 				real_reg_n=REAL_A6;
 				i=reg_alloc[REAL_A6].instruction_n;
+			}
+#  endif
+#  if defined (ARM) && defined (G_A64)
+			if (reg_alloc[REAL_A7].instruction_n<i && !(avoid_reg_set & (1<<REAL_A7))){
+				real_reg_n=REAL_A7;
+				i=reg_alloc[REAL_A7].instruction_n;
 			}
 #  endif
 		} else {
