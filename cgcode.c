@@ -8,6 +8,10 @@
 #include <string.h>
 #if defined (LINUX) && defined (G_AI64)
 # include <stdint.h>
+#elif defined (__GNUC__) && defined (__SIZEOF_POINTER__)
+# if __SIZEOF_POINTER__==8
+#  include <stdint.h>
+# endif
 #endif
 
 #undef NO_FUNCTION_NAMES
@@ -70,8 +74,13 @@
 #  endif
 # else
 #  ifdef ARM
-#	include "cgarmas.h"
-#	include "cgarmwas.h"
+#   ifdef G_A64
+#    include "cgarm64as.h"
+#	 include "cgarm64was.h"
+#   else
+#    include "cgarmas.h"
+#	 include "cgarmwas.h"
+#   endif
 #  else
 #   ifdef SOLARIS
 #    include "cgswas.h"
@@ -192,6 +201,9 @@ ULONG r_vector[] = { 3 };
 ULONG i_i_vector[] = { 0 };
 ULONG i_i_i_vector[]= { 0 };
 ULONG i_i_i_i_i_vector[]= { 0 };
+#if defined (ARM) && defined (G_A64)
+ULONG i_i_i_i_i_i_i_vector[]= { 0 };
+#endif
 #ifdef G_A64
 static ULONG i_r_vector[] = { 2 };
 static ULONG r_r_vector[]= { 3 };
@@ -800,7 +812,7 @@ static void define_eval_upd_label_n (int arity)
 {
 	char eval_upd_label_name[32];
 
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 	if (rts_got_flag){
 		sprintf (eval_upd_label_name,"eval_upd_%d_",arity);
 		eval_upd_labels[arity]=enter_label (eval_upd_label_name,IMPORT_LABEL | USE_GOT_LABEL);
@@ -1088,7 +1100,7 @@ void code_build_u (char descriptor_name[],int a_size,int b_size,char *code_name)
 
 static INSTRUCTION_GRAPH g_BOOL_label (void)
 {
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 	if (rts_got_flag){
 		if (BOOL_label==NULL)
 			BOOL_label=enter_label ("BOOL_0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
@@ -1102,7 +1114,7 @@ static INSTRUCTION_GRAPH g_BOOL_label (void)
 
 static INSTRUCTION_GRAPH g_FILE_label (void)
 {
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 	if (rts_got_flag){
 		if (FILE_label==NULL)
 			FILE_label=enter_label ("FILE_0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
@@ -1118,7 +1130,7 @@ void code_buildB (int value)
 {
 	INSTRUCTION_GRAPH graph_2,graph_3,graph_4;
 
-#ifdef G_POWER
+#ifdef BOOL_REGISTER
 	graph_2=g_g_register (BOOL_REGISTER);
 #else
 	if (!parallel_flag && last_BOOL_descriptor_block==last_block)
@@ -1147,7 +1159,7 @@ void code_buildB_b (int b_offset)
 {
 	INSTRUCTION_GRAPH graph_2,graph_3,graph_4;
 
-#ifdef G_POWER
+#ifdef BOOL_REGISTER
 	graph_2=g_g_register (BOOL_REGISTER);
 #else
 	if (!parallel_flag && last_BOOL_descriptor_block==last_block)
@@ -1172,13 +1184,13 @@ static INSTRUCTION_GRAPH char_descriptor_graph (void)
 {
 	INSTRUCTION_GRAPH graph;
 	
-#ifdef G_POWER
+#ifdef REAL_REGISTER
 	graph=g_g_register (CHAR_REGISTER);
 #else
 	if (!parallel_flag && last_CHAR_descriptor_block==last_block)
 		graph=last_CHAR_descriptor_graph;
 	else {
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 		if (rts_got_flag){
 			if (CHAR_label==NULL)
 				CHAR_label=enter_label ("CHAR_0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
@@ -1205,7 +1217,7 @@ void code_buildC (int value)
 	INSTRUCTION_GRAPH graph_2,graph_3,graph_4;
 
 	if (!parallel_flag){
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 		if (rts_got_flag){
 			LABEL *static_characters_n_label;
 			static char static_characters_n_s[40];
@@ -1270,13 +1282,13 @@ static INSTRUCTION_GRAPH int_descriptor_graph (void)
 {
 	INSTRUCTION_GRAPH graph;
 	
-#ifdef G_POWER
+#ifdef INT_REGISTER
 	graph=g_g_register (INT_REGISTER);
 #else
 	if (!parallel_flag && last_INT_descriptor_block==last_block)
 		graph=last_INT_descriptor_graph;
 	else {
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 		if (rts_got_flag){
 			if (INT_label==NULL)
 				INT_label=enter_label ("dINT_0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
@@ -1311,7 +1323,7 @@ void code_buildI (CleanInt value)
 #else
 	if (!parallel_flag && (uint_64)value<(uint_64)33){
 #endif
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 		if (rts_got_flag){
 			LABEL *small_integers_n_label;
 			static char small_integers_n_s[40];
@@ -1354,7 +1366,7 @@ static INSTRUCTION_GRAPH real_descriptor_graph (void)
 {
 	INSTRUCTION_GRAPH graph;
 
-#ifdef G_POWER
+#ifdef REAL_REGISTER
 	graph=g_g_register (REAL_REGISTER);
 #else
 	if (!parallel_flag && last_REAL_descriptor_block==last_block)
@@ -1484,7 +1496,7 @@ void code_CtoAC (VOID)
 	if (!parallel_flag && last__STRING__descriptor_block==last_block)
 		graph_1=last__STRING__descriptor_graph;
 	else {
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 		if (rts_got_flag){
 			if (_STRING__0_label==NULL)
 				_STRING__0_label=enter_label ("__STRING___0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
@@ -1523,7 +1535,7 @@ void code_CtoAC (VOID)
 static LABEL *enter_rts_label (char *label_name)
 {
 	return enter_label (label_name,
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 			rts_got_flag ? IMPORT_LABEL | USE_GOT_LABEL : IMPORT_LABEL);
 #else
 			IMPORT_LABEL);
@@ -1575,7 +1587,7 @@ INSTRUCTION_GRAPH g_create_unboxed_int_array (int n_elements)
 
 	graph_1=g_create_m (n_elements+3);
 	
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 	if (rts_got_flag){
 		if (_ARRAY__label==NULL)
 			_ARRAY__label=enter_label ("__ARRAY___0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
@@ -1878,7 +1890,7 @@ static void code_create_lazy_array_ (VOID)
 	INSTRUCTION_GRAPH graph_1;
 	LABEL *nil_label;
 	
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 	if (rts_got_flag){
 		nil_label=enter_label ("__Nil_Z",DATA_LABEL | USE_GOT_LABEL);
 		graph_1=g_lea (nil_label);
@@ -2022,7 +2034,7 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 			INSTRUCTION_GRAPH graph_1;
 			LABEL *nil_label;
 			
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 			if (rts_got_flag){
 				nil_label=enter_label ("__Nil_Z",DATA_LABEL | USE_GOT_LABEL);
 				graph_1=g_lea (nil_label);
@@ -2202,7 +2214,7 @@ void code_create (int n_arguments)
 		EMPTY_label=enter_label ("EMPTY",IMPORT_LABEL | DATA_LABEL);
 
 	if (n_arguments<=2){
-#if !(defined (sparc) || defined (G_POWER))
+#ifndef RESERVE_CODE_REGISTER
 		if (!parallel_flag){
 			if (cycle_in_spine_label==NULL){
 				cycle_in_spine_label=enter_label ("__cycle__in__spine",IMPORT_LABEL | NODE_ENTRY_LABEL);
@@ -2284,16 +2296,16 @@ void code_divI (VOID)
 #ifdef M68000
 	if (!mc68000_flag){
 #endif
-#ifdef ARM
+#if defined (ARM) && !defined (G_A64)
 	if (graph_2->instruction_code==GLOAD_I && graph_2->instruction_parameters[0].i!=0){
 #endif
 		graph_1=s_pop_b();
-#ifdef ARM
+#if defined (ARM) && !defined (G_A64)
 		graph_2=g_load_i (graph_2->instruction_parameters[0].i);
 #endif
 		graph_3=g_div (graph_2,graph_1);
 		s_put_b (0,graph_3);
-#ifdef ARM
+#if defined (ARM) && !defined (G_A64)
 		return;
 	}
 #endif
@@ -2304,7 +2316,7 @@ void code_divI (VOID)
 #ifdef M68000
 	} else
 #endif
-#if defined (M68000) || defined (ARM)
+#if defined (M68000) || (defined (ARM) && !defined (G_A64))
 	{
 		if (div_label==NULL)
 			div_label=enter_label ("divide",IMPORT_LABEL);
@@ -2695,7 +2707,7 @@ void code_eqAC_a (char *string,int string_length)
 	
 	if (equal_string_label==NULL)
 		equal_string_label=enter_label ("eqAC",
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 							rts_got_flag ? (USE_GOT_LABEL | IMPORT_LABEL) :
 #endif
 							IMPORT_LABEL);
@@ -2823,7 +2835,7 @@ void code_exit_false (char label_name[])
 	result_graph=s_get_a (0);
 	
 	label=enter_label (label_name,
-# ifdef G_POWER
+# if defined (G_POWER) || (defined (ARM) && defined (G_A64))
 			FAR_CONDITIONAL_JUMP_LABEL
 # else
 			0
@@ -3420,7 +3432,7 @@ void code_fill3 (char descriptor_name[],int arity,int a_offset,char bits[])
 		graph_0->instruction_code=GBEFORE;
 	--a_offset;
 	
-#if !(defined (sparc) || defined (G_POWER))
+#ifndef RESERVE_CODE_REGISTER
 	if (!parallel_flag){
 		if (cycle_in_spine_label==NULL){
 			cycle_in_spine_label=enter_label ("__cycle__in__spine",IMPORT_LABEL | NODE_ENTRY_LABEL);
@@ -3494,7 +3506,7 @@ void code_fillB (int value,int a_offset)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
 
-#ifdef G_POWER
+#ifdef BOOL_REGISTER
 	graph_2=g_g_register (BOOL_REGISTER);
 #else
 	if (!parallel_flag && last_BOOL_descriptor_block==last_block)
@@ -3524,7 +3536,7 @@ void code_fillB_b (int b_offset,int a_offset)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4;
 	
-#ifdef G_POWER
+#ifdef BOOL_REGISTER
 	graph_2=g_g_register (BOOL_REGISTER);
 #else
 	if (!parallel_flag && last_BOOL_descriptor_block==last_block)
@@ -3766,7 +3778,7 @@ void code_fillcaf (char *label_name,int a_stack_size,int b_stack_size)
 		LABEL *caf_listp_label;
 
 		caf_listp_label=enter_label ("caf_listp",
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 										rts_got_flag ? USE_GOT_LABEL | DATA_LABEL | IMPORT_LABEL :
 #endif
 										DATA_LABEL | IMPORT_LABEL);
@@ -4194,7 +4206,7 @@ static void code_jmp_ap_ (int n_apply_args)
 
 		sprintf (ap_label_name,"ap_%d",n_apply_args);
 		label=enter_label (ap_label_name,
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 			rts_got_flag ? USE_GOT_LABEL :
 #endif
 			0);
@@ -4706,7 +4718,7 @@ static void code_jsr_ap_ (int n_apply_args)
 
 		sprintf (ap_label_name,"ap_%d",n_apply_args);
 		label=enter_label (ap_label_name,
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 			rts_got_flag ? USE_GOT_LABEL :
 #endif
 			0);
@@ -4765,7 +4777,7 @@ void code_jrsr (char label_name[])
 	LABEL *label;
 
 	label=enter_label (label_name,
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 						rts_got_flag ? USE_GOT_LABEL :
 #endif
 						0);
@@ -5098,16 +5110,16 @@ void code_remI (VOID)
 #ifdef M68000
 	if (!mc68000_flag){
 #endif
-#ifdef ARM
+#if defined (ARM) && !defined (G_A64)
 	if (graph_2->instruction_code==GLOAD_I && graph_2->instruction_parameters[0].i!=0){
 #endif
 		graph_1=s_pop_b();
-#ifdef ARM
+#if defined (ARM) && !defined (G_A64)
 		graph_2=g_load_i (graph_2->instruction_parameters[0].i);
 #endif
 		graph_3=g_rem (graph_2,graph_1);
 		s_put_b (0,graph_3);
-#ifdef ARM
+#if defined (ARM) && !defined (G_A64)
 		return;
 	}
 #endif
@@ -5118,7 +5130,7 @@ void code_remI (VOID)
 #ifdef M68000
 	} else
 #endif
-#if defined (M68000) || defined (ARM)
+#if defined (M68000) || (defined (ARM) && !defined (G_A64))
 	{
 		if (mod_label==NULL)
 			mod_label=enter_label ("modulo",IMPORT_LABEL);
@@ -5352,7 +5364,7 @@ void code_n (int number_of_arguments,char *descriptor_name,char *ea_label_name)
 		if (ea_label_name[0]=='_' && ea_label_name[1]=='_' && ea_label_name[2]=='\0'){
 			if (eval_fill_label==NULL)
 				eval_fill_label=enter_label ("eval_fill",
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 												rts_got_flag ? (IMPORT_LABEL | USE_GOT_LABEL) :
 #endif
 												IMPORT_LABEL);
@@ -5386,7 +5398,7 @@ void code_nu (int a_size,int b_size,char *descriptor_name,char *ea_label_name)
 		/* eval_upd not yet implemented */
 		if (eval_fill_label==NULL)
 			eval_fill_label=enter_label ("eval_fill",
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 											rts_got_flag ? (IMPORT_LABEL | USE_GOT_LABEL) :
 #endif
 											IMPORT_LABEL);
@@ -5503,7 +5515,7 @@ void code_print (char *string,int length)
 		print_label=enter_label ("print_",IMPORT_LABEL);
 #else
 		print_label=enter_label ("print",
-# if defined (G_A64) && defined (LINUX)
+# if defined (G_AI64) && defined (LINUX)
 								rts_got_flag ? (USE_GOT_LABEL | IMPORT_LABEL) :
 # endif
 								IMPORT_LABEL);
@@ -6310,7 +6322,7 @@ void code_push_node (char *label_name,int n_arguments)
 		EMPTY_label=enter_label ("EMPTY",IMPORT_LABEL | DATA_LABEL);
 
 	if (!strcmp (label_name,"__cycle__in__spine")){
-#if !(defined (sparc) || defined (G_POWER))
+#ifndef RESERVE_CODE_REGISTER
 		if (cycle_in_spine_label==NULL){
 			cycle_in_spine_label=enter_label ("__cycle__in__spine",IMPORT_LABEL | NODE_ENTRY_LABEL);
 			cycle_in_spine_label->label_arity=0;
@@ -6321,7 +6333,7 @@ void code_push_node (char *label_name,int n_arguments)
 		graph_2=g_g_register (RESERVE_CODE_REGISTER);
 #endif
 	} else if (!strcmp (label_name,"__reserve")){
-#ifndef sparc
+#ifndef RESERVE_CODE_REGISTER
 		if (reserve_label==NULL){
 			reserve_label=enter_label ("__reserve",IMPORT_LABEL | NODE_ENTRY_LABEL);
 			reserve_label->label_arity=0;
@@ -6386,7 +6398,7 @@ void code_push_node_u (char *label_name,int a_size,int b_size)
 		EMPTY_label=enter_label ("EMPTY",IMPORT_LABEL | DATA_LABEL);
 
 	if (!strcmp (label_name,"__cycle__in__spine")){
-#if !(defined (sparc) || defined (G_POWER))
+#ifndef RESERVE_CODE_REGISTER
 		if (cycle_in_spine_label==NULL){
 			cycle_in_spine_label=enter_label ("__cycle__in__spine",IMPORT_LABEL | NODE_ENTRY_LABEL);
 			cycle_in_spine_label->label_arity=0;
@@ -6397,7 +6409,7 @@ void code_push_node_u (char *label_name,int a_size,int b_size)
 		graph_2=g_g_register (RESERVE_CODE_REGISTER);
 #endif
 	} else if (!strcmp (label_name,"__reserve")){
-#ifndef sparc
+#ifndef RESERVE_CODE_REGISTER
 		if (reserve_label==NULL){
 			reserve_label=enter_label ("__reserve",IMPORT_LABEL | NODE_ENTRY_LABEL);
 			reserve_label->label_arity=0;
@@ -8068,7 +8080,7 @@ void code_set_entry (char *label_name,int a_offset)
 		EMPTY_label=enter_label ("EMPTY",IMPORT_LABEL | DATA_LABEL);
 	
 	if (!strcmp (label_name,"__cycle__in__spine")){
-#if !(defined (sparc) || defined (G_POWER))
+#ifndef RESERVE_CODE_REGISTER
 		if (cycle_in_spine_label==NULL){
 			cycle_in_spine_label=enter_label ("__cycle__in__spine",IMPORT_LABEL | NODE_ENTRY_LABEL);
 			cycle_in_spine_label->label_arity=0;
@@ -8079,7 +8091,7 @@ void code_set_entry (char *label_name,int a_offset)
 		graph_2=g_g_register (RESERVE_CODE_REGISTER);
 #endif
 	} else if (!strcmp (label_name,"__reserve")){
-#ifndef sparc
+#ifndef RESERVE_CODE_REGISTER
 		if (reserve_label==NULL){
 			reserve_label=enter_label ("__reserve",IMPORT_LABEL | NODE_ENTRY_LABEL);
 			reserve_label->label_arity=0;
@@ -9858,7 +9870,7 @@ void code_implab_node_entry (char *label_name,char *ea_label_name)
 		if (ea_label_name[0]=='_' && ea_label_name[1]=='_' && ea_label_name[2]=='\0'){
 			if (eval_fill_label==NULL)
 				eval_fill_label=enter_label ("eval_fill",
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 												rts_got_flag ? (IMPORT_LABEL | USE_GOT_LABEL) :
 #endif
 												IMPORT_LABEL);
@@ -9881,7 +9893,7 @@ void code_implab (char *label_name)
 
 void code_impmod (char *module_name)
 {
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 	if (pic_flag){
 		if (!rts_got_flag){
 			pic_sl_mod_import = 1;	
@@ -10477,7 +10489,7 @@ void initialize_coding (VOID)
 	last_instruction=NULL;
 
 	INT_label=BOOL_label=CHAR_label=REAL_label=FILE_label=_STRING__label=_ARRAY__label=NULL;
-#if defined (G_A64) && defined (LINUX)
+#if defined (G_AI64) && defined (LINUX)
 	_STRING__0_label=NULL;
 	pic_sl_mod_import=!rts_got_flag;
 #endif
