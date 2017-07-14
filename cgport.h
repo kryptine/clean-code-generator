@@ -7,6 +7,10 @@
 #endif
 #ifdef G_AI64
 # define G_A64
+#elif defined (__GNUC__) && defined (__SIZEOF_POINTER__)
+# if __SIZEOF_POINTER__==8
+#  define G_A64
+# endif
 #endif
 
 #if defined (__MWERKS__) || defined (__MRC__)
@@ -55,7 +59,7 @@
 # endif
 #endif
 
-#if defined (LINUX) && defined (G_A64)
+#if defined (LINUX) && defined (G_A64) && !defined (ARM)
 # define LONG int
 # define ULONG unsigned int
 #else
