@@ -7194,7 +7194,12 @@ static void code_r_replace (int a_size,int b_size)
 void code_replace (char element_descriptor[],int a_size,int b_size)
 {
 	if (check_index_flag && index_error_label==NULL){
-		index_error_label=enter_label ("index__error",0);
+		index_error_label=enter_label ("index__error",
+#if defined (ARM) && defined (G_A64)
+			FAR_CONDITIONAL_JUMP_LABEL);
+#else
+			0);
+#endif
 		if (!(index_error_label->label_flags & EXPORT_LABEL))
 			index_error_label->label_flags |= IMPORT_LABEL;
 	}
@@ -7977,12 +7982,16 @@ static void code_r_select (int a_size,int b_size)
 
 void code_select (char element_descriptor[],int a_size,int b_size)
 {
-	if (check_index_flag)
-		if (index_error_label==NULL){
-			index_error_label=enter_label ("index__error",0);
-			if (!(index_error_label->label_flags & EXPORT_LABEL))
-				index_error_label->label_flags |= IMPORT_LABEL;
-		}
+	if (check_index_flag && index_error_label==NULL){
+		index_error_label=enter_label ("index__error",
+#if defined (ARM) && defined (G_A64)
+			FAR_CONDITIONAL_JUMP_LABEL);
+#else
+			0);
+#endif
+		if (!(index_error_label->label_flags & EXPORT_LABEL))
+			index_error_label->label_flags |= IMPORT_LABEL;
+	}
 
 	switch (element_descriptor[0]){
 		case 'B':
@@ -8863,12 +8872,16 @@ static void code_r_update (int a_size,int b_size)
 
 void code_update (char element_descriptor[],int a_size,int b_size)
 {
-	if (check_index_flag)
-		if (index_error_label==NULL){
-			index_error_label=enter_label ("index__error",0);
-			if (!(index_error_label->label_flags & EXPORT_LABEL))
-				index_error_label->label_flags |= IMPORT_LABEL;
-		}
+	if (check_index_flag && index_error_label==NULL){
+		index_error_label=enter_label ("index__error",
+#if defined (ARM) && defined (G_A64)
+			FAR_CONDITIONAL_JUMP_LABEL);
+#else
+			0);
+#endif
+		if (!(index_error_label->label_flags & EXPORT_LABEL))
+			index_error_label->label_flags |= IMPORT_LABEL;
+	}
 
 	switch (element_descriptor[0]){
 		case 'B':
