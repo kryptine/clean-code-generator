@@ -3640,7 +3640,7 @@ void code_fillI (CleanInt value,int a_offset)
 		graph_1->inode_arity=1;
 		
 		graph_1->instruction_parameters[0].l=small_integers_label;
-		graph_1->instruction_parameters[1].i=(value<<3)+NODE_POINTER_OFFSET;
+		graph_1->instruction_parameters[1].i=(value<<(STACK_ELEMENT_LOG_SIZE+1))+NODE_POINTER_OFFSET;
 		
 		return;
 	}
