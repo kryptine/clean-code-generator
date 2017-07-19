@@ -1178,6 +1178,21 @@ static void as_ldrsh_id_r (int offset,int sa_reg,int d_reg)
 	internal_error_in_function ("as_ldrsh_id_r");
 }
 
+static void as_ldrsw_id_r (int offset,int sa_reg,int d_reg)
+{
+	if ((offset & ~0x3ffc)==0){
+		store_l (0xb9800000 | (offset<<(10-2)) | (reg_num (sa_reg)<<5) | reg_num (d_reg)); /* ldrsw */
+		return;
+	}
+
+	if (offset>=-0x100 && offset<=0xff){
+		store_l (0xb8800000 | ((offset & 0x1ff)<<12) | (reg_num (sa_reg)<<5) | reg_num (d_reg)); /* ldursw */
+		return;
+	}
+
+	internal_error_in_function ("as_ldrsw_id_r");
+}
+
 static void as_ldr_ix_r (int reg_n,int reg_m,int shift,int reg_t)
 {
 	if (shift==0)
@@ -1322,6 +1337,12 @@ static void as_strb_r_id (int s_reg,int offset,int da_reg)
 static void as_strb_r_ix (int reg_t,int reg_n,int reg_m)
 {
 	store_l (0x38206800 | (reg_num (reg_m)<<16) | (reg_num (reg_n)<<5) | reg_num (reg_t));
+}
+
+static void as_sxtw_r_r (int reg_m,int reg_d)
+{
+	/* sbfm xd,xn,#0,#31 */
+	store_l (0x93407c00 | (reg_num (reg_m)<<5) | reg_num (reg_d));
 }
 
 static void as_tst_i_r (int rotate_right,int n_bits_m1_and_levels,int reg)
@@ -2897,6 +2918,28 @@ static void as_movew_instruction (struct instruction *instruction)
 		}
 	}
 	internal_error_in_function ("as_movew_instruction");
+}
+
+static void as_loadsqb_instruction (struct instruction *instruction)
+{
+	switch (instruction->instruction_parameters[1].parameter_type){
+		case P_REGISTER:
+		{
+			int reg;
+
+			reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+			switch (instruction->instruction_parameters[0].parameter_type){
+				case P_REGISTER:
+					as_sxtw_r_r (instruction->instruction_parameters[0].parameter_data.reg.r,reg);
+					return;
+				case P_INDIRECT:
+					as_ldrsw_id_r (instruction->instruction_parameters[0].parameter_offset,instruction->instruction_parameters[0].parameter_data.reg.r,reg);
+					return;
+			}
+			break;
+		}
+	}
+	internal_error_in_function ("as_loadsqb_instruction");
 }
 
 static void as_lea_instruction (struct instruction *instruction)
@@ -4484,6 +4527,9 @@ static void as_instructions (struct instruction *instruction)
 				break;
 			case IBTST:
 				instruction=as_btst_instruction (instruction);
+				break;
+			case ILOADSQB:
+				as_loadsqb_instruction (instruction);
 				break;
 			case IMOVEDB:
 				as_movew_instruction (instruction);

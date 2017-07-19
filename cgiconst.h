@@ -94,8 +94,11 @@ enum {
 #ifdef G_POWER
 	,IUMULH
 #endif
-#ifdef G_AI64
-	,ILOADSQB, IMOVEQB,	IFCVT2S
+#ifdef G_A64
+	,ILOADSQB
+ #ifdef G_AI64
+	,IMOVEQB,	IFCVT2S
+ #endif
 #endif
 #if defined (THREAD32) || defined (THREAD64)
 	,ILDTLSP

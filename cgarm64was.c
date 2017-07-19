@@ -2651,6 +2651,27 @@ static void w_as_movem_instruction (struct instruction *instruction)
 	}
 }
 
+static void w_as_loadsqb_instruction (struct instruction *instruction)
+{
+	if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
+		switch (instruction->instruction_parameters[0].parameter_type){
+			case P_INDIRECT:
+				w_as_opcode ("ldrsw");
+				w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+				w_as_indirect_newline (instruction->instruction_parameters[0].parameter_offset,
+									   instruction->instruction_parameters[0].parameter_data.reg.r);
+				return;
+			case P_REGISTER:
+				w_as_opcode ("sxtw");
+				w_as_register_comma (instruction->instruction_parameters[1].parameter_data.reg.r);
+				w_as_word_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+				w_as_newline();
+				return;
+		}
+	}
+	internal_error_in_function ("w_as_loadsqb_instruction");
+}
+
 static void w_as_lea_instruction (struct instruction *instruction)
 {
 	if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
@@ -4060,6 +4081,9 @@ static void w_as_instructions (struct instruction *instruction)
 				break;
 			case IBTST:
 				instruction=w_as_btst_instruction (instruction);
+				break;
+			case ILOADSQB:
+				w_as_loadsqb_instruction (instruction);
 				break;
 			case IMOVEDB:
 				w_as_move_byte_or_short_instruction (instruction,SIZE_WORD);

@@ -680,6 +680,10 @@ void code_ccall (char *c_function_name,char *s,int length)
 	for (l=first_pointer_result_index; l<length; ++l){
 		switch (s[l]){
 			case 'I':
+				i_loadsqb_id_r (b_o,B_STACK_POINTER,REGISTER_A3);
+				i_move_r_id (REGISTER_A3,b_o,B_STACK_POINTER);
+				b_o+=STACK_ELEMENT_SIZE;
+				break;
 			case 'p':
 				b_o+=STACK_ELEMENT_SIZE;
 				break;
@@ -696,6 +700,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 
 	switch (result){
 		case 'I':
+			i_loadsqb_r_r (real_reg_n[0],real_reg_n[0]);
 		case 'p':
 			begin_new_basic_block();
 			init_b_stack (7,i_i_i_i_i_i_i_vector);

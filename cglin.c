@@ -1248,7 +1248,7 @@ void i_movem_rs_pi (int n_arguments,int arguments[],int register_1)
 }
 #endif
 
-#ifdef G_AI64
+#ifdef G_A64
 void i_loadsqb_r_r (int register_1,int register_2)
 {
 	struct instruction *instruction;
