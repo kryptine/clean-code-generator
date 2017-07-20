@@ -4308,7 +4308,7 @@ static void w_as_check_stack (struct basic_block *block)
 	if (block->block_a_stack_check_size>0){
 		if (block->block_a_stack_check_size<=32){
 			w_as_opcode ("cmpl");
-			fprintf (assembly_file,end_a_stack_label->label_name);
+			fputs (end_a_stack_label->label_name,assembly_file);
 			w_as_comma_register (A_STACK_POINTER);
 		} else {
 			w_as_opcode ("leal");
@@ -4317,7 +4317,7 @@ static void w_as_check_stack (struct basic_block *block)
 			w_as_newline_after_instruction();
 
 			w_as_opcode ("cmpl");
-			fprintf (assembly_file,end_a_stack_label->label_name);
+			fputs (end_a_stack_label->label_name,assembly_file);
 			w_as_comma_scratch_register();
 		}
 		w_as_newline_after_instruction();	
@@ -4330,7 +4330,7 @@ static void w_as_check_stack (struct basic_block *block)
 	if (block->block_b_stack_check_size>0){
 		if (block->block_b_stack_check_size<=32){
 			w_as_opcode ("cmpl");
-			fprintf (assembly_file,end_b_stack_label->label_name);
+			fputs (end_b_stack_label->label_name,assembly_file);
 			w_as_comma_register (B_STACK_POINTER);
 		} else {
 			w_as_opcode ("leal");
@@ -4339,7 +4339,7 @@ static void w_as_check_stack (struct basic_block *block)
 			w_as_newline_after_instruction();
 
 			w_as_opcode ("cmpl");
-			fprintf (assembly_file,end_b_stack_label->label_name);
+			fputs (end_b_stack_label->label_name,assembly_file);
 			w_as_comma_scratch_register();
 		}
 		w_as_newline_after_instruction();
