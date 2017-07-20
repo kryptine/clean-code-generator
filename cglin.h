@@ -21,6 +21,8 @@ void i_jmp_id (int offset_1,int register_1,int n_a_registers);
 #if defined (M68000) || defined (I486)
 	void i_jsr_id (int offset,int register_1,int n_a_registers);
 	void i_jsr_l (LABEL *label,int n_a_registers);
+#else
+	void i_jsr_l_id (LABEL *label,int offset);
 #endif
 #if ! (defined (sparc) || defined (G_POWER))
 	void i_rts (void);
@@ -38,7 +40,6 @@ void i_jmp_id (int offset_1,int register_1,int n_a_registers);
 # ifndef ARM
 		void i_jsr_id_id (int offset_1,int register_1,int offset_2);
 # endif
-	void i_jsr_l_id (LABEL *label,int offset);
 	void i_rts (int offset_1,int offset_2);
 # ifdef G_POWER
 		void i_rts_c (void);
@@ -124,8 +125,10 @@ void i_move_i_r (CleanInt i,int register_1);
 void i_move_l_r (LABEL *label,int register_1);
 #ifdef M68000
 void i_move_pi_id (int register_1,int offset_2,int register_2);
-void i_move_pi_r (int register_1,int register_2);
 void i_move_pd_r (int register_1,int register_2);
+#endif
+#if defined (M68000) || defined (I486) || defined (ARM)
+	void i_move_pi_r (int register_1,int register_2);
 #endif
 #if defined (I486) || defined (ARM)
 	void i_move_r_l (int register_1,LABEL *label);
@@ -134,8 +137,10 @@ void i_move_r_id (int register_1,int offset,int register_2);
 #if defined (ARM) && defined (G_A64)
 void i_move_r_idaa (int offset,int register_1,int register_2);
 #endif
+#if defined (M68000) || defined (I486) || defined (ARM)
+	void i_move_r_pd (int register_1,int register_2);
+#endif
 #ifdef M68000
-void i_move_r_pd (int register_1,int register_2);
 void i_move_r_pi (int register_1,int register_2);
 #endif
 void i_move_r_r (int register_1,int register_2);
@@ -153,6 +158,10 @@ void i_movew_r_pd (int register_1,int register_2);
 	void i_movem_pi_rs (int register_1,int n_arguments,int arguments[]);
 	void i_movem_rs_pd (int n_arguments,int arguments[],int register_1);
 	void i_movem_rs_pi (int n_arguments,int arguments[],int register_1);
+#endif
+#ifdef G_A64
+	void i_loadsqb_r_r (int register_1,int register_2);
+	void i_loadsqb_id_r (int offset,int register_1,int register_2);
 #endif
 void i_movew_id_r (int offset,int register_1,int register_2);
 void i_lea_id_r (int offset,int register_1,int register_2);
