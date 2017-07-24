@@ -19,9 +19,7 @@ void store_label_offset_in_code_section (int label_id);
 void start_new_module (int flag);
 void store_descriptor_string_in_data_section (char *string,int length,LABEL *string_label);
 void store_2_words_in_data_section (UWORD w1,UWORD w2);
-#ifdef _WINDOWS_
 void as_new_data_module (void);
-#endif
 
 #ifndef GNU_C
 void write_version_and_options (int version,int options);

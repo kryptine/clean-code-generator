@@ -20,6 +20,4 @@ void w_as_abc_string_in_data_section (char *string,int length);
 void w_as_descriptor_string_in_data_section (char *string,int length,int string_label_id,LABEL *string_label);
 void w_as_abc_string_and_label_in_data_section (char *string,int length,char *label_name);
 void w_as_c_string_and_label_in_code_section (char *string,int length,char *label_name);
-#ifdef _WINDOWS_
 void w_as_new_data_module (void);
-#endif
