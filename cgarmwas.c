@@ -2282,7 +2282,7 @@ static void w_as_fmovel_instruction (struct instruction *instruction)
 			case P_IMMEDIATE:
 				/* the assembler does not assemble the following instruction correctly */
 				w_as_opcode ("vldr" /*"flds"*/);
-				fprintf (assembly_file,"s%d,=%d",freg<<1,instruction->instruction_parameters[0].parameter_data.i);
+				fprintf (assembly_file,"s%d,=%ld",freg<<1,instruction->instruction_parameters[0].parameter_data.i);
 				w_as_newline_after_instruction();
 				break;
 			default:
@@ -2653,7 +2653,7 @@ static void w_as_garbage_collect_test (register struct basic_block *block)
 
 	if (mov_or_mvn_immediate (n_cells)){
 		w_as_opcode ("subs");
-		fprintf (assembly_file,"r5,r5,#%d",n_cells);
+		fprintf (assembly_file,"r5,r5,#%ld",n_cells);
 		w_as_newline_after_instruction();
 	} else {
 		if (instruction_n_after_ltorg+MAX_LITERAL_INSTRUCTION_OFFSET < ltorg_at_instruction_n)
@@ -2661,7 +2661,7 @@ static void w_as_garbage_collect_test (register struct basic_block *block)
 
 		w_as_opcode ("ldr");
 		w_as_scratch_register_comma();
-		fprintf (assembly_file,"=%d",n_cells);	
+		fprintf (assembly_file,"=%ld",n_cells);	
 		w_as_newline_after_instruction();
 	
 		w_as_opcode ("subs");
@@ -2703,7 +2703,7 @@ static void w_as_check_stack (struct basic_block *block)
 	if (block->block_a_stack_check_size>0){
 		if (block->block_a_stack_check_size<=32){
 			w_as_opcode ("cmpl");
-			fprintf (assembly_file,end_a_stack_label->label_name);
+			fputs (end_a_stack_label->label_name,assembly_file);
 			w_as_comma_register (A_STACK_POINTER);
 		} else {
 			w_as_opcode ("leal");
@@ -2712,7 +2712,7 @@ static void w_as_check_stack (struct basic_block *block)
 			w_as_newline_after_instruction();
 
 			w_as_opcode ("cmpl");
-			fprintf (assembly_file,end_a_stack_label->label_name);
+			fputs (end_a_stack_label->label_name,assembly_file);
 			w_as_comma_scratch_register();
 		}
 		w_as_newline_after_instruction();	
@@ -2725,7 +2725,7 @@ static void w_as_check_stack (struct basic_block *block)
 	if (block->block_b_stack_check_size>0){
 		if (block->block_b_stack_check_size<=32){
 			w_as_opcode ("cmpl");
-			fprintf (assembly_file,end_b_stack_label->label_name);
+			fputs (end_b_stack_label->label_name,assembly_file);
 			w_as_comma_register (B_STACK_POINTER);
 		} else {
 			w_as_opcode ("leal");
@@ -2734,7 +2734,7 @@ static void w_as_check_stack (struct basic_block *block)
 			w_as_newline_after_instruction();
 
 			w_as_opcode ("cmpl");
-			fprintf (assembly_file,end_b_stack_label->label_name);
+			fputs (end_b_stack_label->label_name,assembly_file);
 			w_as_comma_scratch_register();
 		}
 		w_as_newline_after_instruction();
