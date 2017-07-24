@@ -79,7 +79,7 @@ void i_beq_l (LABEL *label);
 	void i_bnep_l (LABEL *label);
 	void i_mtctr (int register_1);
 #endif
-#if defined (ARM) && defined (G_A64)
+#if defined (ARM)
 	void i_bne_l (LABEL *label);
 #endif
 #if defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER)
