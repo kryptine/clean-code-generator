@@ -86,9 +86,12 @@ typedef struct label {
 #ifdef ARM
 #	define HAS_LITERAL_ENTRY	256
 #   define C_ENTRY_LABEL	    512
-# ifdef G_A64
+#endif
+#if (defined (ARM) && defined (G_A64)) || defined (THUMB)
 #	define FAR_CONDITIONAL_JUMP_LABEL	1024
-# endif
+#endif
+#ifdef THUMB
+#	define THUMB_FUNC_LABEL		2048
 #endif
 #define CMP_BRANCH_BLOCK_LABEL	8192
 #if defined (G_A64) && defined (LINUX)
