@@ -98,10 +98,13 @@ enum {
 	,ILOADSQB
  #ifdef G_AI64
 	,IMOVEQB,	IFCVT2S
- #endif
+# endif
 #endif
 #if defined (THREAD32) || defined (THREAD64)
 	,ILDTLSP
+#endif
+#ifdef THUMB
+	,IANDI,	IORI
 #endif
 };
 
@@ -119,7 +122,7 @@ enum {
 #endif
 #if defined (ARM)
 	,P_INDIRECT_POST_ADD
-# if defined (G_A64)
+# if defined (THUMB) || defined (G_A64)
 	,P_INDIRECT_ANY_ADDRESS
 # endif
 #endif
