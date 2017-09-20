@@ -504,7 +504,7 @@ static void optimize_a_stack_access (struct parameter *parameter,int instruction
 extern struct basic_block *last_block;
 extern struct instruction *last_instruction;
 
-#if defined (ARM) && defined (G_A64)
+#if defined (ARM) && (defined (G_A64) || defined (THUMB))
 static void insert_decrement_a_stack_pointer (struct instruction *next_instruction,int offset)
 {
 	struct instruction *previous_instruction,*instruction;
@@ -803,7 +803,7 @@ static int is_int_instruction (int icode)
 	}
 }
 
-# ifdef G_A64
+# if defined (G_A64) || defined (THUMB)
 static void adjust_a_stack_pointer_in_previous_instructions (struct instruction *current_instruction,int smallest_a_offset)
 {
 	struct instruction *instruction;
@@ -814,6 +814,11 @@ static void adjust_a_stack_pointer_in_previous_instructions (struct instruction 
 				if (
 					instruction->instruction_icode!=IADDI &&
 					instruction->instruction_icode!=ILSLI &&
+# ifdef THREAD32
+					instruction->instruction_icode!=IDIV &&
+					instruction->instruction_icode!=IDIVU &&
+					instruction->instruction_icode!=IMULUD &&
+# endif
 					instruction->instruction_icode!=IDIVI &&
 					instruction->instruction_icode!=IREMI &&
 					instruction->instruction_icode!=IREMU &&
@@ -873,7 +878,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 # ifdef ARM
 	struct parameter *previous_a_stack_parameter,*previous_b_stack_parameter;
 	int previous_a_stack_parameter_icode,previous_b_stack_parameter_icode;
-#  ifdef G_A64
+#  if defined (G_A64) || defined (THUMB)
 	int smallest_a_offset,a_offset;
 #  endif
 
@@ -964,7 +969,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 	*a_offset_p-=a_offset;
 # endif
 
-# if defined (ARM) && defined (G_A64)
+# if defined (ARM) && (defined (G_A64) || defined (THUMB))
 	smallest_a_offset=0;
 	a_offset=0;
 # endif
@@ -978,7 +983,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 			{
 				previous_a_stack_parameter=&instruction->instruction_parameters[1];
 				previous_a_stack_parameter_icode=IMOVE;
-#  ifdef G_A64
+#  if defined (G_A64) || defined (THUMB)
 				if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
 					instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER)
 				{
@@ -986,8 +991,13 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					
 					new_a_offset = (instruction->instruction_parameters[0].parameter_offset -= a_offset);
 					if (new_a_offset<smallest_a_offset){
+#   ifdef THUMB
+						if (new_a_offset < -255){
+							if (new_a_offset - smallest_a_offset >= -255){
+#   else
 						if (new_a_offset < -256){
 							if (new_a_offset - smallest_a_offset >= -256){
+#   endif
 								adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
 								a_offset+=smallest_a_offset;
 								new_a_offset-=smallest_a_offset;
@@ -1003,8 +1013,13 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					
 					new_a_offset = (instruction->instruction_parameters[1].parameter_offset -= a_offset);
 					if (new_a_offset<smallest_a_offset){
+#   ifdef THUMB
+						if (new_a_offset < -255){
+							if (new_a_offset - smallest_a_offset >= -255){
+#   else
 						if (new_a_offset < -256){
 							if (new_a_offset - smallest_a_offset >= -256){
+#   endif
 								if (instruction->instruction_parameters[0].parameter_offset==smallest_a_offset){
 									instruction->instruction_parameters[0].parameter_type=P_INDIRECT_WITH_UPDATE;
 								} else {
@@ -1028,8 +1043,13 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					
 					new_a_offset = (instruction->instruction_parameters[1].parameter_offset -= a_offset);
 					if (new_a_offset<smallest_a_offset){
+#   ifdef THUMB
+						if (new_a_offset < -255){
+							if (new_a_offset - smallest_a_offset >= -255){
+#   else
 						if (new_a_offset < -256){
 							if (new_a_offset - smallest_a_offset >= -256){
+#   endif
 								adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
 								a_offset+=smallest_a_offset;
 								new_a_offset-=smallest_a_offset;
@@ -1049,14 +1069,19 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 			{
 				previous_a_stack_parameter=&instruction->instruction_parameters[0];
 				previous_a_stack_parameter_icode=IMOVE;
-#  ifdef G_A64
+#  if defined (G_A64) || defined (THUMB)
 				{
 					int new_a_offset;
 					
 					new_a_offset = (instruction->instruction_parameters[0].parameter_offset -= a_offset);
 					if (new_a_offset<smallest_a_offset){
+#   ifdef THUMB
+						if (new_a_offset < -255){
+							if (new_a_offset - smallest_a_offset >= -255){
+#   else
 						if (new_a_offset < -256){
 							if (new_a_offset - smallest_a_offset >= -256){
+#   endif
 								adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
 								a_offset+=smallest_a_offset;
 								new_a_offset-=smallest_a_offset;
@@ -1249,16 +1274,21 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 						previous_b_stack_parameter=&instruction->instruction_parameters[0];
 						previous_b_stack_parameter_icode=instruction->instruction_icode;
 					} else if (instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER){
-#  ifdef G_A64
+#  if defined (G_A64) || defined (THUMB)
 						int new_a_offset;
 #  endif
 						previous_a_stack_parameter=&instruction->instruction_parameters[0];
 						previous_a_stack_parameter_icode=instruction->instruction_icode;
-#  ifdef G_A64
+#  if defined (G_A64) || defined (THUMB)
 						new_a_offset = (instruction->instruction_parameters[0].parameter_offset -= a_offset);
 						if (new_a_offset<smallest_a_offset){
+#   ifdef THUMB
+							if (new_a_offset < -255){
+								if (new_a_offset - smallest_a_offset >= -255){
+#   else
 							if (new_a_offset < -256){
 								if (new_a_offset - smallest_a_offset >= -256){
+#   endif
 									adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
 									a_offset+=smallest_a_offset;
 									new_a_offset-=smallest_a_offset;
@@ -1308,16 +1338,21 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 				if (instruction->instruction_parameters[1].parameter_type==P_INDIRECT &&
 					instruction->instruction_parameters[1].parameter_data.reg.r==A_STACK_POINTER)
 				{
-#  ifdef G_A64
+#  if defined (G_A64) || defined (THUMB)
 					int new_a_offset;
 #  endif
 					previous_a_stack_parameter=&instruction->instruction_parameters[1];
 					previous_a_stack_parameter_icode=instruction->instruction_icode;
-#  ifdef G_A64
+#  if defined (G_A64) || defined (THUMB)
 					new_a_offset = (instruction->instruction_parameters[1].parameter_offset -= a_offset);
 					if (new_a_offset<smallest_a_offset){
+#   ifdef THUMB
+						if (new_a_offset < -255){
+							if (new_a_offset - smallest_a_offset >= -255){
+#   else
 						if (new_a_offset < -256){
 							if (new_a_offset - smallest_a_offset >= -256){
+#   endif
 								adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
 								a_offset+=smallest_a_offset;
 								new_a_offset-=smallest_a_offset;
@@ -1340,16 +1375,21 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 				} else if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT &&
 						   instruction->instruction_parameters[0].parameter_data.reg.r==A_STACK_POINTER)
 				{
-#  ifdef G_A64
+#  if defined (G_A64) || defined (THUMB)
 					int new_a_offset;
 #  endif
 					previous_a_stack_parameter=&instruction->instruction_parameters[0];
 					previous_a_stack_parameter_icode=instruction->instruction_icode;
-#  ifdef G_A64
+#  if defined (G_A64) || defined (THUMB)
 					new_a_offset = (instruction->instruction_parameters[0].parameter_offset -= a_offset);
 					if (new_a_offset<smallest_a_offset){
+#   ifdef THUMB
+						if (new_a_offset < -255){
+							if (new_a_offset - smallest_a_offset >= -255){
+#   else
 						if (new_a_offset < -256){
 							if (new_a_offset - smallest_a_offset >= -256){
+#   endif
 								adjust_a_stack_pointer_in_previous_instructions (instruction,smallest_a_offset);
 								a_offset+=smallest_a_offset;
 								new_a_offset-=smallest_a_offset;
@@ -1370,7 +1410,7 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 # endif
 
 # ifdef ARM
-#  ifdef G_A64
+#  if defined (G_A64) || defined (THUMB)
 	*a_offset_p-=a_offset;
 #  endif
 	{
@@ -1402,8 +1442,11 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 #  ifdef G_A64
 			*a_offset_p>=-256 && *a_offset_p<256 &&
 #  endif
-			is_int_instruction (previous_a_stack_parameter_icode)
-		){
+#  ifdef THUMB
+			*a_offset_p>=-255 && *a_offset_p<256 &&
+#  endif
+			is_int_instruction (previous_a_stack_parameter_icode))
+		{
 			if (previous_a_stack_parameter->parameter_type==P_INDIRECT){
 				if (previous_a_stack_parameter->parameter_offset==0){
 					previous_a_stack_parameter->parameter_type=P_INDIRECT_POST_ADD;

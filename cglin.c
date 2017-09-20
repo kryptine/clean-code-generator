@@ -43,6 +43,10 @@
 # undef LOAD_STORE_ALIGNED_REAL 4
 #endif
 
+#ifdef THUMB
+# define NO_LOAD_STORE_INDEXED
+#endif
+
 /* from cgcode.c : */
 
 extern struct basic_block *first_block,*last_block;
@@ -169,7 +173,10 @@ void i_add_r_r (int register_1,int register_2)
 }
 
 #if defined (G_POWER) || defined (sparc) || defined (ARM)
-static void i_addi_r_r (LONG value,int register_1,int register_2)
+# ifndef THUMB
+static
+# endif
+void i_addi_r_r (LONG value,int register_1,int register_2)
 {
 	struct instruction *instruction;
 
@@ -206,6 +213,24 @@ void i_and_i_r (LONG value,int register_1)
 	
 	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
 												parameter_data.i=register_1);
+}
+#endif
+
+#ifdef THUMB
+void i_andi_r_r (LONG value,int register_1,int register_2)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction (IANDI,3,3*sizeof (struct parameter));
+	
+	S2 (instruction->instruction_parameters[0],	parameter_type=P_REGISTER,
+												parameter_data.i=register_1);
+	
+	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
+												parameter_data.i=register_2);
+
+	S2 (instruction->instruction_parameters[2],	parameter_type=P_IMMEDIATE,
+												parameter_data.imm=value);
 }
 #endif
 
@@ -247,7 +272,7 @@ void i_bnep_l (LABEL *label)
 #if defined (sparc) || defined (I486) || defined (ARM)
 void i_bne_l (LABEL *label)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction1 (IBNE);
 	
@@ -1446,7 +1471,7 @@ void i_move_id_id (int offset_1,int register_1,int offset_2,int register_2)
 
 void i_move_id_r (int offset,int register_1,int register_2)
 {
-	register struct instruction *instruction;
+	struct instruction *instruction;
 	
 	instruction=i_new_instruction2 (IMOVE);
 	
@@ -1458,7 +1483,7 @@ void i_move_id_r (int offset,int register_1,int register_2)
 												parameter_data.i=register_2);
 }
 
-#if defined (ARM) && defined (G_A64)
+#if defined (ARM) && (defined (THUMB) || defined (G_A64))
 void i_move_idaa_r (int offset,int register_1,int register_2)
 {
 	struct instruction *instruction;
@@ -1646,7 +1671,7 @@ static void i_move_pi_pi (int register_1,int register_2)
 }
 #endif
 
-#if defined (M68000) | defined (I486) || defined (ARM)
+#if defined (M68000) || defined (I486) || defined (ARM)
 void i_move_pi_r (int register_1,int register_2)
 {
 	register struct instruction *instruction;
@@ -1727,7 +1752,7 @@ void i_move_r_id (int register_1,int offset,int register_2)
 	instruction->instruction_parameters[1].parameter_data.i=register_2;
 }
 
-#if defined (ARM) && defined (G_A64)
+#if defined (ARM) && (defined (THUMB) || defined (G_A64))
 void i_move_r_idaa (int register_1,int offset,int register_2)
 {
 	struct instruction *instruction;
@@ -1786,7 +1811,7 @@ void i_move_r_r (int register_1,int register_2)
 												parameter_data.i=register_2);
 }
 
-#ifdef THREAD32
+#if defined (THREAD32) || defined (NO_LOAD_STORE_INDEXED)
 static void i_move_r_x (int register_1,int offset_2,int register_2,int register_3)
 {
 	struct instruction *instruction;
@@ -1992,6 +2017,24 @@ void i_or_i_r (LONG value,int register_1)
 	
 	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
 												parameter_data.i=register_1);
+}
+#endif
+
+#ifdef THUMB
+void i_ori_r_r (LONG value,int register_1,int register_2)
+{
+	struct instruction *instruction;
+	
+	instruction=i_new_instruction (IORI,3,3*sizeof (struct parameter));
+	
+	S2 (instruction->instruction_parameters[0],	parameter_type=P_REGISTER,
+												parameter_data.i=register_1);
+	
+	S2 (instruction->instruction_parameters[1],	parameter_type=P_REGISTER,
+												parameter_data.i=register_2);
+
+	S2 (instruction->instruction_parameters[2],	parameter_type=P_IMMEDIATE,
+												parameter_data.imm=value);
 }
 #endif
 
@@ -2639,9 +2682,13 @@ static void i_move_ad_id (ADDRESS *ad_p,int offset,int register_1)
 
 	ad_to_parameter (ad_p,&instruction->instruction_parameters[0]);
 
-#ifdef THREAD32
-	if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT ||
-		instruction->instruction_parameters[0].parameter_type==P_INDEXED){
+#if defined (THREAD32) || defined (NO_LOAD_STORE_INDEXED)
+	if (
+# ifdef THREAD32
+		instruction->instruction_parameters[0].parameter_type==P_INDIRECT ||
+# endif
+		instruction->instruction_parameters[0].parameter_type==P_INDEXED
+	){
 		int reg;
 
 		reg=get_dregister();
@@ -2675,7 +2722,7 @@ static void i_move_ad_id (ADDRESS *ad_p,int offset,int register_1)
 	}
 #endif
 
-#ifdef THREAD32
+#if defined (THREAD32) || defined (NO_LOAD_STORE_INDEXED)
 static void i_move_ad_x (ADDRESS *ad_p,int offset,int register_1,int register_2)
 {
 	struct instruction *instruction;
@@ -4091,6 +4138,11 @@ static void linearize_dyadic_non_commutative_operator (int i_instruction_code,IN
 		linearize_graph (graph_1,&ad_1);
 	}
 
+	if (graph->instruction_d_min_a_cost<=0)
+		in_alterable_data_register (&ad_2);
+	else
+		in_alterable_address_register (&ad_2);
+
 #if defined (G_POWER) || defined (sparc) || defined (ARM)
 	if (ad_1.ad_mode==P_IMMEDIATE && ad_2.ad_mode==P_REGISTER && ADDI_IMMEDIATE (-ad_1.ad_offset) && i_instruction_code==ISUB){
 		int reg_1;
@@ -4115,11 +4167,6 @@ static void linearize_dyadic_non_commutative_operator (int i_instruction_code,IN
 		return;
 	}
 #endif
-
-	if (graph->instruction_d_min_a_cost<=0)
-		in_alterable_data_register (&ad_2);
-	else
-		in_alterable_address_register (&ad_2);
 
 #ifdef G_A64
 	if (ad_1.ad_mode==P_IMMEDIATE && ((int)ad_1.ad_offset)!=ad_1.ad_offset){
@@ -8854,7 +8901,7 @@ static void linearize_store_x_operator (int i_instruction_code,INSTRUCTION_GRAPH
 			in_register (&ad_1);
 #endif
 
-#ifndef THREAD32
+#if ! (defined (THREAD32) || defined (NO_LOAD_STORE_INDEXED))
 		if (i_instruction_code!=IMOVE && ad_1.ad_mode!=P_IMMEDIATE
 # ifdef M68000
 			&& ad_1.ad_mode!=P_INDEXED

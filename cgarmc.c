@@ -6,9 +6,13 @@
 #define NO_REG_OR_PAD 128
 #define PAD_4_AFTER 129
 
-#define i_move_idaa_r i_move_id_r
-#define i_move_r_idaa i_move_r_id
-#define REGISTER_R0 REGISTER_D4
+#ifndef THUMB
+# define i_move_idaa_r i_move_id_r
+# define i_move_r_idaa i_move_r_id
+# define REGISTER_R0 REGISTER_D4
+#else
+# define REGISTER_R0 REGISTER_D1
+#endif
 
 void code_ccall (char *c_function_name,char *s,int length)
 {
@@ -346,25 +350,42 @@ void code_ccall (char *c_function_name,char *s,int length)
 
 	c_offset_before_pushing_arguments=c_offset;
 
+#ifndef THUMB
 	i_move_r_r (B_STACK_POINTER,REGISTER_A2);
-
 	if (c_parameter_offset & 4){
 		i_sub_i_r (4,B_STACK_POINTER);
 		i_or_i_r (4,B_STACK_POINTER);
 	} else {
 		i_and_i_r (-8,B_STACK_POINTER);		
 	}
+#else
+	if (c_parameter_offset & 4){
+		i_addi_r_r (-4,B_STACK_POINTER,REGISTER_A3);
+		i_move_r_r (B_STACK_POINTER,REGISTER_A2);
+		i_ori_r_r (4,REGISTER_A3,REGISTER_A3);
+	} else {
+		i_move_r_r (B_STACK_POINTER,REGISTER_A2);
+		i_andi_r_r (-8,REGISTER_A2,REGISTER_A3);
+	}
+	i_move_r_r (REGISTER_A3,B_STACK_POINTER);
+#endif
 
 	for (l=length-1; l>=first_pointer_result_index; --l){
 		switch (s[l]){
 			case 'I':
 			case 'p':
 				b_o-=STACK_ELEMENT_SIZE;
-				if (reg_or_pad[l]<NO_REG_OR_PAD)
+				if (reg_or_pad[l]<NO_REG_OR_PAD){
+#ifndef THUMB
 					i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_R0-reg_or_pad[l]);
-				else {
-					i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_A3);
-					i_move_r_pd (REGISTER_A3,B_STACK_POINTER);
+#endif
+				} else {
+					if (b_o+c_offset_before_pushing_arguments==0)
+						i_move_r_pd (REGISTER_A2,B_STACK_POINTER);
+					else {
+						i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_A3);
+						i_move_r_pd (REGISTER_A3,B_STACK_POINTER);
+					}
 					c_offset+=STACK_ELEMENT_SIZE;
 				}
 				break;
@@ -372,22 +393,34 @@ void code_ccall (char *c_function_name,char *s,int length)
 			case 'r':
 				--l;
 			case 'S':
-				if (reg_or_pad[l]<NO_REG_OR_PAD)
+				if (reg_or_pad[l]<NO_REG_OR_PAD){
+#ifndef THUMB
 					i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_R0-reg_or_pad[l]);
-				else {
-					i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_A3);
-					i_move_r_pd (REGISTER_A3,B_STACK_POINTER);
+#endif
+				} else {
+					if (a_o+c_offset_before_pushing_arguments==0)
+						i_move_r_pd (REGISTER_A2,B_STACK_POINTER);
+					else {
+						i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_A3);
+						i_move_r_pd (REGISTER_A3,B_STACK_POINTER);
+					}
 					c_offset+=STACK_ELEMENT_SIZE;
 				}
 				a_o+=STACK_ELEMENT_SIZE;
 				break;
 			case 'R':
 				b_o-=8;
-				if (reg_or_pad[l]<NO_REG_OR_PAD)
+				if (reg_or_pad[l]<NO_REG_OR_PAD){
+#ifndef THUMB
 					i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_R0-reg_or_pad[l]);
-				else {
-					i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_A3);
-					i_move_r_pd (REGISTER_A3,B_STACK_POINTER);
+#endif
+				} else {
+					if (b_o+c_offset_before_pushing_arguments==0)
+						i_move_r_pd (REGISTER_A2,B_STACK_POINTER);
+					else {
+						i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_A3);
+						i_move_r_pd (REGISTER_A3,B_STACK_POINTER);
+					}
 					c_offset+=STACK_ELEMENT_SIZE;
 				}
 				break;
@@ -450,9 +483,16 @@ void code_ccall (char *c_function_name,char *s,int length)
 		}
 
 		{
-			int l,c_offset_2,not_finished,new_reg[5];
+			int l,c_offset_2,not_finished;
+#ifdef THUMB
+			int new_reg[2];
+			
+			new_reg[0]=new_reg[1]=-1;
+#else
+			int new_reg[5];
 			
 			new_reg[0]=new_reg[1]=new_reg[2]=new_reg[3]=new_reg[4]=-1; /* [0] not used */
+#endif
 
 			c_offset_2 = c_offset_1;
 			reg_n=0;
@@ -462,7 +502,14 @@ void code_ccall (char *c_function_name,char *s,int length)
 					case 'p':
 						if (reg_or_pad[l]<NO_REG_OR_PAD){
 							if (l<=last_register_parameter_index){
+#ifdef THUMB
+								if (reg_or_pad[l]<2)
+									new_reg [1-reg_or_pad[l]] = n_extra_clean_b_register_parameters+reg_n;
+								else
+									i_move_r_r (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,REGISTER_R0-reg_or_pad[l]);
+#else
 								new_reg [4-reg_or_pad[l]] = n_extra_clean_b_register_parameters+reg_n;
+#endif
 								++reg_n;
 							}
 						} else {
@@ -496,7 +543,14 @@ void code_ccall (char *c_function_name,char *s,int length)
 							--l;
 						if (reg_or_pad[l]<NO_REG_OR_PAD){
 							if (l<=last_register_parameter_index){
+#ifdef THUMB
+								if (reg_or_pad[l]<2)
+									new_reg [1-reg_or_pad[l]] = n_extra_clean_b_register_parameters+reg_n;
+								else
+									i_move_r_r (REGISTER_D0+n_extra_clean_b_register_parameters+reg_n,REGISTER_R0-reg_or_pad[l]);
+#else
 								new_reg [4-reg_or_pad[l]] = n_extra_clean_b_register_parameters+reg_n;
+#endif
 								++reg_n;
 							}
 						}
@@ -506,6 +560,20 @@ void code_ccall (char *c_function_name,char *s,int length)
 			
 			do {
 				not_finished=0;
+#ifdef THUMB
+				for (reg_n=0; reg_n<=1; ++reg_n){
+					int n;
+				
+					n=new_reg[reg_n];
+					if (n>=0 && n!=reg_n){
+						if (new_reg[0]!=reg_n && new_reg[1]!=reg_n){
+							i_move_r_r (REGISTER_D0+n,REGISTER_D0+reg_n);
+							new_reg[reg_n]=-1;
+						} else
+							not_finished=1;
+					}
+				}
+#else
 				for (reg_n=1; reg_n<=4; ++reg_n){
 					int n;
 				
@@ -518,6 +586,7 @@ void code_ccall (char *c_function_name,char *s,int length)
 							not_finished=1;
 					}
 				}
+#endif
 			} while (not_finished); /* infinite loop in case of cycle */
 		}
 
@@ -635,6 +704,50 @@ void code_ccall (char *c_function_name,char *s,int length)
 		}
 	}
 
+#ifdef THUMB
+	a_o=-b_result_offset-a_result_offset;
+	b_o=0;
+	for (l=length-1; l>=first_pointer_result_index; --l){
+		switch (s[l]){
+			case 'I':
+			case 'p':
+				b_o-=STACK_ELEMENT_SIZE;
+				if (reg_or_pad[l]<NO_REG_OR_PAD){
+					if (b_o+c_offset_before_pushing_arguments==0)
+						i_move_r_r (REGISTER_A2,REGISTER_R0-reg_or_pad[l]);
+					else
+						i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_R0-reg_or_pad[l]);
+				}
+				break;
+			case 'i':
+			case 'r':
+				--l;
+			case 'S':
+				if (reg_or_pad[l]<NO_REG_OR_PAD){
+					if (a_o+c_offset_before_pushing_arguments==0)
+						i_move_r_r (REGISTER_A2,REGISTER_R0-reg_or_pad[l]);
+					else
+						i_lea_id_r (a_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_R0-reg_or_pad[l]);
+				}
+				a_o+=STACK_ELEMENT_SIZE;
+				break;
+			case 'R':
+				b_o-=8;
+				if (reg_or_pad[l]<NO_REG_OR_PAD){
+					if (b_o+c_offset_before_pushing_arguments==0)
+						i_move_r_r (REGISTER_A2,REGISTER_R0-reg_or_pad[l]);
+					else
+						i_lea_id_r (b_o+c_offset_before_pushing_arguments,REGISTER_A2,REGISTER_R0-reg_or_pad[l]);
+				}
+				break;
+			case 'V':
+				break;
+			default:
+				error_s (ccall_error_string,c_function_name);
+		}
+	}
+#endif
+
 	if (save_state_in_global_variables){
 		i_lea_l_i_r (saved_a_stack_p_label,0,REGISTER_D6);
 		i_move_r_idaa (A_STACK_POINTER,0,REGISTER_D6);
@@ -676,10 +789,16 @@ void code_ccall (char *c_function_name,char *s,int length)
 		i_move_idaa_r (4,REGISTER_D6,REGISTER_D5);
 	}
 
+#ifdef THUMB
+	if (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset)!=0)
+		i_add_i_r (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset),REGISTER_A2);
+	i_move_r_r (REGISTER_A2,B_STACK_POINTER);
+#else
 	if (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset)==0)
 		i_move_r_r (REGISTER_A2,B_STACK_POINTER);
 	else
 		i_lea_id_r (c_offset_before_pushing_arguments-(b_result_offset+a_result_offset),REGISTER_A2,B_STACK_POINTER);
+#endif
 	}
 
 	if (a_offset!=0)
@@ -727,12 +846,18 @@ void code_ccall (char *c_function_name,char *s,int length)
 		case 'I':
 		case 'p':
 			begin_new_basic_block();
+#ifdef THUMB
+			init_b_stack (2,i_i_vector);
+			s_put_b (1,s_get_b (0));
+			s_remove_b();
+#else
 			init_b_stack (5,i_i_i_i_i_vector);
 			s_put_b (4,s_get_b (0));
 			s_remove_b();
 			s_remove_b();
 			s_remove_b();
 			s_remove_b();
+#endif
 			break;
 		case 'V':
 			begin_new_basic_block();

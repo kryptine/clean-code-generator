@@ -2835,7 +2835,7 @@ void code_exit_false (char label_name[])
 	result_graph=s_get_a (0);
 	
 	label=enter_label (label_name,
-# if defined (G_POWER) || (defined (ARM) && defined (G_A64))
+# if defined (G_POWER) || (defined (ARM) && defined (G_A64)) || defined (THUMB)
 			FAR_CONDITIONAL_JUMP_LABEL
 # else
 			0
@@ -4471,7 +4471,7 @@ void code_jmp_eval_upd (VOID)
 	i_btst_i_r (2,REGISTER_D0);
 # ifdef G_POWER
 	i_bnep_l (label);
-#  else
+# else
 	i_bne_l (label);
 # endif
 # if defined (I486) || defined (ARM)
@@ -9130,7 +9130,11 @@ static LABEL *enter_descriptor_code_label (char code_label_name[],int arity)
 		}
 		code_label_name=code_label->label_name;
 	} else
+#ifdef THUMB
+		code_label=enter_label (code_label_name,THUMB_FUNC_LABEL);
+#else
 		code_label=enter_label (code_label_name,0);
+#endif
 
 	if (code_label->label_id<0)
 		code_label->label_id=next_label_id++;

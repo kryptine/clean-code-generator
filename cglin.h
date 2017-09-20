@@ -69,17 +69,23 @@ void i_beq_l (LABEL *label);
 	extern LONG *i_bmi_i (VOID);
 	void i_bmi_l (LABEL *label);
 #endif
+#if defined (G_POWER) || defined (ARM)
+	void i_and_i_r (LONG value,int register_1);
+#endif
+#ifdef THUMB
+	void i_andi_r_r (LONG value,int register_1,int register_2);
+#endif
 #if defined (G_POWER) || defined (G_AI64) || defined (ARM)
 	void i_or_i_r (LONG value,int register_1);
 #endif
-#if defined (G_POWER) || defined (ARM)
-	void i_and_i_r (LONG value,int register_1);
+#ifdef THUMB
+	void i_ori_r_r (LONG value,int register_1,int register_2);
 #endif
 #ifdef G_POWER
 	void i_bnep_l (LABEL *label);
 	void i_mtctr (int register_1);
 #endif
-#if defined (ARM)
+#if defined (sparc) || defined (I486) || defined (ARM)
 	void i_bne_l (LABEL *label);
 #endif
 #if defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER)
@@ -100,13 +106,13 @@ void i_fmove_id_fr (int offset,int register_2,int register_1);
 	void i_fmove_pd_fr (int register_1,int register_2);
 	void i_fmove_pi_fr (int register_1,int register_2);
 	void i_move_id_pd (int offset,int register_1,int register_2);
+#endif
 #if defined (I486) || defined (ARM)
 void i_fmoves_fr_id (int register_1,int offset,int register_2);
 #endif
-#endif
 void i_move_id_id (int offset_1,int register_1,int offset_2,int register_2);
 void i_move_id_r (int offset,int register_1,int register_2);
-#if defined (ARM) && defined (G_A64)
+#if defined (ARM) && (defined (THUMB) || defined (G_A64))
 void i_move_idaa_r (int offset,int register_1,int register_2);
 #endif
 #if defined (G_POWER) || defined (ARM)
@@ -134,7 +140,7 @@ void i_move_pd_r (int register_1,int register_2);
 	void i_move_r_l (int register_1,LABEL *label);
 #endif
 void i_move_r_id (int register_1,int offset,int register_2);
-#if defined (ARM) && defined (G_A64)
+#if defined (ARM) && (defined (THUMB) || defined (G_A64))
 void i_move_r_idaa (int offset,int register_1,int register_2);
 #endif
 #if defined (M68000) || defined (I486) || defined (ARM)
@@ -167,6 +173,9 @@ void i_movew_id_r (int offset,int register_1,int register_2);
 void i_lea_id_r (int offset,int register_1,int register_2);
 void i_lea_l_i_r (LABEL *label,int offset,int register_1);
 void i_add_i_r (LONG value,int register_1);
+#ifdef THUMB
+	void i_addi_r_r (LONG value,int register_1,int register_2);
+#endif
 void i_add_r_r (int register_1,int register_2);
 void i_schedule_i (int value);
 void i_sub_i_r (LONG value,int register_1);
