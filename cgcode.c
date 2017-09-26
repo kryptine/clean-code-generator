@@ -7195,7 +7195,7 @@ void code_replace (char element_descriptor[],int a_size,int b_size)
 {
 	if (check_index_flag && index_error_label==NULL){
 		index_error_label=enter_label ("index__error",
-#if defined (ARM) && defined (G_A64)
+#if (defined (ARM) && defined (G_A64)) || defined (THUMB)
 			FAR_CONDITIONAL_JUMP_LABEL);
 #else
 			0);
@@ -7984,7 +7984,7 @@ void code_select (char element_descriptor[],int a_size,int b_size)
 {
 	if (check_index_flag && index_error_label==NULL){
 		index_error_label=enter_label ("index__error",
-#if defined (ARM) && defined (G_A64)
+#if (defined (ARM) && defined (G_A64)) || defined (THUMB)
 			FAR_CONDITIONAL_JUMP_LABEL);
 #else
 			0);
@@ -8874,7 +8874,7 @@ void code_update (char element_descriptor[],int a_size,int b_size)
 {
 	if (check_index_flag && index_error_label==NULL){
 		index_error_label=enter_label ("index__error",
-#if defined (ARM) && defined (G_A64)
+#if (defined (ARM) && defined (G_A64)) || defined (THUMB)
 			FAR_CONDITIONAL_JUMP_LABEL);
 #else
 			0);
