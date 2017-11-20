@@ -7581,7 +7581,7 @@ static void write_object_labels (void)
 				write_l (object_label->object_label_string_offset);
 				write_c (ELF32_ST_INFO (STB_GLOBAL,STT_NOTYPE));
 #  ifdef LINUX
-				if (!rts_got_flag)
+				if (pic_flag && !rts_got_flag)
 					write_c (STV_PROTECTED);
 				else
 #  endif
