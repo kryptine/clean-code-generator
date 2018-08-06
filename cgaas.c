@@ -5389,7 +5389,19 @@ static void write_code (void)
 						store_l (-8);
 						as_branch_label (eval_upd_labels[n_node_arguments],JUMP_RELOCATION);
 # endif
+
+#if defined (LINUX) || defined (G_MACH_O64)
+# ifndef G_MACH_O64
+						if (pic_flag)
+# endif
+							as_move_d_r (block->block_ea_label,0,REGISTER_D0);
+# ifndef G_MACH_O64
+						else
+# endif
+#endif
+#ifndef G_MACH_O64
 						as_move_l_r (block->block_ea_label,REGISTER_D0);
+#endif
 
 						store_c (0xeb);
 						store_c (-21);
