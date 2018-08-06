@@ -2595,12 +2595,18 @@ static void as_jmpp_instruction (struct instruction *instruction)
 			store_l (0);
 			as_branch_label (profile_t_label,CALL_RELOCATION);				
 
-			if (instruction->instruction_parameters[0].parameter_offset!=0){
+#ifndef MACH_O64
+			if (
+# ifdef LINUX
+				!pic_flag &&
+# endif
+				instruction->instruction_parameters[0].parameter_offset!=0){
 				as_id_r (0x63,instruction->instruction_parameters[0].parameter_offset,
 							  instruction->instruction_parameters[0].parameter_data.reg.r,REGISTER_O0); /* movsxd */
 				store_c (0377);
 				store_c (0340 | reg_num (REGISTER_O0));
 			} else
+#endif
 				as_id_rex (0377,040,instruction->instruction_parameters[0].parameter_offset,
 									instruction->instruction_parameters[0].parameter_data.reg.r);
 			break;
