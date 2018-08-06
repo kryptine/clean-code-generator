@@ -5372,7 +5372,7 @@ static void write_code (void)
 # ifndef G_MACH_O64
 						if (pic_flag)
 # endif
-							as_move_d_r (block->block_profile_function_label,REGISTER_A4);
+							as_move_d_r (block->block_profile_function_label,0,REGISTER_A4);
 # ifndef G_MACH_O64
 						else
 # endif
