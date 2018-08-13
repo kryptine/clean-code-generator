@@ -178,12 +178,13 @@ void optimize_jumps (void)
 							 cmp_instruction->instruction_parameters[1].parameter_type==P_REGISTER))
 						&& (cmp_instruction->instruction_parameters[1].parameter_type==P_REGISTER ||
 							cmp_instruction->instruction_parameters[1].parameter_type==P_INDIRECT)
+						&& block->block_profile==0
 					){
 						struct block_label *block_label;
 						
 						for_l (block_label,block->block_labels,block_label_next){
 							LABEL *label;
-														
+
 							label=block_label->block_label_label;
 							label->label_flags |= CMP_BRANCH_BLOCK_LABEL;
 							label->label_block = block;
