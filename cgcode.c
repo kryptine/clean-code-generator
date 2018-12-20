@@ -4298,14 +4298,10 @@ static void code_jmp_label (LABEL *label)
 
 void code_jmp (char label_name[])
 {
-	if (!strcmp (label_name,"e__system__sAP"))
-		code_jmp_ap_(1);
-	else {
-		LABEL *label;
+	LABEL *label;
 
-		label=enter_label (label_name,0);
-		code_jmp_label (label);
-	}
+	label=enter_label (label_name,0);
+	code_jmp_label (label);
 }
 
 void code_jmp_upd (char label_name[])
@@ -4786,14 +4782,10 @@ void code_jrsr (char label_name[])
 
 void code_jsr (char label_name[])
 {
-	if (!strcmp (label_name,"e__system__sAP"))
-		code_jsr_ap_ (1);
-	else {
-		LABEL *label;
+	LABEL *label;
 
-		label=enter_label (label_name,0);
-		code_jsr_label (label);
-	}
+	label=enter_label (label_name,0);
+	code_jsr_label (label);
 }
 
 void code_jsr_ap (int n_apply_args)
