@@ -4315,6 +4315,9 @@ static void as_float_branch_instruction (struct instruction *instruction,int n)
 		case 2:
 			as_branch_instruction (instruction,007); /* ja */
 			return;
+		case 3:
+			as_branch_instruction (instruction,005); /* jne */
+			return;
 		case 5:
 			as_branch_instruction (instruction,003); /* jae */
 			return;
@@ -4347,9 +4350,6 @@ static void as_float_branch_instruction (struct instruction *instruction,int n)
 		case 1:
 			as_branch_instruction (instruction,002); /* jb */
 			break;
-		case 3:
-			as_branch_instruction (instruction,005); /* jne */
-			break;
 		case 4:
 			as_branch_instruction (instruction,006); /* jbe */
 			break;
@@ -4371,6 +4371,14 @@ static void as_set_float_condition_instruction (struct instruction *instruction,
 				store_c (0x40 | ((r_n & 8)>>3));
 			store_c (0017);
 			store_c (0220 | 7);
+			store_c (0300 | (r_n & 7));
+			break;
+		case 3:
+			/* setne */
+			if (r_n>=4)
+				store_c (0x40 | ((r_n & 8)>>3));
+			store_c (0017);
+			store_c (0220 | 5);
 			store_c (0300 | (r_n & 7));
 			break;
 		case 5:
@@ -4397,9 +4405,6 @@ static void as_set_float_condition_instruction (struct instruction *instruction,
 					break;
 				case 1:
 					condition_code=2; /* setb */
-					break;
-				case 3:
-					condition_code=5; /*setne */
 					break;
 				case 4:
 					condition_code=6; /* setbe */

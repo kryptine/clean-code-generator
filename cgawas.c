@@ -1843,6 +1843,19 @@ static void w_as_float_branch_instruction (struct instruction *instruction,int n
 			w_as_parameter (&instruction->instruction_parameters[0]);
 			w_as_newline();
 			return;
+		case 3:
+			w_as_opcode ("jne");
+#ifdef MACH_O64
+			if (instruction->instruction_parameters[0].parameter_type==P_LABEL){
+				if (instruction->instruction_parameters[0].parameter_data.l->label_number!=0)
+					w_as_local_label (instruction->instruction_parameters[0].parameter_data.l->label_number);
+				else
+					w_as_label (instruction->instruction_parameters[0].parameter_data.l->label_name);
+			} else
+#endif
+			w_as_parameter (&instruction->instruction_parameters[0]);
+			w_as_newline();
+			return;
 		case 5:
 			w_as_opcode ("jae");
 #ifdef MACH_O64
@@ -1870,9 +1883,6 @@ static void w_as_float_branch_instruction (struct instruction *instruction,int n
 			break;
 		case 1:
 			w_as_opcode ("jb");
-			break;
-		case 3:
-			w_as_opcode ("jne");
 			break;
 		case 4:
 			w_as_opcode ("jbe");
@@ -1934,6 +1944,11 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 			w_as_byte_register (r);
 			w_as_newline();
 			break;
+		case 3:
+			w_as_opcode ("setne");
+			w_as_byte_register (r);
+			w_as_newline();
+			break;
 		default:
 			w_as_opcode ("setnp");
 			if (!intel_asm)
@@ -1947,9 +1962,6 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 					break;
 				case 1:
 					w_as_opcode ("setb");
-					break;
-				case 3:
-					w_as_opcode ("setne");
 					break;
 				case 4:
 					w_as_opcode ("setbe");
