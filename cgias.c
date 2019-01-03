@@ -5126,7 +5126,11 @@ static void as_test_floating_point_condition_code (int n)
 {
 	store_c (0xdf);
 	store_c (0xe0); /* fnstsw %ax */
-
+	/*
+	C0 = bit 0( 8) = unordered || ST(0)<source
+	C2 = bit 2(10) = unordered
+	C3 = bit 6(14) = unordered || ST(0)==source
+	*/
 	store_c (0x80);
 	store_c (0xe4); /* andb $i,%ah */
 
@@ -5147,10 +5151,7 @@ static void as_test_floating_point_condition_code (int n)
 			store_c (69);		/* andb $69,%ah */
 			break;
 		case 3:
-			store_c (69);		/* andb $69,%ah */
-			store_c (0x80);
-			store_c (0xfc);
-			store_c (64);		/* cmpb $64,%ah */
+			store_c (64);		/* andb $64,%ah */
 			break;
 		case 4:
 			store_c (69);		/* andb $69,%ah */
@@ -5166,36 +5167,6 @@ static void as_test_floating_point_condition_code (int n)
 	}
 }
 
-#if 0
-static void as_float_branch_instruction (struct instruction *instruction,int n)
-{
-	int r;
-	
-	r=instruction->instruction_parameters[0].parameter_data.reg.r;
-
-	as_r_r (0213,REGISTER_D0,REGISTER_O0);
-
-	as_test_floating_point_condition_code (n);
-
-	as_r_r (0213,REGISTER_O0,REGISTER_D0);
-
-	switch (n){
-		case 0:
-		case 1:
-		case 2:
-		case 5:
-			as_branch_instruction (instruction,004); /* je */
-			break;
-		case 3:
-			as_branch_instruction (instruction,005); /* jne */
-			break;
-		case 4:
-			as_branch_instruction (instruction,002); /* jb */
-			break;
-	}
-}
-#endif
-
 static void as_set_float_condition_instruction (struct instruction *instruction,int n)
 {
 	int r;
@@ -5208,33 +5179,13 @@ static void as_set_float_condition_instruction (struct instruction *instruction,
 	as_test_floating_point_condition_code (n);
 
 	store_c (0x0f);
-	switch (n){
-		case 0:
-		case 1:
-		case 2:
-		case 5:
-			store_c (0x94); /* sete %al*/
-			break;
-		case 3:
-			store_c (0x95); /* setne %al*/
-			break;
-		case 4:
-			store_c (0x92); /* setb %al */
-			break;
-	}
+	store_c (n!=4 ? 0x94 : 0x92); /* sete %al : setb %al */
 	store_c (0xc0);
 
-#if 1
 	/* movzbl */
 	store_c (017);
 	store_c (0266);
 	store_c (0300 | (reg_num (REGISTER_D0)<<3) | 0 /* %al */);
-#else
-	/* and $1,D0 */
-	store_c (0203);
-	store_c (0340);
-	store_c (1);
-#endif
 
 	if (r!=REGISTER_D0)
 		as_xchg_eax_r (r); /* xchg r,D0 */
@@ -5731,26 +5682,6 @@ static void as_instructions (struct instruction *instruction)
 			case IFMUL:
 				as_dyadic_float_instruction (instruction,1,0xc8,0xc8); /*fmull fmul fmulp*/
 				break;
-#if 0
-			case IFBEQ:
-				as_float_branch_instruction (instruction,0);
-				break;
-			case IFBGE:
-				as_float_branch_instruction (instruction,5);
-				break;
-			case IFBGT:
-				as_float_branch_instruction (instruction,2);
-				break;
-			case IFBLE:
-				as_float_branch_instruction (instruction,4);
-				break;
-			case IFBLT:
-				as_float_branch_instruction (instruction,1);
-				break;
-			case IFBNE:
-				as_float_branch_instruction (instruction,3);
-				break;
-#endif
 			case IFMOVEL:
 				as_fmovel_instruction (instruction);
 				break;

@@ -9011,8 +9011,7 @@ static void linearize_exit_if_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 
 		free_register (tmp_reg);
 		
-		branch_instruction_code=convert_instruction_code==IFCNE ? IBNE :
-								convert_instruction_code==IFCLE ? IBLTU : IBEQ;
+		branch_instruction_code=convert_instruction_code==IFCLE ? IBLTU : IBEQ;
 		instruction_l (branch_instruction_code,graph->instruction_parameters[0].l);
 	} else
 #endif
@@ -9932,8 +9931,7 @@ void calculate_and_linearize_branch_false (LABEL *label,INSTRUCTION_GRAPH graph)
 
 		adjust_stack_pointers_without_altering_condition_codes (1,condition);
 		
-		branch_instruction_code=convert_instruction_code==IFCNE ? IBNE :
-								convert_instruction_code==IFCLE ? IBLTU : IBEQ;
+		branch_instruction_code=convert_instruction_code==IFCLE ? IBLTU : IBEQ;
 		instruction_l (branch_instruction_code,label);
 		
 		return;
@@ -9974,8 +9972,7 @@ void calculate_and_linearize_branch_true (LABEL *label,INSTRUCTION_GRAPH graph)
 
 		adjust_stack_pointers_without_altering_condition_codes (1,condition);
 		
-		branch_instruction_code=convert_instruction_code==IFCNE ? IBNE :
-								convert_instruction_code==IFCLE ? IBLTU : IBEQ;
+		branch_instruction_code=convert_instruction_code==IFCLE ? IBLTU : IBEQ;
 		instruction_l (branch_instruction_code,label);
 
 		return;

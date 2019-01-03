@@ -189,7 +189,7 @@ static int w_as_data (int n,char *data,int length)
 		}
 		
 		c=((unsigned char*)data)[i];
-		if (isalnum (c) || c=='_' || c==' '){
+		if (isalnum (c) || c=='_' || c==' ' || c=='.'){
 			if (!in_string){
 				if (n!=0)
 					w_as_newline();
@@ -1489,7 +1489,7 @@ static void as_test_floating_point_condition_code (int n)
 			fprintf (assembly_file,intel_asm ? "\tand\tah,69\n" : "\tandb\t$69,%%ah\n");
 			break;
 		case 3:
-			fprintf (assembly_file,intel_asm ? "\tand\tah,69\n\tcmp\tah,64\n" : "\tandb\t$69,%%ah\n\tcmpb\t$64,%%ah\n");
+			fprintf (assembly_file,intel_asm ? "\tand\tah,64\n" : "\tandb\t$64,%%ah\n");
 			break;
 		case 4:
 			fprintf (assembly_file,intel_asm ? "\tand\tah,69\n\tdec\tah\n\tcmp\tah,64\n" : "\tandb\t$69,%%ah\n\tdecb\t%%ah\n\tcmpb\t$64,%%ah\n");
@@ -1498,36 +1498,6 @@ static void as_test_floating_point_condition_code (int n)
 			fprintf (assembly_file,intel_asm ? "\tand\tah,5\n" : "\tand\t$5,%%ah\n");
 			break;
 	}
-}
-
-static void w_as_float_branch_instruction (struct instruction *instruction,int n)
-{
-	int r;
-	
-	r=instruction->instruction_parameters[0].parameter_data.reg.r;
-
-	w_as_movl_register_register_newline (REGISTER_D0,REGISTER_O0);
-
-	as_test_floating_point_condition_code (n);
-
-	w_as_movl_register_register_newline (REGISTER_O0,REGISTER_D0);
-
-	switch (n){
-		case 0:
-		case 1:
-		case 2:
-		case 5:
-			w_as_opcode ("je");
-			break;
-		case 3:
-			w_as_opcode ("jne");
-			break;
-		case 4:
-			w_as_opcode ("jb");
-			break;
-	}
-	w_as_parameter (&instruction->instruction_parameters[0]);
-	w_as_newline();
 }
 
 static void w_as_jsr_instruction (struct instruction *instruction)
@@ -1603,32 +1573,10 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 
 	as_test_floating_point_condition_code (n);
 
-	switch (n){
-		case 0:
-		case 1:
-		case 2:
-		case 5:
-			w_as_opcode ("sete");
-			break;
-		case 3:
-			w_as_opcode ("setne");
-			break;
-		case 4:
-			w_as_opcode ("setb");
-			break;
-	}
+	w_as_opcode (n!=4 ? "sete" : "setb");
 	fprintf (assembly_file,intel_asm ? "al" : "%%al");
 	w_as_newline();
 
-#if 0
-	w_as_opcode ("and");
-	if (intel_asm)
-		w_as_register_comma (REGISTER_D0);
-	w_as_immediate (1);
-	if (!intel_asm)
-		w_as_comma_register (REGISTER_D0);
-	w_as_newline();
-#else
 	w_as_opcode (intel_asm ? "movzx" : "movzbl");
 	if (intel_asm)
 		w_as_register_comma (REGISTER_D0);
@@ -1636,7 +1584,6 @@ static void w_as_set_float_condition_instruction (struct instruction *instructio
 	if (!intel_asm)
 		w_as_comma_register (REGISTER_D0);
 	w_as_newline();
-#endif
 
 	if (r!=REGISTER_D0)
 		w_as_opcode_register_register_newline ("xchg",r,REGISTER_D0);
@@ -4963,26 +4910,6 @@ static void w_as_instructions (register struct instruction *instruction)
 			case IFMUL:
 				w_as_dyadic_float_instruction (instruction,"fmul","fmul");
 				break;
-#if 0
-			case IFBEQ:
-				w_as_float_branch_instruction (instruction,0);
-				break;
-			case IFBGE:
-				w_as_float_branch_instruction (instruction,5);
-				break;
-			case IFBGT:
-				w_as_float_branch_instruction (instruction,2);
-				break;
-			case IFBLE:
-				w_as_float_branch_instruction (instruction,4);
-				break;
-			case IFBLT:
-				w_as_float_branch_instruction (instruction,1);
-				break;
-			case IFBNE:
-				w_as_float_branch_instruction (instruction,3);
-				break;
-#endif
 			case IFMOVEL:
 				w_as_fmovel_instruction (instruction);
 				break;
