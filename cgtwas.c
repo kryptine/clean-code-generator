@@ -5106,21 +5106,27 @@ static struct instruction *w_as_instructions_using_condition_flags (struct instr
 				w_as_branch_instruction (instruction,"bvc");
 				return instruction->instruction_next;
 			case IFBEQ:
+			case IFBNNE:
 				w_as_float_branch_instruction (instruction,"beq");
 				return instruction->instruction_next;
 			case IFBGE:
+			case IFBNLT:
 				w_as_float_branch_instruction (instruction,"bpl");
 				return instruction->instruction_next;
 			case IFBGT:
+			case IFBNLE:
 				w_as_float_branch_instruction (instruction,"bgt");
 				return instruction->instruction_next;
 			case IFBLE:
+			case IFBNGT:
 				w_as_float_branch_instruction (instruction,"ble");
 				return instruction->instruction_next;
 			case IFBLT:
+			case IFBNGE:
 				w_as_float_branch_instruction (instruction,"bmi");
 				return instruction->instruction_next;
 			case IFBNE:
+			case IFBNEQ:
 				w_as_float_branch_instruction (instruction,"bne");
 				return instruction->instruction_next;
 			case IFSEQ:
@@ -5392,21 +5398,27 @@ static void w_as_instructions (struct instruction *instruction)
 				w_as_dyadic_float_instruction (instruction,"fmuld");
 				break;
 			case IFBEQ:
+			case IFBNNE:
 				w_as_float_branch_instruction (instruction,"beq");
 				break;
 			case IFBGE:
+			case IFBNLT:
 				w_as_float_branch_instruction (instruction,"bpl");
 				break;
 			case IFBGT:
+			case IFBNLE:
 				w_as_float_branch_instruction (instruction,"bgt");
 				break;
 			case IFBLE:
+			case IFBNGT:
 				w_as_float_branch_instruction (instruction,"ble");
 				break;
 			case IFBLT:
+			case IFBNGE:
 				w_as_float_branch_instruction (instruction,"bmi");
 				break;
 			case IFBNE:
+			case IFBNEQ:
 				w_as_float_branch_instruction (instruction,"bne");
 				break;
 			case IFMOVEL:

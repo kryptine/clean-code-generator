@@ -3919,7 +3919,7 @@ static int condition_to_branch_false_instruction[]=
 #if defined (I486) && !defined (G_A64)
 	IFCEQ,	IFCNE,	IFCGT,	IFCLT,	IFCGE,	IFCLE
 #else
-	IFBNE,	IFBEQ,	IFBLE,	IFBGE,	IFBLT,	IFBGT
+	IFBNEQ,	IFBNNE,	IFBNGT,	IFBNLT,	IFBNGE,	IFBNLE
 #endif
 };
 

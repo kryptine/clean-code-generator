@@ -3203,21 +3203,27 @@ static void as_instructions (struct instruction *instruction)
 				as_dyadic_float_instruction (instruction,0x00200000);
 				break;
 			case IFBEQ:
+			case IFBNNE:
 				as_float_branch_instruction (instruction,CONDITION_EQ);
 				break;
 			case IFBGE:
+			case IFBNLT:
 				as_float_branch_instruction (instruction,CONDITION_PL);
 				break;
 			case IFBGT:
+			case IFBNLE:
 				as_float_branch_instruction (instruction,CONDITION_GT);
 				break;
 			case IFBLE:
+			case IFBNGT:
 				as_float_branch_instruction (instruction,CONDITION_LE);
 				break;
 			case IFBLT:
+			case IFBNGE:
 				as_float_branch_instruction (instruction,CONDITION_MI);
 				break;
 			case IFBNE:
+			case IFBNEQ:
 				as_float_branch_instruction (instruction,CONDITION_NE);
 				break;
 			case IFMOVEL:

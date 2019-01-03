@@ -4307,23 +4307,36 @@ static void as_float_abs_instruction (struct instruction *instruction)
 	as_f_a (0x66,0x54,abs_real_mask_label,d_freg); /* andpd */
 }
 
+#define CONDITION_JMP_B 002
+#define CONDITION_JMP_NAE 002
+#define CONDITION_JMP_NB 003
+#define CONDITION_JMP_AE 003
+#define CONDITION_JMP_E 004
+#define CONDITION_JMP_NE 005
+#define CONDITION_JMP_BE 006
+#define CONDITION_JMP_NA 006
+#define CONDITION_JMP_NBE 007
+#define CONDITION_JMP_A 007
+#define CONDITION_JMP_P 0xA
+#define CONDITION_JMP_NP 0xB
+
 static void as_float_branch_instruction (struct instruction *instruction,int n)
 {
 	struct label *new_label;
 	
 	switch (n){
 		case 2:
-			as_branch_instruction (instruction,007); /* ja */
+			as_branch_instruction (instruction,CONDITION_JMP_A); /* ja */
 			return;
 		case 3:
-			as_branch_instruction (instruction,005); /* jne */
+			as_branch_instruction (instruction,CONDITION_JMP_NE); /* jne */
 			return;
 		case 5:
-			as_branch_instruction (instruction,003); /* jae */
+			as_branch_instruction (instruction,CONDITION_JMP_AE); /* jae */
 			return;
 	}
 
-	store_c (0x7a); /* jp */
+	store_c (0x70 | CONDITION_JMP_P); /* jp */
 	store_c (6);
 
 	{
@@ -4345,13 +4358,44 @@ static void as_float_branch_instruction (struct instruction *instruction,int n)
 
 	switch (n){
 		case 0:
-			as_branch_instruction (instruction,004); /* je */
+			as_branch_instruction (instruction,CONDITION_JMP_E); /* je */
 			break;
 		case 1:
-			as_branch_instruction (instruction,002); /* jb */
+			as_branch_instruction (instruction,CONDITION_JMP_B); /* jb */
 			break;
 		case 4:
-			as_branch_instruction (instruction,006); /* jbe */
+			as_branch_instruction (instruction,CONDITION_JMP_BE); /* jbe */
+			break;
+	}
+}
+
+static void as_float_branch_not_instruction (struct instruction *instruction,int n)
+{
+	struct label *new_label;
+	
+	switch (n){
+		case 2:
+			as_branch_instruction (instruction,CONDITION_JMP_NA); /* jna */
+			return;
+		case 3:
+			as_branch_instruction (instruction,CONDITION_JMP_E); /* je */
+			return;
+		case 5:
+			as_branch_instruction (instruction,CONDITION_JMP_NAE); /* jnae */
+			return;
+	}
+
+	as_branch_instruction (instruction,CONDITION_JMP_P); /* jp */
+
+	switch (n){
+		case 0:
+			as_branch_instruction (instruction,CONDITION_JMP_NE); /* jne */
+			break;
+		case 1:
+			as_branch_instruction (instruction,CONDITION_JMP_NB); /* jnb */
+			break;
+		case 4:
+			as_branch_instruction (instruction,CONDITION_JMP_NBE); /* jnbe */
 			break;
 	}
 }
@@ -4673,19 +4717,19 @@ static void as_instructions (struct instruction *instruction)
 				as_branch_label (profile_r_label,JUMP_RELOCATION);
 				break;
 			case IBEQ:
-				as_branch_instruction (instruction,004);
+				as_branch_instruction (instruction,CONDITION_JMP_E);
 				break;
 			case IBGE:
 				as_branch_instruction (instruction,015);
 				break;
 			case IBGEU:
-				as_branch_instruction (instruction,003);
+				as_branch_instruction (instruction,CONDITION_JMP_AE);
 				break;
 			case IBGT:
 				as_branch_instruction (instruction,017);
 				break;
 			case IBGTU:
-				as_branch_instruction (instruction,007);
+				as_branch_instruction (instruction,CONDITION_JMP_A);
 				break;
 			case IBLE:
 				as_branch_instruction (instruction,016);
@@ -4697,10 +4741,10 @@ static void as_instructions (struct instruction *instruction)
 				as_branch_instruction (instruction,014);
 				break;
 			case IBLTU:
-				as_branch_instruction (instruction,002);
+				as_branch_instruction (instruction,CONDITION_JMP_B);
 				break;
 			case IBNE:
-				as_branch_instruction (instruction,005);
+				as_branch_instruction (instruction,CONDITION_JMP_NE);
 				break;
 			case IBO:
 				as_branch_instruction (instruction,0);
@@ -4886,6 +4930,24 @@ static void as_instructions (struct instruction *instruction)
 				break;
 			case IFBNE:
 				as_float_branch_instruction (instruction,3);
+				break;
+			case IFBNEQ:
+				as_float_branch_not_instruction (instruction,0);
+				break;
+			case IFBNGE:
+				as_float_branch_not_instruction (instruction,5);
+				break;
+			case IFBNGT:
+				as_float_branch_not_instruction (instruction,2);
+				break;
+			case IFBNLE:
+				as_float_branch_not_instruction (instruction,4);
+				break;
+			case IFBNLT:
+				as_float_branch_not_instruction (instruction,1);
+				break;
+			case IFBNNE:
+				as_float_branch_not_instruction (instruction,3);
 				break;
 			case IFMOVEL:
 				as_fmovel_instruction (instruction);

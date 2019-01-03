@@ -4134,21 +4134,27 @@ static void w_as_instructions (struct instruction *instruction)
 				w_as_dyadic_float_instruction (instruction,"fmul");
 				break;
 			case IFBEQ:
+			case IFBNNE:
 				w_as_float_branch_instruction (instruction,"beq");
 				break;
 			case IFBGE:
+			case IFBNLT:
 				w_as_float_branch_instruction (instruction,"bpl");
 				break;
 			case IFBGT:
+			case IFBNLE:
 				w_as_float_branch_instruction (instruction,"bgt");
 				break;
 			case IFBLE:
+			case IFBNGT:
 				w_as_float_branch_instruction (instruction,"ble");
 				break;
 			case IFBLT:
+			case IFBNGE:
 				w_as_float_branch_instruction (instruction,"bmi");
 				break;
 			case IFBNE:
+			case IFBNEQ:
 				w_as_float_branch_instruction (instruction,"bne");
 				break;
 			case IFMOVEL:

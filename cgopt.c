@@ -81,12 +81,18 @@ static void optimize_branch_jump (struct instruction *branch,LABEL *new_branch_l
 		case IBLEU:	branch->instruction_icode=IBGTU;	break;
 		case IBLTU:	branch->instruction_icode=IBGEU;	break;
 #if !defined (I486_USE_SCRATCH_REGISTER) || defined (G_A64) || defined (ARM)
-		case IFBEQ:	branch->instruction_icode=IFBNE;	break;
-		case IFBGE:	branch->instruction_icode=IFBLT;	break;
-		case IFBGT:	branch->instruction_icode=IFBLE;	break;
-		case IFBLE:	branch->instruction_icode=IFBGT;	break;
-		case IFBLT:	branch->instruction_icode=IFBGE;	break;
-		case IFBNE:	branch->instruction_icode=IFBEQ;
+		case IFBEQ:	branch->instruction_icode=IFBNEQ;	break;
+		case IFBGE:	branch->instruction_icode=IFBNGE;	break;
+		case IFBGT:	branch->instruction_icode=IFBNGT;	break;
+		case IFBLE:	branch->instruction_icode=IFBNLE;	break;
+		case IFBLT:	branch->instruction_icode=IFBNLT;	break;
+		case IFBNE:	branch->instruction_icode=IFBNNE;	break;
+		case IFBNEQ:	branch->instruction_icode=IFBEQ;	break;
+		case IFBNGE:	branch->instruction_icode=IFBGE;	break;
+		case IFBNGT:	branch->instruction_icode=IFBGT;	break;
+		case IFBNLE:	branch->instruction_icode=IFBLE;	break;
+		case IFBNLT:	branch->instruction_icode=IFBLT;	break;
+		case IFBNNE:	branch->instruction_icode=IFBNE;
 #endif
 	}
 }
@@ -126,6 +132,7 @@ void optimize_jumps (void)
 				case IBNE:	case IBGEU:	case IBGTU:	case IBLEU:	case IBLTU:
 #if !defined (I486_USE_SCRATCH_REGISTER) || defined (G_A64) || defined (ARM)
 				case IFBEQ:	case IFBGE:	case IFBGT:	case IFBLE:	case IFBLT:	case IFBNE:
+				case IFBNEQ:	case IFBNGE:	case IFBNGT:	case IFBNLE:	case IFBNLT:	case IFBNNE:
 #endif
 				{
 					struct basic_block *next_block;

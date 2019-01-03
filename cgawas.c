@@ -1903,6 +1903,55 @@ static void w_as_float_branch_instruction (struct instruction *instruction,int n
 	w_as_define_internal_label (label_number);
 }
 
+static void w_as_float_branch_not_instruction (struct instruction *instruction,int n)
+{
+	if (((1<<n) & ((1<<0)|(1<<1)|(1<<4)))!=0 /* n==0 || n==1 || n==4 */){
+		w_as_opcode ("jp");
+#ifdef MACH_O64
+		if (instruction->instruction_parameters[0].parameter_type==P_LABEL){
+			if (instruction->instruction_parameters[0].parameter_data.l->label_number!=0)
+				w_as_local_label (instruction->instruction_parameters[0].parameter_data.l->label_number);
+			else
+				w_as_label (instruction->instruction_parameters[0].parameter_data.l->label_name);
+		} else
+#endif
+		w_as_parameter (&instruction->instruction_parameters[0]);
+		w_as_newline();
+	}
+
+	switch (n){
+		case 2:
+			w_as_opcode ("jbe" /* "jna" */);
+			break;
+		case 3:
+			w_as_opcode ("je");
+			break;
+		case 5:
+			w_as_opcode ("jb" /* "jnae" */);
+			break;
+		case 0:
+			w_as_opcode ("jne");
+			break;
+		case 1:
+			w_as_opcode ("jae" /* "jnb" */);
+			break;
+		case 4:
+			w_as_opcode ("ja" /* "jnbe" */);
+			break;
+	}
+
+#ifdef MACH_O64
+	if (instruction->instruction_parameters[0].parameter_type==P_LABEL){
+		if (instruction->instruction_parameters[0].parameter_data.l->label_number!=0)
+			w_as_local_label (instruction->instruction_parameters[0].parameter_data.l->label_number);
+		else
+			w_as_label (instruction->instruction_parameters[0].parameter_data.l->label_name);
+	} else
+#endif
+	w_as_parameter (&instruction->instruction_parameters[0]);
+	w_as_newline();
+}
+
 static void w_as_jsr_instruction (struct instruction *instruction)
 {
 	w_as_call_or_jump (&instruction->instruction_parameters[0],"call");
@@ -3695,6 +3744,24 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case IFBNE:
 				w_as_float_branch_instruction (instruction,3);
+				break;
+			case IFBNEQ:
+				w_as_float_branch_not_instruction (instruction,0);
+				break;
+			case IFBNGE:
+				w_as_float_branch_not_instruction (instruction,5);
+				break;
+			case IFBNGT:
+				w_as_float_branch_not_instruction (instruction,2);
+				break;
+			case IFBNLE:
+				w_as_float_branch_not_instruction (instruction,4);
+				break;
+			case IFBNLT:
+				w_as_float_branch_not_instruction (instruction,1);
+				break;
+			case IFBNNE:
+				w_as_float_branch_not_instruction (instruction,3);
 				break;
 			case IFMOVEL:
 				w_as_fmovel_instruction (instruction);
