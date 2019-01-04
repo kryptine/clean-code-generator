@@ -2319,6 +2319,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("buildI_b",		parse_instruction_n,		code_buildI_b );
 	put_instruction_name ("buildR_b",		parse_instruction_n,		code_buildR_b );
 	put_instruction_name ("buildh",			parse_instruction_a_n,		code_buildh );
+	put_instruction_name ("buildhr",		parse_instruction_a_n_n,	code_buildhr );
 	put_instruction_name ("build_r",		parse_instruction_a_n_n_n_n,code_build_r );
 	put_instruction_name ("build_u",		parse_instruction_a_n_n_a,	code_build_u );
 	put_instruction_name ("catS",			parse_instruction_n_n_n,	code_catS );

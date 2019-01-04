@@ -964,29 +964,111 @@ void code_buildh (char descriptor_name[],int arity)
 	s_push_a (graph_4);
 }
 
-void code_build_r (char descriptor_name[],int a_size,int b_size,int a_offset,int b_offset)
+static INSTRUCTION_GRAPH lea_record_descriptor (char descriptor_name[])
 {
-	INSTRUCTION_GRAPH graph_2,graph_3,graph_4,graph_5,graph_6;
 	LABEL *descriptor_label;
 	
 	descriptor_label=enter_label (descriptor_name,DATA_LABEL);
 
 	if (!parallel_flag && descriptor_label->label_last_lea_block==last_block)
-		graph_2=descriptor_label->label_last_lea;
+		return descriptor_label->label_last_lea;
 	else {
 #if defined (G_A64) && defined (LINUX)
 		if (pic_flag && descriptor_label->label_flags & USE_GOT_LABEL){
-			descriptor_label=enter_got_label (descriptor_name,0,DATA_LABEL);
-			graph_2=g_lea (descriptor_label);
+			LABEL *descriptor_label_0;
+
+			descriptor_label_0=enter_got_label (descriptor_name,0,DATA_LABEL);
+			return g_lea (descriptor_label_0);
 		} else
 #endif
-		graph_2=g_load_des_i (descriptor_label,0);
+		{
+		INSTRUCTION_GRAPH graph_1;
 
-		if (!parallel_flag ){
-			descriptor_label->label_last_lea=graph_2;
+		graph_1=g_load_des_i (descriptor_label,0);
+
+		if (!parallel_flag){
+			descriptor_label->label_last_lea=graph_1;
 			descriptor_label->label_last_lea_block=last_block;
 		}
+
+		return graph_1;
+		}
 	}
+}
+
+void code_buildhr (char descriptor_name[],int a_size,int b_size)
+{
+	INSTRUCTION_GRAPH graph_2,graph_3,graph_4,graph_5,graph_6;
+	
+	graph_2=lea_record_descriptor (descriptor_name);
+
+	switch (a_size+b_size){
+		case 0:
+			graph_4=g_create_1 (graph_2);
+			break;
+		case 1:
+			if (a_size!=0)
+				graph_5=s_pop_a();
+			else
+				graph_5=s_pop_b();
+			graph_4=g_create_2 (graph_2,graph_5);
+			break;
+		case 2:
+			switch (b_size){
+				case 0:
+					graph_5=s_pop_a();
+					graph_6=s_pop_a();
+					break;				
+				case 1:
+					graph_5=s_pop_a();
+					graph_6=s_pop_b();
+					break;
+				default:
+					graph_5=s_pop_b();
+					graph_6=s_pop_b();
+			}
+			graph_4=g_create_3 (graph_2,graph_5,graph_6);
+			break;
+		default:
+		{
+			union instruction_parameter *parameter;
+			
+			if (a_size>0){
+				graph_5=s_pop_a();
+				--a_size;
+			} else {
+				graph_5=s_pop_b();
+				--b_size;
+			}
+			
+			graph_3=g_create_m (a_size+b_size);
+			
+			parameter=graph_3->instruction_parameters;
+
+			while (a_size>0){
+				parameter->p=s_pop_a();
+				++parameter;
+				--a_size;
+			}
+
+			while (b_size>0){
+				parameter->p=s_pop_b();
+				++parameter;
+				--b_size;
+			}
+
+			graph_4=g_create_3 (graph_2,graph_5,graph_3);
+		}
+	}
+	
+	s_push_a (graph_4);
+}
+
+void code_build_r (char descriptor_name[],int a_size,int b_size,int a_offset,int b_offset)
+{
+	INSTRUCTION_GRAPH graph_2,graph_3,graph_4,graph_5,graph_6;
+
+	graph_2=lea_record_descriptor (descriptor_name);
 
 	switch (a_size+b_size){
 		case 0:
@@ -2870,30 +2952,10 @@ void code_expR (VOID)
 void code_fill_r (char descriptor_name[],int a_size,int b_size,int root_offset,int a_offset,int b_offset)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3,graph_4,graph_5,graph_6;
-	LABEL *descriptor_label;
 	
 	graph_1=s_get_a (root_offset);
 
-	descriptor_label=enter_label (descriptor_name,DATA_LABEL);
-
-	if (!parallel_flag && descriptor_label->label_last_lea_block==last_block)
-		graph_2=descriptor_label->label_last_lea;
-	else {
-#if defined (G_A64) && defined (LINUX)
-		if (pic_flag && descriptor_label->label_flags & USE_GOT_LABEL){
-			LABEL *descriptor_label_0;
-
-			descriptor_label_0=enter_got_label (descriptor_name,0,DATA_LABEL);
-			graph_2=g_lea (descriptor_label_0);
-		} else
-#endif
-		graph_2=g_load_des_i (descriptor_label,0);
-
-		if (!parallel_flag ){
-			descriptor_label->label_last_lea=graph_2;
-			descriptor_label->label_last_lea_block=last_block;
-		}
-	}
+	graph_2=lea_record_descriptor (descriptor_name);
 
 	switch (a_size+b_size){
 		case 0:
