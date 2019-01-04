@@ -1445,7 +1445,7 @@ static void w_as_branch_instruction (struct instruction *instruction,char *opcod
 	w_as_newline_after_instruction();
 }
 
-static void as_test_floating_point_condition_code (void)
+static void w_as_test_floating_point_condition_code (void)
 {
 	w_as_opcode ("fmstat");
 	w_as_newline_after_instruction();
@@ -1453,7 +1453,7 @@ static void as_test_floating_point_condition_code (void)
 
 static void w_as_float_branch_instruction (struct instruction *instruction,char *opcode)
 {
-	as_test_floating_point_condition_code();
+	w_as_test_floating_point_condition_code();
 
 	/*            Z N C V
 	equal         1 0 1 0
@@ -1464,6 +1464,38 @@ static void w_as_float_branch_instruction (struct instruction *instruction,char 
 	bgt           Z==0 && N==V 
 	ble           Z==1 || N!=V
 	*/
+	w_as_opcode (opcode);
+	w_as_label_parameter (&instruction->instruction_parameters[0]);
+	w_as_newline_after_instruction();
+}
+
+static void w_as_float_branch_vc_and_instruction (struct instruction *instruction,char *opcode)
+{
+	int label_id;
+	
+	w_as_test_floating_point_condition_code();
+
+	label_id=next_label_id++;
+
+	w_as_opcode ("bvs");
+	w_as_internal_label (label_id);
+	w_as_newline();
+
+	w_as_opcode (opcode);
+	w_as_label_parameter (&instruction->instruction_parameters[0]);
+	w_as_newline_after_instruction();
+
+	w_as_define_internal_label (label_id);
+}
+
+static void w_as_float_branch_vs_or_instruction (struct instruction *instruction,char *opcode)
+{
+	w_as_test_floating_point_condition_code();
+
+	w_as_opcode ("bvs");
+	w_as_label_parameter (&instruction->instruction_parameters[0]);
+	w_as_newline_after_instruction();
+
 	w_as_opcode (opcode);
 	w_as_label_parameter (&instruction->instruction_parameters[0]);
 	w_as_newline_after_instruction();
@@ -1515,7 +1547,6 @@ static void w_as_jsr_instruction (struct instruction *instruction)
 static void w_as_set_condition_instruction (struct instruction *instruction,char *opcode1,char *opcode2)
 {
 	int r;
-	char *reg_s;
 	
 	r=instruction->instruction_parameters[0].parameter_data.reg.r;
 		
@@ -1532,8 +1563,19 @@ static void w_as_set_condition_instruction (struct instruction *instruction,char
 
 static void w_as_set_float_condition_instruction (struct instruction *instruction,char *opcode1,char *opcode2)
 {
-	as_test_floating_point_condition_code();
+	w_as_test_floating_point_condition_code();
 	w_as_set_condition_instruction (instruction,opcode1,opcode2);
+}
+
+static void w_as_set_float_vc_and_condition_instruction (struct instruction *instruction,char *opcode1,char *opcode2)
+{
+	w_as_test_floating_point_condition_code();
+	w_as_set_condition_instruction (instruction,opcode1,opcode2);
+
+	w_as_opcode ("movvs");
+	w_as_register (instruction->instruction_parameters[0].parameter_data.reg.r);
+	fprintf (assembly_file,",#0");
+	w_as_newline_after_instruction();
 }
 
 static void w_as_lsl_register_newline (int reg,int shift)
@@ -2530,28 +2572,40 @@ static void w_as_instructions (struct instruction *instruction)
 				w_as_dyadic_float_instruction (instruction,"fmuld");
 				break;
 			case IFBEQ:
-			case IFBNNE:
 				w_as_float_branch_instruction (instruction,"beq");
 				break;
 			case IFBGE:
-			case IFBNLT:
-				w_as_float_branch_instruction (instruction,"bpl");
+				w_as_float_branch_instruction (instruction,"bge");
 				break;
 			case IFBGT:
-			case IFBNLE:
 				w_as_float_branch_instruction (instruction,"bgt");
 				break;
 			case IFBLE:
-			case IFBNGT:
-				w_as_float_branch_instruction (instruction,"ble");
+				w_as_float_branch_instruction (instruction,"bls");
 				break;
 			case IFBLT:
-			case IFBNGE:
 				w_as_float_branch_instruction (instruction,"bmi");
 				break;
 			case IFBNE:
+				w_as_float_branch_vc_and_instruction (instruction,"bne");
+				break;
 			case IFBNEQ:
 				w_as_float_branch_instruction (instruction,"bne");
+				break;
+			case IFBNGE:
+				w_as_float_branch_instruction (instruction,"blt");
+				break;
+			case IFBNGT:
+				w_as_float_branch_instruction (instruction,"ble");
+				break;
+			case IFBNLE:
+				w_as_float_branch_instruction (instruction,"bhi");
+				break;
+			case IFBNLT:
+				w_as_float_branch_instruction (instruction,"bpl");
+				break;
+			case IFBNNE:
+				w_as_float_branch_vs_or_instruction (instruction,"beq");
 				break;
 			case IFMOVEL:
 				w_as_fmovel_instruction (instruction);
@@ -2587,7 +2641,7 @@ static void w_as_instructions (struct instruction *instruction)
 				w_as_set_float_condition_instruction (instruction,"movmi","movpl");
 				break;
 			case IFSNE:
-				w_as_set_float_condition_instruction (instruction,"movne","moveq");
+				w_as_set_float_vc_and_condition_instruction (instruction,"movne","moveq");
 				break;
 			case IWORD:
 				w_as_word_instruction (instruction);

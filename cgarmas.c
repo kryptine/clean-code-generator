@@ -2848,11 +2848,46 @@ static void as_float_branch_instruction (struct instruction *instruction,int con
 	as_branch_label (instruction->instruction_parameters[0].parameter_data.l,BRANCH_RELOCATION);
 }
 
+static void as_float_branch_vc_and_instruction (struct instruction *instruction,int condition_code)
+{
+	as_test_floating_point_condition_code();
+
+	if (code_buffer_p+4>=literal_table_at_buffer_p)
+		write_branch_and_literals();
+
+	store_l_no_literal_table ((CONDITION_VS<<28) | 0x0a000000 | 4); /* bvs (pc+4)+4 */
+	store_l_no_literal_table ((condition_code<<28) | 0x0a000000); /* b */
+	as_branch_label (instruction->instruction_parameters[0].parameter_data.l,BRANCH_RELOCATION);
+}
+
+static void as_float_branch_vs_or_instruction (struct instruction *instruction,int condition_code)
+{
+	as_test_floating_point_condition_code();
+
+	store_l ((CONDITION_VS<<28) | 0x0a000000); /* b */
+	as_branch_label (instruction->instruction_parameters[0].parameter_data.l,BRANCH_RELOCATION);
+	store_l ((condition_code<<28) | 0x0a000000); /* b */
+	as_branch_label (instruction->instruction_parameters[0].parameter_data.l,BRANCH_RELOCATION);
+}
+
 static void as_set_float_condition_instruction (struct instruction *instruction,int condition_code_true,int condition_code_false)
 {
 	as_test_floating_point_condition_code();
 
 	as_set_condition_instruction (instruction,condition_code_true,condition_code_false);
+}
+
+static void as_set_float_vc_and_condition_instruction (struct instruction *instruction,int condition_code_true,int condition_code_false)
+{
+	unsigned int rn;
+	
+	as_test_floating_point_condition_code();
+
+	rn = reg_num (instruction->instruction_parameters[0].parameter_data.reg.r);
+
+	store_l (0x03a00001 | (condition_code_true<<28) | (rn<<12)); /* movcc rd,#1 */
+	store_l (0x03a00000 | (condition_code_false<<28) | (rn<<12)); /* movcc rd,#0 */
+	store_l (0x03a00000 | (CONDITION_VS<<28) | (rn<<12)); /* movvs rd,#0 */
 }
 
 void define_data_label (LABEL *label)
@@ -3203,28 +3238,40 @@ static void as_instructions (struct instruction *instruction)
 				as_dyadic_float_instruction (instruction,0x00200000);
 				break;
 			case IFBEQ:
-			case IFBNNE:
 				as_float_branch_instruction (instruction,CONDITION_EQ);
 				break;
 			case IFBGE:
-			case IFBNLT:
-				as_float_branch_instruction (instruction,CONDITION_PL);
+				as_float_branch_instruction (instruction,CONDITION_GE);
 				break;
 			case IFBGT:
-			case IFBNLE:
 				as_float_branch_instruction (instruction,CONDITION_GT);
 				break;
 			case IFBLE:
-			case IFBNGT:
-				as_float_branch_instruction (instruction,CONDITION_LE);
+				as_float_branch_instruction (instruction,CONDITION_LS);
 				break;
 			case IFBLT:
-			case IFBNGE:
 				as_float_branch_instruction (instruction,CONDITION_MI);
 				break;
 			case IFBNE:
+				as_float_branch_vc_and_instruction (instruction,CONDITION_NE);
+				break;
 			case IFBNEQ:
 				as_float_branch_instruction (instruction,CONDITION_NE);
+				break;
+			case IFBNGE:
+				as_float_branch_instruction (instruction,CONDITION_LT);
+				break;
+			case IFBNGT:
+				as_float_branch_instruction (instruction,CONDITION_LE);
+				break;
+			case IFBNLE:
+				as_float_branch_instruction (instruction,CONDITION_HI);
+				break;
+			case IFBNLT:
+				as_float_branch_instruction (instruction,CONDITION_PL);
+				break;
+			case IFBNNE:
+				as_float_branch_vs_or_instruction (instruction,CONDITION_EQ);
 				break;
 			case IFMOVEL:
 				as_fmovel_instruction (instruction);
@@ -3248,19 +3295,19 @@ static void as_instructions (struct instruction *instruction)
 				as_set_float_condition_instruction (instruction,CONDITION_EQ,CONDITION_NE);
 				break;
 			case IFSGE:
-				as_set_float_condition_instruction (instruction,CONDITION_PL,CONDITION_MI);
+				as_set_float_condition_instruction (instruction,CONDITION_GE,CONDITION_LT);
 				break;
 			case IFSGT:
 				as_set_float_condition_instruction (instruction,CONDITION_GT,CONDITION_LE);
 				break;
 			case IFSLE:
-				as_set_float_condition_instruction (instruction,CONDITION_LE,CONDITION_GT);
+				as_set_float_condition_instruction (instruction,CONDITION_LS,CONDITION_HI);
 				break;
 			case IFSLT:
 				as_set_float_condition_instruction (instruction,CONDITION_MI,CONDITION_PL);
 				break;
 			case IFSNE:
-				as_set_float_condition_instruction (instruction,CONDITION_NE,CONDITION_EQ);
+				as_set_float_vc_and_condition_instruction (instruction,CONDITION_NE,CONDITION_EQ);
 				break;
 			default:
 				internal_error_in_function ("as_instructions");

@@ -3066,6 +3066,27 @@ static void w_as_float_branch_instruction (struct instruction *instruction,char 
 	w_as_newline_after_instruction();
 }
 
+static void w_as_float_branch_vc_and_instruction (struct instruction *instruction,char *opcode)
+{
+	int label_id;
+	
+	label_id=next_label_id++;
+
+	w_as_opcode ("bvs");
+	w_as_internal_label (label_id);
+	w_as_newline();
+
+	w_as_float_branch_instruction (instruction,opcode);
+
+	w_as_define_internal_label (label_id);
+}
+
+static void w_as_float_branch_vs_or_instruction (struct instruction *instruction,char *opcode)
+{
+	w_as_float_branch_instruction (instruction,"bvs");
+	w_as_float_branch_instruction (instruction,opcode);
+}
+
 static void w_as_jsr_instruction (struct instruction *instruction)
 {
 	if (instruction->instruction_parameters[0].parameter_type==P_INDIRECT){
@@ -3132,7 +3153,6 @@ static void w_as_jsr_instruction (struct instruction *instruction)
 static void w_as_set_condition_instruction (struct instruction *instruction,char *condition)
 {
 	int r;
-	char *reg_s;
 	
 	r=instruction->instruction_parameters[0].parameter_data.reg.r;
 		
@@ -3145,6 +3165,22 @@ static void w_as_set_condition_instruction (struct instruction *instruction,char
 static void w_as_set_float_condition_instruction (struct instruction *instruction,char *condition)
 {
 	w_as_set_condition_instruction (instruction,condition);
+}
+
+static void w_as_set_float_vc_and_condition_instruction (struct instruction *instruction,char *condition)
+{
+	int r;
+	
+	w_as_set_condition_instruction (instruction,condition);
+
+	r=instruction->instruction_parameters[0].parameter_data.reg.r;
+
+	w_as_opcode ("cssel");
+	w_as_register_comma (r);
+	w_as_register_comma (r);
+	w_as_zero_register_comma();
+	fputs ("vc",assembly_file);
+	w_as_newline_after_instruction();
 }
 
 static void w_as_asr_register_newline (int reg,int shift)
@@ -4134,28 +4170,40 @@ static void w_as_instructions (struct instruction *instruction)
 				w_as_dyadic_float_instruction (instruction,"fmul");
 				break;
 			case IFBEQ:
-			case IFBNNE:
 				w_as_float_branch_instruction (instruction,"beq");
 				break;
 			case IFBGE:
-			case IFBNLT:
-				w_as_float_branch_instruction (instruction,"bpl");
+				w_as_float_branch_instruction (instruction,"bge");
 				break;
 			case IFBGT:
-			case IFBNLE:
 				w_as_float_branch_instruction (instruction,"bgt");
 				break;
 			case IFBLE:
-			case IFBNGT:
-				w_as_float_branch_instruction (instruction,"ble");
+				w_as_float_branch_instruction (instruction,"bls");
 				break;
 			case IFBLT:
-			case IFBNGE:
 				w_as_float_branch_instruction (instruction,"bmi");
 				break;
 			case IFBNE:
+				w_as_float_branch_vc_and_instruction (instruction,"bne");
+				break;
 			case IFBNEQ:
 				w_as_float_branch_instruction (instruction,"bne");
+				break;
+			case IFBNGE:
+				w_as_float_branch_instruction (instruction,"blt");
+				break;
+			case IFBNGT:
+				w_as_float_branch_instruction (instruction,"ble");
+				break;
+			case IFBNLE:
+				w_as_float_branch_instruction (instruction,"bhi");
+				break;
+			case IFBNLT:
+				w_as_float_branch_instruction (instruction,"bpl");
+				break;
+			case IFBNNE:
+				w_as_float_branch_vs_or_instruction (instruction,"beq");
 				break;
 			case IFMOVEL:
 				w_as_fmovel_instruction (instruction);
@@ -4179,19 +4227,19 @@ static void w_as_instructions (struct instruction *instruction)
 				w_as_set_float_condition_instruction (instruction,"eq");
 				break;
 			case IFSGE:
-				w_as_set_float_condition_instruction (instruction,"pl");
+				w_as_set_float_condition_instruction (instruction,"ge");
 				break;
 			case IFSGT:
 				w_as_set_float_condition_instruction (instruction,"gt");
 				break;
 			case IFSLE:
-				w_as_set_float_condition_instruction (instruction,"le");
+				w_as_set_float_condition_instruction (instruction,"ls");
 				break;
 			case IFSLT:
 				w_as_set_float_condition_instruction (instruction,"mi");
 				break;
 			case IFSNE:
-				w_as_set_float_condition_instruction (instruction,"ne");
+				w_as_set_float_vc_and_condition_instruction (instruction,"ne");
 				break;
 			case IWORD:
 				w_as_word_instruction (instruction);

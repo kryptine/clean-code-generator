@@ -183,18 +183,19 @@ static void write_l (int c)
 #define ADJUST_ADR_RELOCATION 11
 #define MOVW_RELOCATION 12 /* R_ARM_THM_MOVW_ABS_NC */
 #define MOVT_RELOCATION 13 /* R_ARM_THM_MOVT_ABS */
+#define BRANCH_SKIP_BRANCH_RELOCATION 14
 #ifdef OPTIMISE_BRANCHES
-# define ALIGN_RELOCATION 14
-# define NEW_SHORT_BRANCH_RELOCATION 15
-# define SHORT_JUMP_RELOCATION 16 /* R_ARM_THM_JUMP11 */
-# define NEW_SHORT_JUMP_RELOCATION 17
-# define SHORT_LDR_OFFSET_RELOCATION 18 /* R_ARM_THM_PC8 */
-# define NEW_SHORT_LDR_OFFSET_RELOCATION 19
-# define ADR_RELOCATION 20 /* R_ARM_THM_ALU_PREL_11_0 */
-# define LONG_WORD_LITERAL_RELOCATION 21
-# define NEW_UNUSED_LONG_WORD_LITERAL_RELOCATION 22
-# define UNUSED_LONG_WORD_LITERAL_RELOCATION 23
-/* # define RELATIVE_LONG_WORD_LITERAL_RELOCATION 24 */
+# define ALIGN_RELOCATION 15
+# define NEW_SHORT_BRANCH_RELOCATION 16
+# define SHORT_JUMP_RELOCATION 17 /* R_ARM_THM_JUMP11 */
+# define NEW_SHORT_JUMP_RELOCATION 18
+# define SHORT_LDR_OFFSET_RELOCATION 19 /* R_ARM_THM_PC8 */
+# define NEW_SHORT_LDR_OFFSET_RELOCATION 20
+# define ADR_RELOCATION 21 /* R_ARM_THM_ALU_PREL_11_0 */
+# define LONG_WORD_LITERAL_RELOCATION 22
+# define NEW_UNUSED_LONG_WORD_LITERAL_RELOCATION 23
+# define UNUSED_LONG_WORD_LITERAL_RELOCATION 24
+/* # define RELATIVE_LONG_WORD_LITERAL_RELOCATION 25 */
 #endif
 
 #ifndef R_ARM_THM_JUMP11
@@ -5877,11 +5878,70 @@ static void as_float_branch_instruction (struct instruction *instruction,int con
 	as_branch_label (instruction->instruction_parameters[0].parameter_data.l,BRANCH_RELOCATION);
 }
 
+static void as_float_branch_vc_and_instruction (struct instruction *instruction,int condition_code)
+{
+	as_test_floating_point_condition_code();
+	
+	if (code_buffer_p+4>=literal_table_at_buffer_p)
+		write_branch_and_literals();
+
+	store_2c (0xd0 | (CONDITION_VS<<8) | ((6-4)>>1)); /* bvs pc+6 */
+
+	{
+		struct relocation *new_relocation;
+		
+		new_relocation=fast_memory_allocate_type (struct relocation);
+		
+		*last_code_relocation_l=new_relocation;
+		last_code_relocation_l=&new_relocation->next;
+		new_relocation->next=NULL;
+
+		new_relocation->relocation_label=NULL;
+		new_relocation->relocation_offset=CURRENT_CODE_OFFSET-2;
+#ifdef FUNCTION_LEVEL_LINKING
+		new_relocation->relocation_object_label=code_object_label;
+#endif
+		new_relocation->relocation_kind=BRANCH_SKIP_BRANCH_RELOCATION;
+	}
+
+	store_lsw_no_literal_table ((condition_code<<22) | 0xf0008000); /* b */
+	as_branch_label (instruction->instruction_parameters[0].parameter_data.l,BRANCH_RELOCATION);
+}
+
+static void as_float_branch_vs_or_instruction (struct instruction *instruction,int condition_code)
+{
+	as_test_floating_point_condition_code();
+	
+	store_lsw ((CONDITION_VS<<22) | 0xf0008000); /* b */
+	as_branch_label (instruction->instruction_parameters[0].parameter_data.l,BRANCH_RELOCATION);
+
+	store_lsw ((condition_code<<22) | 0xf0008000); /* b */
+	as_branch_label (instruction->instruction_parameters[0].parameter_data.l,BRANCH_RELOCATION);
+}
+
 static void as_set_float_condition_instruction (struct instruction *instruction,int condition_code_true)
 {
 	as_test_floating_point_condition_code();
 
 	as_set_condition_instruction (instruction,condition_code_true);
+}
+
+static void as_set_float_vc_and_condition_instruction (struct instruction *instruction,int condition_code_true)
+{
+	unsigned int rn;
+
+	as_test_floating_point_condition_code();
+
+	as_set_condition_instruction (instruction,condition_code_true);
+		
+	rn = reg_num (instruction->instruction_parameters[0].parameter_data.reg.r);
+
+	store_w (0xbf08 | (CONDITION_VS<<4)); /* it vs */
+	if (rn<8)
+		store_w (0x2000 | (rn<<8)); /* mov rd,#0 inside IT block */
+	else
+		store_lsw (0xf04f0000 | (rn<<8)); /* mov rd,#0 */
+	}
 }
 
 void define_data_label (LABEL *label)
@@ -6090,19 +6150,37 @@ static struct instruction *as_instructions_using_condition_flags (struct instruc
 				as_float_branch_instruction (instruction,CONDITION_EQ);
 				return instruction->instruction_next;
 			case IFBGE:
-				as_float_branch_instruction (instruction,CONDITION_PL);
+				as_float_branch_instruction (instruction,CONDITION_GE);
 				return instruction->instruction_next;
 			case IFBGT:
 				as_float_branch_instruction (instruction,CONDITION_GT);
 				return instruction->instruction_next;
 			case IFBLE:
-				as_float_branch_instruction (instruction,CONDITION_LE);
+				as_float_branch_instruction (instruction,CONDITION_LS);
 				return instruction->instruction_next;
 			case IFBLT:
 				as_float_branch_instruction (instruction,CONDITION_MI);
 				return instruction->instruction_next;
 			case IFBNE:
+				as_float_branch_vc_and_instruction (instruction,CONDITION_NE);
+				return instruction->instruction_next;
+			case IFBNEQ:
 				as_float_branch_instruction (instruction,CONDITION_NE);
+				return instruction->instruction_next;
+			case IFBNGE:
+				as_float_branch_instruction (instruction,CONDITION_LT);
+				return instruction->instruction_next;
+			case IFBNGT:
+				as_float_branch_instruction (instruction,CONDITION_LE);
+				return instruction->instruction_next;
+			case IFBNLE:
+				as_float_branch_instruction (instruction,CONDITION_HI);
+				return instruction->instruction_next;
+			case IFBNLT:
+				as_float_branch_instruction (instruction,CONDITION_PL);
+				return instruction->instruction_next;
+			case IFBNNE:
+				as_float_branch_vs_or_instruction (instruction,CONDITION_EQ);
 				return instruction->instruction_next;
 			case IFSEQ:
 				as_set_float_condition_instruction (instruction,CONDITION_EQ);
@@ -6378,28 +6456,40 @@ static void as_instructions (struct instruction *instruction)
 				as_dyadic_float_instruction (instruction,0x00200000);
 				break;
 			case IFBEQ:
-			case IFBNNE:
 				as_float_branch_instruction (instruction,CONDITION_EQ);
 				break;
 			case IFBGE:
-			case IFBNLT:
-				as_float_branch_instruction (instruction,CONDITION_PL);
+				as_float_branch_instruction (instruction,CONDITION_GE);
 				break;
 			case IFBGT:
-			case IFBNLE:
 				as_float_branch_instruction (instruction,CONDITION_GT);
 				break;
 			case IFBLE:
-			case IFBNGT:
-				as_float_branch_instruction (instruction,CONDITION_LE);
+				as_float_branch_instruction (instruction,CONDITION_LS);
 				break;
 			case IFBLT:
-			case IFBNGE:
 				as_float_branch_instruction (instruction,CONDITION_MI);
 				break;
 			case IFBNE:
+				as_float_branch_vc_and_instruction (instruction,CONDITION_NE);
+				break;
 			case IFBNEQ:
 				as_float_branch_instruction (instruction,CONDITION_NE);
+				break;
+			case IFBNGE:
+				as_float_branch_instruction (instruction,CONDITION_LT);
+				break;
+			case IFBNGT:
+				as_float_branch_instruction (instruction,CONDITION_LE);
+				break;
+			case IFBNLE:
+				as_float_branch_instruction (instruction,CONDITION_HI);
+				break;
+			case IFBNLT:
+				as_float_branch_instruction (instruction,CONDITION_PL);
+				break;
+			case IFBNNE:
+				as_float_branch_vs_or_instruction (instruction,CONDITION_EQ);
 				break;
 			case IFMOVEL:
 				as_fmovel_instruction (instruction);
@@ -6435,7 +6525,7 @@ static void as_instructions (struct instruction *instruction)
 				as_set_float_condition_instruction (instruction,CONDITION_MI);
 				break;
 			case IFSNE:
-				as_set_float_condition_instruction (instruction,CONDITION_NE);
+				as_set_float_vc_and_condition_instruction (instruction,CONDITION_NE);
 				break;
 			default:
 				internal_error_in_function ("as_instructions");
@@ -7599,6 +7689,7 @@ static int search_short_branches (void)
 #ifdef FUNCTION_LEVEL_LINKING
 			case DUMMY_BRANCH_RELOCATION:
 #endif
+			case BRANCH_SKIP_BRANCH_RELOCATION:
 			case ADJUST_ADR_RELOCATION:
 			case ADR_RELOCATION:
 				break;
@@ -7938,6 +8029,13 @@ static void relocate_short_branches_and_move_code (void)
 				instruction_offset=relocation->relocation_offset;
 				*relocation_p=relocation->next;
 				break;
+			case BRANCH_SKIP_BRANCH_RELOCATION:
+				*relocation_p=relocation->next;
+				if (relocation->next->relocation_kind==SHORT_BRANCH_RELOCATION){
+					instruction_offset=relocation->relocation_offset;
+					break;
+				} else
+					continue;
 			default:
 				internal_error_in_function ("relocate_short_branches_and_move_code 0");
 		}
@@ -8014,6 +8112,39 @@ static void relocate_short_branches_and_move_code (void)
 				} else
 					internal_error_in_function ("relocate_short_branches_and_move_code");
 			}
+			continue;
+		} else if (relocation->relocation_kind==BRANCH_SKIP_BRANCH_RELOCATION){
+			unsigned char c0,c1;
+			
+			if (source_buffer_offset>=BUFFER_SIZE){
+				source_buffer_offset-=BUFFER_SIZE;
+				source_object_buffer=source_object_buffer->next;
+			}
+			if (destination_buffer_offset==BUFFER_SIZE){
+				destination_buffer_offset=0;
+				destination_object_buffer=destination_object_buffer->next;
+			}
+
+			c0=source_object_buffer->data[source_buffer_offset++];
+			++source_offset;
+
+			--c0; /* adjust branch offset */
+
+			destination_object_buffer->data[destination_buffer_offset++]=c0;
+
+			if (source_buffer_offset>=BUFFER_SIZE){
+				source_buffer_offset-=BUFFER_SIZE;
+				source_object_buffer=source_object_buffer->next;
+			}
+			if (destination_buffer_offset==BUFFER_SIZE){
+				destination_buffer_offset=0;
+				destination_object_buffer=destination_object_buffer->next;
+			}
+
+			c1=source_object_buffer->data[source_buffer_offset++];
+			++source_offset;
+
+			destination_object_buffer->data[destination_buffer_offset++]=c1;			
 			continue;
 		}
 
