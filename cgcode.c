@@ -4653,6 +4653,54 @@ void code_jmp_false (char label_name[])
 #endif
 }
 
+#ifdef I486
+void code_jmp_i (int n_apply_args)
+{
+	int a_stack_size,b_stack_size,used_n_address_parameter_registers;
+	ULONG *vector;
+
+	if (!demand_flag)
+		error ("Directive .d missing before jmp_i instruction");
+
+	a_stack_size=demanded_a_stack_size;
+	b_stack_size=demanded_b_stack_size;
+	vector=demanded_vector;
+	
+	end_basic_block_with_registers (a_stack_size,b_stack_size,vector);
+
+	used_n_address_parameter_registers=a_stack_size;
+	if (used_n_address_parameter_registers>N_ADDRESS_PARAMETER_REGISTERS)
+		used_n_address_parameter_registers=N_ADDRESS_PARAMETER_REGISTERS;
+
+	i_move_id_r (0,num_to_a_reg (used_n_address_parameter_registers-1),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+
+# if (defined (G_A64) && defined (LINUX)) || defined (MACH_O64)
+	i_move_id_r (2+((n_apply_args-1)<<4),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+# else
+#  if defined (G_A64)
+	i_loadsqb_id_r (2+((n_apply_args-1)<<3),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+#  else
+	i_move_id_r (2+((n_apply_args-1)<<3),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+#  endif
+# endif
+
+	if (profile_function_label!=NULL && profile_flag!=PROFILE_NOT){
+		i_sub_i_r (28,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS)); 
+		i_jmp_r_profile (a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+	} else {
+		i_sub_i_r (20,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS)); 
+		i_jmp_r (a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+	}
+
+	profile_flag=PROFILE_NORMAL;
+	demand_flag=0;
+	
+	reachable=0;
+	
+	begin_new_basic_block();
+}
+#endif
+
 void code_jmp_true (char label_name[])
 {
 	INSTRUCTION_GRAPH graph_1,store_calculate_with_overflow_graph;
@@ -4783,6 +4831,61 @@ static void code_jsr_ap_ (int n_apply_args)
 		code_jsr_label (label);
 	}
 }
+
+#ifdef I486
+void code_jsr_i (int n_apply_args)
+{
+	INSTRUCTION_GRAPH graph;
+	int b_stack_size,n_data_parameter_registers,jsr_i_offset;
+	LABEL *label_2;
+
+	if (!demand_flag)
+		error ("Directive .d missing before jsr_i instruction");
+
+	offered_after_jsr=1;
+	demand_flag=0;
+
+	n_data_parameter_registers=parallel_flag ? N_DATA_PARAMETER_REGISTERS-1 : N_DATA_PARAMETER_REGISTERS;
+# ifdef MORE_PARAMETER_REGISTERS
+	if (demanded_a_stack_size<N_ADDRESS_PARAMETER_REGISTERS)
+		n_data_parameter_registers += N_ADDRESS_PARAMETER_REGISTERS-demanded_a_stack_size;
+# endif
+	graph=NULL;
+
+	b_stack_size=demanded_b_stack_size;
+
+# if defined (M68000) || defined (I486)
+	if (b_stack_size>n_data_parameter_registers || !mc68881_flag){
+		if (too_many_b_stack_parameters_for_registers (b_stack_size,n_data_parameter_registers)){
+			sprintf (eval_label_s,"e_%d",eval_label_number++);
+			label_2=enter_label (eval_label_s,LOCAL_LABEL);
+			graph=g_lea (label_2);
+		}
+	}
+# endif
+
+	insert_graph_in_b_stack (graph,b_stack_size,demanded_vector);
+
+	clear_bit (demanded_vector,b_stack_size);
+	++b_stack_size;
+
+# if (defined (G_A64) && defined (LINUX)) || defined (MACH_O64)
+	jsr_i_offset = 2+((n_apply_args-1)<<4);
+# else
+	jsr_i_offset = 2+((n_apply_args-1)<<3);
+#endif
+
+	if (profile_function_label!=NULL && profile_flag!=PROFILE_NOT)
+		jsr_i_offset|=1;
+
+	insert_basic_JSR_I_block (demanded_a_stack_size,b_stack_size,demanded_vector,jsr_i_offset);
+
+# if defined (M68000) || defined (I486) || defined (ARM)
+	if (graph!=NULL)
+		define_label_in_block (label_2);
+# endif
+}
+#endif
 
 static void code_jsr_label (LABEL *label)
 {
@@ -5386,7 +5489,6 @@ void code_mulR (VOID)
 #endif
 }
 
-#ifdef NEW_APPLY
 void code_a (int n_apply_args,char *ea_label_name)
 {
 	LABEL *label;
@@ -5400,7 +5502,33 @@ void code_a (int n_apply_args,char *ea_label_name)
 		add_empty_node_labels[n_apply_args]=enter_label (add_empty_node_label_name,IMPORT_LABEL);
 	}
 }
+
+void code_ai (int n_apply_args,char *ea_label_name,char *instance_member_code_name)
+{
+	LABEL *label;
+	char add_empty_node_label_name[32];
+
+#ifdef I486
+	last_block->block_n_node_arguments=-200+n_apply_args;
+	if (ea_label_name[0]=='_' && ea_label_name[1]=='_' && ea_label_name[2]=='\0')
+		last_block->block_ea_label=NULL;
+	else
+		last_block->block_ea_label=enter_label (ea_label_name,0);
+	last_block->block_descriptor=enter_label (instance_member_code_name,0);
+#else
+	/* not yet implemented, do the same as code_a, ignore if no ea_label */
+	if (ea_label_name[0]=='_' && ea_label_name[1]=='_' && ea_label_name[2]=='\0')
+		return;
+
+	last_block->block_n_node_arguments=-200+n_apply_args;
+	last_block->block_ea_label=enter_label (ea_label_name,0);
 #endif
+	
+	if (n_apply_args>0 && add_empty_node_labels[n_apply_args]==NULL){
+		sprintf (add_empty_node_label_name,"add_empty_node_%d",n_apply_args);
+		add_empty_node_labels[n_apply_args]=enter_label (add_empty_node_label_name,IMPORT_LABEL);
+	}
+}
 
 void code_n (int number_of_arguments,char *descriptor_name,char *ea_label_name)
 {

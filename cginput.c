@@ -1697,7 +1697,6 @@ static int parse_directive (InstructionP instruction)
 	return 1;
 }
 
-#ifdef NEW_APPLY
 static int parse_directive_a (InstructionP instruction)
 {
 	LONG n;
@@ -1711,7 +1710,21 @@ static int parse_directive_a (InstructionP instruction)
 
 	return 1;
 }
-#endif
+
+static int parse_directive_ai (InstructionP instruction)
+{
+	LONG n;
+	STRING s1,s2;
+
+	if (!parse_integer (&n))
+		return 0;
+	
+	parse_label (s1);
+	parse_label (s2);
+	instruction->instruction_code_function ((int)n,s1,s2);
+
+	return 1;
+}
 
 static int parse_directive_n (InstructionP instruction)
 {
@@ -2423,6 +2436,9 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("jmp",			parse_instruction_a,		code_jmp );
 	put_instruction_name ("jmp_ap",			parse_instruction_n,		code_jmp_ap );
 	put_instruction_name ("jmp_ap_upd",		parse_instruction_n,		code_jmp_ap_upd );
+#ifdef I486
+	put_instruction_name ("jmp_i",			parse_instruction_n,		code_jmp_i );
+#endif
 	put_instruction_name ("jmp_upd",		parse_instruction_a,		code_jmp_upd );
 	put_instruction_name ("jmp_eval",		parse_instruction,			code_jmp_eval );
 	put_instruction_name ("jmp_eval_upd",	parse_instruction,			code_jmp_eval_upd );
@@ -2433,6 +2449,9 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("jsr",			parse_instruction_a,		code_jsr );
 	put_instruction_name ("jsr_ap",			parse_instruction_n,		code_jsr_ap );
 	put_instruction_name ("jsr_eval",		parse_instruction_n,		code_jsr_eval );
+#ifdef I486
+	put_instruction_name ("jsr_i",			parse_instruction_n,		code_jsr_i );
+#endif
 	put_instruction_name ("lnR",			parse_instruction,			code_lnR );
 	put_instruction_name ("load_i",			parse_instruction_i,		code_load_i );
 	put_instruction_name ("load_si16",		parse_instruction_i,		code_load_si16 );
@@ -2592,9 +2611,8 @@ static void put_instructions_in_table2 (void)
 	put_instruction_name (".caf",			parse_instruction_a_n_n,	code_caf );
 	put_instruction_name (".code",			parse_directive_n_n_n,		code_dummy	);
 	put_instruction_name (".comp",			parse_directive_n_l,		code_comp	);
-#ifdef NEW_APPLY
 	put_instruction_name (".a",				parse_directive_a,			code_a );
-#endif
+	put_instruction_name (".ai",			parse_directive_ai,			code_ai );
 	put_instruction_name (".d",				parse_directive_n_n_t,		code_d );
 	put_instruction_name (".depend",		parse_directive_depend,		code_depend );
 	put_instruction_name (".desc",			parse_directive_desc,		code_desc );

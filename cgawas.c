@@ -4167,10 +4167,45 @@ extern LABEL *add_empty_node_labels[];
 
 static void w_as_apply_update_entry (struct basic_block *block)
 {
+	int n_node_arguments;
+		
+	n_node_arguments=block->block_n_node_arguments;
+	if (n_node_arguments<-200){
+		w_as_opcode ("jmp");
+		w_as_label (block->block_descriptor->label_name);
+		w_as_newline();
+
+		w_as_instruction_without_parameters ("nop");
+		w_as_instruction_without_parameters ("nop");
+		w_as_instruction_without_parameters ("nop");
+
+		if (block->block_ea_label==NULL){
+			if (block->block_profile)
+				w_as_profile_call (block);
+
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+			w_as_instruction_without_parameters ("nop");
+			return;
+		}
+
+		n_node_arguments+=300;
+	} else
+		n_node_arguments+=200;
+
 	if (block->block_profile)
 		w_as_profile_call (block);
-	
-	if (block->block_n_node_arguments==-200){
+
+	if (n_node_arguments==0){
 		w_as_opcode ("jmp");
 		w_as_label (block->block_ea_label->label_name);
 		w_as_newline();
@@ -4186,7 +4221,7 @@ static void w_as_apply_update_entry (struct basic_block *block)
 			att_syntax();
 #endif
 		w_as_opcode ("call");
-		w_as_label (add_empty_node_labels[block->block_n_node_arguments+200]->label_name);
+		w_as_label (add_empty_node_labels[n_node_arguments]->label_name);
 		w_as_newline();
 
 		w_as_opcode ("jmp");

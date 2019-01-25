@@ -144,6 +144,9 @@ void code_ItoR (VOID);
 void code_jmp (char label_name[]);
 void code_jmp_ap (int n_args);
 void code_jmp_ap_upd (int n_args);
+#ifdef I486
+void code_jmp_i (int n_args);
+#endif
 void code_jmp_not_eqZ (char *integer_string,int integer_string_length,char label_name[]);
 void code_jmp_upd (char label_name[]);
 void code_jmp_eval (VOID);
@@ -154,6 +157,9 @@ void code_jrsr (char label_name[]);
 void code_jsr (char label_name[]);
 void code_jsr_ap (int n_args);
 void code_jsr_eval (int a_offset);
+#ifdef I486
+void code_jsr_i (int n_args);
+#endif
 void code_lnR (VOID);
 void code_load_i (CleanInt offset);
 void code_load_si16 (CleanInt offset);
@@ -304,9 +310,8 @@ void code_updatepop_b (int b_offset_1,int b_offset_2);
 void code_updateS (int source_offset,int destination_offset);
 void code_xor (VOID);
 
-#ifdef NEW_APPLY
 void code_a (int number_of_arguments,char *ea_label_name);
-#endif
+void code_ai (int n_apply_args,char *ea_label_name,char *instance_member_code_name);
 void code_caf (char *label_name,int a_size,int b_size);
 void code_comp (int version,char *options);
 void code_d (int da,int db,ULONG vector[]);

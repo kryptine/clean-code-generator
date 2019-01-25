@@ -3922,6 +3922,9 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 	
 	end_b_stack_size=block_graph->block_graph_end_b_stack_size;
 	if (block_graph->block_graph_kind==JSR_BLOCK
+#ifdef I486
+		|| block_graph->block_graph_kind==JSR_I_BLOCK
+#endif
 #ifdef G_POWER
 		|| block_graph->block_graph_kind==JSR_BLOCK_WITH_INSTRUCTIONS
 #endif	
@@ -4182,6 +4185,79 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 #endif
 			break;
 		}
+#ifdef I486
+		case JSR_I_BLOCK:
+		{
+			int b_offset,n_a_registers;
+			
+			b_offset=local_register_allocation_and_adjust_a_stack_pointer
+				(end_b_stack_size==global_block.block_graph_b_stack_end_displacement ? STACK_ELEMENT_SIZE : 0);
+
+			if (b_offset!=0)
+				if (b_offset<0)
+					i_sub_i_r (-b_offset,B_STACK_POINTER);
+				else
+					i_add_i_r (b_offset,B_STACK_POINTER);
+
+			n_a_registers=block_graph->block_graph_end_a_stack_size;
+			if (n_a_registers>N_ADDRESS_PARAMETER_REGISTERS)
+				n_a_registers=N_ADDRESS_PARAMETER_REGISTERS;
+
+			i_move_id_r (0,num_to_a_reg (n_a_registers-1),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+
+#  if defined (G_A64) && !defined (LINUX) && !defined (MACH_O64)
+			i_loadsqb_id_r (block_graph->block_graph_jsr_eval_offset & -2,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+#  else
+			i_move_id_r (block_graph->block_graph_jsr_eval_offset & -2,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+#  endif
+			if (block_graph->block_graph_jsr_eval_offset & 1)
+				i_sub_i_r (28,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));	/* if profiling */
+			else
+				i_sub_i_r (20,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS)); 
+
+			if (end_b_stack_size!=global_block.block_graph_b_stack_end_displacement)
+				i_jmp_r (a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+			else
+				i_jsr_r (a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+
+			if (block_check){
+# ifdef SEPARATE_A_AND_B_STACK_OVERFLOW_CHECKS
+				int a_stack_change,b_stack_change;
+				
+				a_stack_change=
+					(next_block_graph->block_graph_begin_a_stack_size+
+					 next_block_graph->block_graph_a_stack_begin_displacement)-
+					(block_graph->block_graph_end_a_stack_size-
+					 block_graph->block_graph_a_stack_end_displacement);
+				b_stack_change=
+					(next_block_graph->block_graph_begin_b_stack_size+
+					 next_block_graph->block_graph_b_stack_begin_displacement)-
+					(block_graph->block_graph_end_b_stack_size-
+					 block_graph->block_graph_b_stack_end_displacement);
+				block_a_stack_displacement+=a_stack_change<<STACK_ELEMENT_LOG_SIZE;
+				block_b_stack_displacement+=b_stack_change<<STACK_ELEMENT_LOG_SIZE;
+				block_graph->block_graph_a_stack_displacement+=a_stack_change<<STACK_ELEMENT_LOG_SIZE;
+				block_graph->block_graph_b_stack_displacement+=b_stack_change<<STACK_ELEMENT_LOG_SIZE;
+# else
+				int stack_change;
+				
+				stack_change=
+					(next_block_graph->block_graph_begin_a_stack_size+
+					 next_block_graph->block_graph_a_stack_begin_displacement)-
+					(block_graph->block_graph_end_a_stack_size-
+					 block_graph->block_graph_a_stack_end_displacement)+
+					(next_block_graph->block_graph_begin_b_stack_size+
+					 next_block_graph->block_graph_b_stack_begin_displacement)-
+					(block_graph->block_graph_end_b_stack_size-
+					 block_graph->block_graph_b_stack_end_displacement);
+				block_stack_displacement+=stack_change<<STACK_ELEMENT_LOG_SIZE;
+				block_graph->block_graph_stack_displacement+=stack_change<<STACK_ELEMENT_LOG_SIZE;
+# endif
+			}
+
+			break;
+		}
+#endif
 		default:
 			internal_error_in_function ("generate_code_for_basic_block");
 	}
@@ -4652,6 +4728,15 @@ void insert_basic_block_with_extra_parameters_on_stack (int block_graph_kind,int
 	last_block_graph->block_graph_used_a_stack_elements+=extra_a_stack_size;
 	last_block_graph->block_graph_used_b_stack_elements+=extra_b_stack_size;
 }
+
+#ifdef I486
+void insert_basic_JSR_I_block (int a_stack_size,int b_stack_size,ULONG *vector_p,int offset)
+{
+	insert_basic_block (JSR_I_BLOCK,a_stack_size,b_stack_size,vector_p,NULL);
+
+	last_block_graph->block_graph_jsr_eval_offset=offset;
+}
+#endif
 
 void initialize_stacks (VOID)
 {

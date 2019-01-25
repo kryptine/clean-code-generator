@@ -36,7 +36,9 @@ extern void begin_new_basic_block (VOID);
 extern void insert_basic_block	(int block_graph_kind,int a_stack_size,int b_stack_size,ULONG *vector_p,LABEL *label);
 extern void insert_basic_block_with_extra_parameters_on_stack (int block_graph_kind,int a_stack_size,int b_stack_size,
 											ULONG *vector_p,int extra_a_stack_size,int extra_b_stack_size,LABEL *label);
-
+#ifdef I486
+void insert_basic_JSR_I_block (int a_stack_size,int b_stack_size,ULONG *vector_p,int offset);
+#endif
 extern void adjust_stack_pointers (VOID);
 extern void end_basic_block_with_registers (int n_a_parameters,int n_b_parameters,ULONG vector[]);
 #if defined (I486) || defined (ARM)

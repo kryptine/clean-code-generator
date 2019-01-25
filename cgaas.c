@@ -5209,14 +5209,48 @@ extern LABEL *add_empty_node_labels[];
 
 static void as_apply_update_entry (struct basic_block *block)
 {
+	int n_node_arguments;
+
 #if defined (OPTIMISE_BRANCHES) && !defined (FUNCTION_LEVEL_LINKING)
 	align_4();
 #endif
 
+	n_node_arguments=block->block_n_node_arguments;
+	if (n_node_arguments<-200){
+		store_c (0351); /* jmp */
+		store_l (0);
+		as_branch_label (block->block_descriptor,JUMP_RELOCATION);
+		store_c (0x90);
+		store_c (0x90);
+		store_c (0x90);
+
+		if (block->block_ea_label==NULL){
+			if (block->block_profile)
+				as_profile_call (block);
+
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			store_c (0x90);
+			return;
+		}
+		
+		n_node_arguments+=300;
+	} else
+		n_node_arguments+=200;
+
 	if (block->block_profile)
 		as_profile_call (block);
 
-	if (block->block_n_node_arguments==-200){
+	if (n_node_arguments==0){
 		store_c (0351); /* jmp */
 		store_l (0);
 		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
@@ -5234,7 +5268,7 @@ static void as_apply_update_entry (struct basic_block *block)
 			store_c (0xff); /* call */
 			store_c (0x15);
 			store_l (0);
-			store_pc_rel_got_label_in_code_section (add_empty_node_labels[block->block_n_node_arguments+200]);
+			store_pc_rel_got_label_in_code_section (add_empty_node_labels[n_node_arguments]);
 
 			store_c (0351); /* jmp */
 			store_l (0);
@@ -5244,7 +5278,7 @@ static void as_apply_update_entry (struct basic_block *block)
 		{
 		store_c (0350); /* call */
 		store_l (0);
-		as_branch_label (add_empty_node_labels[block->block_n_node_arguments+200],CALL_RELOCATION);
+		as_branch_label (add_empty_node_labels[n_node_arguments],CALL_RELOCATION);
 
 		store_c (0351); /* jmp */
 		store_l (0);

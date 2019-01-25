@@ -49,6 +49,9 @@ enum {
 
 enum {
 	JSR_BLOCK,			JSR_EVAL_BLOCK,		APPLY_BLOCK
+#ifdef I486
+	,JSR_I_BLOCK
+#endif
 #ifdef G_POWER
 	,JSR_BLOCK_WITH_INSTRUCTIONS
 #endif
