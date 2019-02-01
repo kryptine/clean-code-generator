@@ -5520,7 +5520,7 @@ void code_ai (int n_apply_args,char *ea_label_name,char *instance_member_code_na
 	if (ea_label_name[0]=='_' && ea_label_name[1]=='_' && ea_label_name[2]=='\0')
 		return;
 
-	last_block->block_n_node_arguments=-300+n_apply_args;
+	last_block->block_n_node_arguments=-200+n_apply_args;
 	last_block->block_ea_label=enter_label (ea_label_name,0);
 #endif
 	
