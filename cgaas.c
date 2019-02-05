@@ -218,16 +218,17 @@ static void write_q (int c)
 #define SHORT_JUMP_RELOCATION 5
 #define NEW_SHORT_BRANCH_RELOCATION 6
 #define NEW_SHORT_JUMP_RELOCATION 7
-#define ALIGN_RELOCATION 8
-#define DUMMY_BRANCH_RELOCATION 9
-#define PC_RELATIVE_LONG_WORD_RELOCATION 10
-#define BRANCH_SKIP_BRANCH_RELOCATION 11
+#define LONG_JUMP_RELOCATION 8 /* JUMP_RELOCATION that cannot be optimised to a SHORT_JUMP_RELOCATION */
+#define ALIGN_RELOCATION 9
+#define DUMMY_BRANCH_RELOCATION 10
+#define PC_RELATIVE_LONG_WORD_RELOCATION 11
+#define BRANCH_SKIP_BRANCH_RELOCATION 12
 #if defined (MACH_O64) || defined (LINUX)
-# define WORD64_RELOCATION 12
+# define WORD64_RELOCATION 13
 #endif
 #ifdef LINUX
-# define GOT_PC_RELATIVE_RELOCATION 13
-# define PLT_PC_RELATIVE_RELOCATION 14
+# define GOT_PC_RELATIVE_RELOCATION 14
+# define PLT_PC_RELATIVE_RELOCATION 15
 #endif
 
 struct relocation {
@@ -5219,7 +5220,7 @@ static void as_apply_update_entry (struct basic_block *block)
 	if (n_node_arguments<-200){
 		store_c (0351); /* jmp */
 		store_l (0);
-		as_branch_label (block->block_descriptor,JUMP_RELOCATION);
+		as_branch_label (block->block_descriptor,LONG_JUMP_RELOCATION);
 		store_c (0x90);
 		store_c (0x90);
 		store_c (0x90);
@@ -5253,7 +5254,7 @@ static void as_apply_update_entry (struct basic_block *block)
 	if (n_node_arguments==0){
 		store_c (0351); /* jmp */
 		store_l (0);
-		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
+		as_branch_label (block->block_ea_label,LONG_JUMP_RELOCATION);
 
 		store_c (0x90);
 		store_c (0x90);
@@ -5272,7 +5273,7 @@ static void as_apply_update_entry (struct basic_block *block)
 
 			store_c (0351); /* jmp */
 			store_l (0);
-			as_branch_label (block->block_ea_label,JUMP_RELOCATION);
+			as_branch_label (block->block_ea_label,LONG_JUMP_RELOCATION);
 		} else
 #endif
 		{
@@ -5282,7 +5283,7 @@ static void as_apply_update_entry (struct basic_block *block)
 
 		store_c (0351); /* jmp */
 		store_l (0);
-		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
+		as_branch_label (block->block_ea_label,LONG_JUMP_RELOCATION);
 
 		store_c (0x90);
 		}
@@ -6617,6 +6618,7 @@ static int search_short_branches (void)
 				
 				break;
 			case CALL_RELOCATION:
+			case LONG_JUMP_RELOCATION:
 			case LONG_WORD_RELOCATION:
 			case PC_RELATIVE_LONG_WORD_RELOCATION:
 #ifdef FUNCTION_LEVEL_LINKING
@@ -6872,6 +6874,7 @@ static void relocate_short_branches_and_move_code (void)
 			case CALL_RELOCATION:
 			case BRANCH_RELOCATION:
 			case JUMP_RELOCATION:
+			case LONG_JUMP_RELOCATION:
 			case LONG_WORD_RELOCATION:
 			case PC_RELATIVE_LONG_WORD_RELOCATION:
 #ifdef FUNCTION_LEVEL_LINKING
@@ -7200,6 +7203,7 @@ static void relocate_code (void)
 			case CALL_RELOCATION:
 			case BRANCH_RELOCATION:
 			case JUMP_RELOCATION:
+			case LONG_JUMP_RELOCATION:
 				label=relocation->relocation_label;
 				if (label->label_id==TEXT_LABEL_ID){
 					instruction_offset=relocation->relocation_offset;
@@ -7959,6 +7963,7 @@ static void write_code_relocations (void)
 			case CALL_RELOCATION:
 			case BRANCH_RELOCATION:
 			case JUMP_RELOCATION:
+			case LONG_JUMP_RELOCATION:
 			{
 				struct label *label;
 		
