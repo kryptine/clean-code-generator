@@ -181,8 +181,9 @@ static void write_l (int c)
 #define SHORT_JUMP_RELOCATION 5
 #define NEW_SHORT_BRANCH_RELOCATION 6
 #define NEW_SHORT_JUMP_RELOCATION 7
-#define ALIGN_RELOCATION 8
-#define DUMMY_BRANCH_RELOCATION 9
+#define LONG_JUMP_RELOCATION 8 /* JUMP_RELOCATION that cannot be optimised to a SHORT_JUMP_RELOCATION */
+#define ALIGN_RELOCATION 9
+#define DUMMY_BRANCH_RELOCATION 10
 
 struct relocation {
 	struct relocation *		next;
@@ -281,6 +282,7 @@ static struct relocation *write_fixups (struct relocation *relocation,unsigned i
 			case CALL_RELOCATION:
 			case BRANCH_RELOCATION:
 			case JUMP_RELOCATION:
+			case LONG_JUMP_RELOCATION:
 				if (label_id<2 || local_offset>=1024)
 					internal_error_in_function ("write_fixups");
 
@@ -5924,7 +5926,7 @@ static void as_apply_update_entry (struct basic_block *block)
 	if (n_node_arguments<-200){
 		store_c (0351); /* jmp */
 		store_l (0);
-		as_branch_label (block->block_descriptor,JUMP_RELOCATION);
+		as_branch_label (block->block_descriptor,LONG_JUMP_RELOCATION);
 		store_c (0x90);
 		store_c (0x90);
 		store_c (0x90);
@@ -5961,7 +5963,7 @@ static void as_apply_update_entry (struct basic_block *block)
 	if (n_node_arguments==0){
 		store_c (0351); /* jmp */
 		store_l (0);
-		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
+		as_branch_label (block->block_ea_label,LONG_JUMP_RELOCATION);
 
 		store_c (0x90);
 		store_c (0x90);
@@ -5975,7 +5977,7 @@ static void as_apply_update_entry (struct basic_block *block)
 
 		store_c (0351); /* jmp */
 		store_l (0);
-		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
+		as_branch_label (block->block_ea_label,LONG_JUMP_RELOCATION);
 	}
 	
 	if (!block->block_profile){
@@ -7077,6 +7079,7 @@ static int search_short_branches (void)
 				
 				break;
 			case CALL_RELOCATION:
+			case LONG_JUMP_RELOCATION:
 			case LONG_WORD_RELOCATION:
 #ifdef FUNCTION_LEVEL_LINKING
 			case DUMMY_BRANCH_RELOCATION:
@@ -7115,7 +7118,7 @@ static struct relocation *calculate_new_label_offset
 #endif
 						)))
 				break;
-					
+		
 		switch (relocation->relocation_kind){
 			case NEW_SHORT_BRANCH_RELOCATION:
 				*new_offset_difference_p+=4;
@@ -7303,6 +7306,7 @@ static void relocate_short_branches_and_move_code (void)
 			case CALL_RELOCATION:
 			case BRANCH_RELOCATION:
 			case JUMP_RELOCATION:
+			case LONG_JUMP_RELOCATION:
 			case LONG_WORD_RELOCATION:
 #ifdef FUNCTION_LEVEL_LINKING
 			case DUMMY_BRANCH_RELOCATION:
@@ -7599,6 +7603,7 @@ static void relocate_code (void)
 			case CALL_RELOCATION:
 			case BRANCH_RELOCATION:
 			case JUMP_RELOCATION:
+			case LONG_JUMP_RELOCATION:
 				label=relocation->relocation_label;
 				if (label->label_id==TEXT_LABEL_ID){
 					instruction_offset=relocation->relocation_offset;
@@ -8124,6 +8129,7 @@ static void write_code_relocations (void)
 			case CALL_RELOCATION:
 			case BRANCH_RELOCATION:
 			case JUMP_RELOCATION:
+			case LONG_JUMP_RELOCATION:
 			{
 				struct label *label;
 		
