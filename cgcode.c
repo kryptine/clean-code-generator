@@ -3975,6 +3975,20 @@ void code_get_desc_arity (int a_offset)
 	s_push_b (graph_7);
 }
 
+void code_get_desc_arity_offset (void)
+{
+	INSTRUCTION_GRAPH graph_1;
+
+# ifdef MACH_O64
+	graph_1=g_load_i (1<<4);
+# elif defined (G_A64) && defined (LINUX)
+	graph_1=g_load_i (1<<(pic_flag ? 4 : 3));
+# else
+	graph_1=g_load_i (1<<(3));
+# endif
+	s_push_b (graph_1);
+}
+
 void code_get_desc0_number (void)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;

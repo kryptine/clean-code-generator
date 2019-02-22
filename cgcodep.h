@@ -124,6 +124,7 @@ void code_fill_a (int from_offset,int to_offset);
 void code_floordivI (VOID);
 #endif
 void code_get_desc_arity (int a_offset);
+void code_get_desc_arity_offset (void);
 void code_get_node_arity (int a_offset);
 void code_get_desc0_number (void);
 void code_get_desc_flags_b (void);

@@ -2412,6 +2412,7 @@ static void put_instructions_in_table (void)
 #endif
 	put_instruction_name ("getWL",			parse_instruction_n,		code_dummy );
 	put_instruction_name ("get_desc_arity",	parse_instruction_n,		code_get_desc_arity );
+	put_instruction_name ("get_desc_arity_offset",	parse_instruction,	code_get_desc_arity_offset );
 	put_instruction_name ("get_desc_flags_b",	parse_instruction,		code_get_desc_flags_b );	
 	put_instruction_name ("get_desc0_number",	parse_instruction,		code_get_desc0_number );
 	put_instruction_name ("get_node_arity",	parse_instruction_n,		code_get_node_arity );
