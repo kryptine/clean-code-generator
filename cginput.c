@@ -2416,7 +2416,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("get_desc_flags_b",	parse_instruction,		code_get_desc_flags_b );	
 	put_instruction_name ("get_desc0_number",	parse_instruction,		code_get_desc0_number );
 	put_instruction_name ("get_node_arity",	parse_instruction_n,		code_get_node_arity );
-	put_instruction_name ("code_get_thunk_desc",	parse_instruction,	code_get_thunk_desc );
+	put_instruction_name ("get_thunk_desc",	parse_instruction,			code_get_thunk_desc );
 	put_instruction_name ("gtC",			parse_instruction,			code_gtC );
 	put_instruction_name ("gtI",			parse_instruction,			code_gtI );
 	put_instruction_name ("gtR",			parse_instruction,			code_gtR );
