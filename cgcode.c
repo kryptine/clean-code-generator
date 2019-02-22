@@ -4019,6 +4019,28 @@ void code_get_desc_flags_b (void)
 	s_push_b (graph_2);
 }
 
+void code_get_thunk_desc (void)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+
+	graph_1=s_pop_b ();
+
+#ifdef G_A64
+	graph_2=g_load_sqb_id (-8,graph_1);
+#else
+	graph_2=g_load_id (-8,graph_1);	
+#endif
+
+#if (defined (LINUX) && defined (G_AI64)) || defined (ARM)
+#  ifndef MACH_O64
+	if (pic_flag)
+#  endif
+	graph_2 = g_add (g_add (g_load_i (-8),graph_1),graph_2);
+#endif
+
+	s_push_b (graph_2);
+}
+
 void code_gtC (VOID)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
