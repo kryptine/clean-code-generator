@@ -2456,6 +2456,7 @@ static void put_instructions_in_table (void)
 #endif
 	put_instruction_name ("lnR",			parse_instruction,			code_lnR );
 	put_instruction_name ("load_i",			parse_instruction_i,		code_load_i );
+	put_instruction_name ("load_module_name",	parse_instruction,		code_load_module_name );
 	put_instruction_name ("load_si16",		parse_instruction_i,		code_load_si16 );
 #ifdef G_AI64
 	put_instruction_name ("load_si32",		parse_instruction_i,		code_load_si32 );

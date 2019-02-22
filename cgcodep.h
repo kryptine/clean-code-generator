@@ -164,6 +164,7 @@ void code_jsr_i (int n_args);
 #endif
 void code_lnR (VOID);
 void code_load_i (CleanInt offset);
+void code_load_module_name (void);
 void code_load_si16 (CleanInt offset);
 #ifdef G_AI64
 void code_load_si32 (CleanInt offset);

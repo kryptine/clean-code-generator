@@ -5111,6 +5111,28 @@ void code_lnR (VOID)
 	init_b_stack (SIZE_OF_REAL_IN_STACK_ELEMENTS,r_vector);
 }
 
+void code_load_module_name (void)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+
+	graph_1=s_pop_b ();
+
+#ifdef G_A64
+	graph_2=g_load_sqb_id (0,graph_1);
+#else
+	graph_2=g_load_id (0,graph_1);
+#endif
+
+#if (defined (LINUX) && defined (G_AI64)) || defined (ARM)
+#  ifndef MACH_O64
+	if (pic_flag)
+#  endif
+	graph_2 = g_add (graph_1,graph_2);
+#endif
+
+	s_push_b (graph_2);
+}
+
 void code_log10R (VOID)
 {
 #ifdef M68000
