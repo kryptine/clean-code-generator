@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #if defined (LINUX) && defined (G_AI64)
 # include <stdint.h>
 #elif defined (__GNUC__) && defined (__SIZEOF_POINTER__)

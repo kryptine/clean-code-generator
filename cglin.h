@@ -24,6 +24,9 @@ void i_jmp_id (int offset_1,int register_1,int n_a_registers);
 #else
 	void i_jsr_l_id (LABEL *label,int offset);
 #endif
+#ifdef I486
+	void i_jsr_r (int register_1);
+#endif
 #if ! (defined (sparc) || defined (G_POWER))
 	void i_rts (void);
 # if defined (I486) || defined (ARM)
@@ -69,7 +72,7 @@ void i_beq_l (LABEL *label);
 	extern LONG *i_bmi_i (VOID);
 	void i_bmi_l (LABEL *label);
 #endif
-#if defined (G_POWER) || defined (ARM)
+#if defined (G_POWER) || defined (ARM) || defined (G_AI64)
 	void i_and_i_r (LONG value,int register_1);
 #endif
 #ifdef THUMB
@@ -90,6 +93,12 @@ void i_beq_l (LABEL *label);
 #endif
 #if defined (sparc) || defined (I486) || defined (ARM) || defined (G_POWER)
 	void i_btst_i_r (LONG i,int register_1);
+#endif
+#if defined (I486) || defined (ARM)
+	void i_btst_i_id (LONG i,int offset,int register_1);
+#endif
+#ifdef G_AI64
+	void i_exg_r_r (int register_1,int register_2);
 #endif
 void i_ext_r (int register_1);
 #ifdef G_AI64
