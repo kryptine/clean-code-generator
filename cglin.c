@@ -8826,8 +8826,8 @@ static void linearize_store_x_operator (int i_instruction_code,INSTRUCTION_GRAPH
 			linearize_graph (graph_1,&ad_1);
 			linearize_graph (graph_2,ad_p);
 		} else {
-			linearize_graph (graph_1,&ad_1);
 			linearize_graph (graph_2,ad_p);
+			linearize_graph (graph_1,&ad_1);
 		}
 	} else {
 		switch (graph->order_left){
