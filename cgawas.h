@@ -18,6 +18,7 @@ void w_as_internal_label_value_offset (int label_id);
 #endif
 void w_as_new_module (int flag);
 void w_as_long_in_data_section (int n);
+void w_as_word64_in_data_section (int_64 n);
 void w_as_to_data_section (void);
 void w_as_descriptor_in_code_section (char *label_name);
 void w_as_define_data_label (int label_number);
@@ -29,6 +30,6 @@ void w_as_abc_string_in_data_section (char *string,int length);
 void w_as_descriptor_string_in_data_section (char *string,int length,int string_label_id,LABEL *string_label);
 void w_as_abc_string_and_label_in_data_section (char *string,int length,char *label_name);
 void w_as_c_string_and_label_in_code_section (char *string,int length,char *label_name);
-#ifdef _WINDOWS_
+#if defined(_WINDOWS_) || defined(LINUX)
 void w_as_new_data_module (void);
 #endif

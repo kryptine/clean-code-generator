@@ -4,6 +4,7 @@ void initialize_assembler (FILE *file);
 void define_local_label (int id,int flag);
 void define_external_label (int id,int flag,char label_name[]);
 void store_word_in_data_section (UWORD i);
+void store_word64_in_data_section (int_64 c);
 void store_long_word_in_data_section (ULONG i);
 void define_data_label (LABEL *label);
 #ifdef LINUX
@@ -25,7 +26,7 @@ void store_label_offset_in_code_section (int label_id);
 void start_new_module (int flag);
 void store_descriptor_string_in_data_section (char *string,int length,LABEL *string_label);
 void store_2_words_in_data_section (UWORD w1,UWORD w2);
-#ifdef _WINDOWS_
+#if defined (_WINDOWS_) || defined (LINUX)
 void as_new_data_module (void);
 #endif
 #ifdef G_MACH_O64
