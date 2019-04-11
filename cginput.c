@@ -678,11 +678,11 @@ static int parse_hex_real (DOUBLE *real_p)
 			i2 += 2;
 		i2 &= -2;
 	} else if (i1<0x8000000){
-		if ((i2 & 2)>2 || ((i2 & 2)==2 && !(extra_non_zero_char==0 && (i2 & 4)==0)))
+		if ((i2 & 3)>2 || ((i2 & 3)==2 && !(extra_non_zero_char==0 && (i2 & 4)==0)))
 			i2 += 4;
 		i2 &= -4;
 	} else {
-		if ((i2 & 4)>4 || ((i2 & 4)==4 && !(extra_non_zero_char==0 && (i2 & 8)==0)))
+		if ((i2 & 7)>4 || ((i2 & 7)==4 && !(extra_non_zero_char==0 && (i2 & 8)==0)))
 			i2 += 8;
 		i2 &= -8;
 	}
