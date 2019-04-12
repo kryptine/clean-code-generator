@@ -3657,10 +3657,10 @@ static void as_divdu_instruction (struct instruction *instruction)
 				as_r (0367,0060,reg_1); /* div */
 				as_3move_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
 			}
-		} else if (reg_2==REGISTER_A1){
-			as_3move_registers (reg_3,REGISTER_A1,REGISTER_D0,REGISTER_O0);
+		} else if (reg_3==REGISTER_A1){
+			as_3move_registers (reg_2,REGISTER_A1,REGISTER_D0,REGISTER_O0);
 			as_r (0367,0060,reg_1); /* div */
-			as_3move_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_3);
+			as_3move_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_2);
 		} else {
 			as_xchg_d0_rn (reg_num (reg_3)); /* xchg reg_3,D0 */
 			as_2move_registers (reg_2,REGISTER_A1,REGISTER_O0);

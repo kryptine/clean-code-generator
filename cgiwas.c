@@ -3142,10 +3142,10 @@ static void w_as_divdu_instruction (struct instruction *instruction)
 				w_as_opcode_register_newline ("div",reg_1);
 				w_as_3movl_registers (REGISTER_O0,REGISTER_A1,REGISTER_D0,reg_3);
 			}
-		} else if (reg_2==REGISTER_A1){
-			w_as_3movl_registers (reg_3,REGISTER_A1,REGISTER_D0,REGISTER_O0);
+		} else if (reg_3==REGISTER_A1){
+			w_as_3movl_registers (reg_2,REGISTER_A1,REGISTER_D0,REGISTER_O0);
 			w_as_opcode_register_newline ("div",reg_1);
-			w_as_3movl_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_3);
+			w_as_3movl_registers (REGISTER_O0,REGISTER_D0,REGISTER_A1,reg_2);
 		} else {
 			w_as_opcode_register_register_newline ("xchg",reg_3,REGISTER_D0);
 			w_as_2movl_registers (reg_2,REGISTER_A1,REGISTER_O0);
