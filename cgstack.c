@@ -4205,11 +4205,18 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 
 			i_move_id_r (0,num_to_a_reg (n_a_registers-1),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 
+# if defined (G_A64) && defined (LINUX)
+			if (pic_flag)
+				i_move_id_r (block_graph->block_graph_jsr_eval_offset & -2,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+			else
+				i_loadsqb_id_r (block_graph->block_graph_jsr_eval_offset & -2,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+# else
 #  if defined (G_A64) && !defined (LINUX) && !defined (MACH_O64)
 			i_loadsqb_id_r (block_graph->block_graph_jsr_eval_offset & -2,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 #  else
 			i_move_id_r (block_graph->block_graph_jsr_eval_offset & -2,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 #  endif
+# endif
 			if (block_graph->block_graph_jsr_eval_offset & 1)
 				i_sub_i_r (28,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));	/* if profiling */
 			else
