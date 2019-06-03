@@ -4710,8 +4710,13 @@ void code_jmp_i (int n_apply_args)
 
 	i_move_id_r (0,num_to_a_reg (used_n_address_parameter_registers-1),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 
-# if (defined (G_A64) && defined (LINUX)) || defined (MACH_O64)
+# ifdef MACH_O64
 	i_move_id_r (2+((n_apply_args-1)<<4),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+# elif defined (G_A64) && defined (LINUX)
+	if (pic_flag)
+		i_move_id_r (2+((n_apply_args-1)<<4),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+	else
+		i_loadsqb_id_r (2+((n_apply_args-1)<<3),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 # else
 #  if defined (G_A64)
 	i_loadsqb_id_r (2+((n_apply_args-1)<<3),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
@@ -4905,11 +4910,13 @@ void code_jsr_i (int n_apply_args)
 	clear_bit (demanded_vector,b_stack_size);
 	++b_stack_size;
 
-# if (defined (G_A64) && defined (LINUX)) || defined (MACH_O64)
+# ifdef MACH_O64
 	jsr_i_offset = 2+((n_apply_args-1)<<4);
+# elif defined (G_A64) && defined (LINUX)
+	jsr_i_offset = 2+(pic_flag ? ((n_apply_args-1)<<4) : ((n_apply_args-1)<<3));
 # else
 	jsr_i_offset = 2+((n_apply_args-1)<<3);
-#endif
+# endif
 
 	if (profile_function_label!=NULL && profile_flag!=PROFILE_NOT)
 		jsr_i_offset|=1;
