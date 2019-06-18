@@ -4711,10 +4711,10 @@ void code_jmp_i (int n_apply_args)
 	i_move_id_r (0,num_to_a_reg (used_n_address_parameter_registers-1),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 
 # ifdef MACH_O64
-	i_move_id_r (2+((n_apply_args-1)<<4),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+	i_move_id_r (6+((n_apply_args-1)<<4),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 # elif defined (G_A64) && defined (LINUX)
 	if (pic_flag)
-		i_move_id_r (2+((n_apply_args-1)<<4),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+		i_move_id_r (6+((n_apply_args-1)<<4),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 	else
 		i_loadsqb_id_r (2+((n_apply_args-1)<<3),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 # else
@@ -4911,9 +4911,9 @@ void code_jsr_i (int n_apply_args)
 	++b_stack_size;
 
 # ifdef MACH_O64
-	jsr_i_offset = 2+((n_apply_args-1)<<4);
+	jsr_i_offset = 6+((n_apply_args-1)<<4);
 # elif defined (G_A64) && defined (LINUX)
-	jsr_i_offset = 2+(pic_flag ? ((n_apply_args-1)<<4) : ((n_apply_args-1)<<3));
+	jsr_i_offset = pic_flag ? (6+((n_apply_args-1)<<4)) : (2+((n_apply_args-1)<<3));
 # else
 	jsr_i_offset = 2+((n_apply_args-1)<<3);
 # endif
