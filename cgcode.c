@@ -280,6 +280,9 @@ int no_time_profiling;
 #define g_keep(g1,g2) g_instruction_2(GKEEP,(g1),(g2))
 #define g_fkeep(g1,g2) g_instruction_2(GFKEEP,(g1),(g2))
 #define g_sub(g1,g2) g_instruction_2(GSUB,(g1),(g2))
+#ifdef I486
+#define g_clzb(g1) g_instruction_1(GCLZB,(g1))
+#endif
 
 #ifdef G_POWER
 # define g_umulh(g1,g2) g_instruction_2(GUMULH,(g1),(g2))
@@ -1570,6 +1573,18 @@ void code_ceilingR (VOID)
 
 	init_b_stack (1,i_vector);
 }
+
+#ifdef I486
+void code_clzb (VOID)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+	
+	graph_1=s_get_b (0);
+	graph_2=g_clzb (graph_1);
+	
+	s_put_b (0,graph_2);
+}
+#endif
 
 void code_CtoAC (VOID)
 {

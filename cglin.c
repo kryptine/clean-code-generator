@@ -4263,6 +4263,35 @@ static void linearize_monadic_data_operator (int i_instruction_code,INSTRUCTION_
 		register_node (graph,reg_1);
 }
 
+#ifdef I486
+static void linearize_clzb_operator (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
+{
+	INSTRUCTION_GRAPH graph_1;
+	ADDRESS ad_1;
+	int d_reg;
+	
+	graph_1=graph->instruction_parameters[0].p;
+	
+	linearize_graph (graph_1,&ad_1);
+	if (ad_1.ad_mode==P_IMMEDIATE)
+		in_data_register (&ad_1);
+	
+	if (graph->instruction_d_min_a_cost>0)
+		d_reg=get_aregister();
+	else
+		d_reg=get_dregister();
+
+	instruction_ad_r (ICLZB,&ad_1,d_reg);
+	
+	ad_p->ad_mode=P_REGISTER;
+	ad_p->ad_register=d_reg;
+	
+	ad_p->ad_count_p=&graph->node_count;
+	if (*ad_p->ad_count_p>1)
+		register_node (graph,d_reg);
+}
+#endif
+
 #if defined (I486) || defined (ARM) || defined (G_POWER)
 static void linearize_div_rem_operator (int i_instruction_code,INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 {
@@ -9639,6 +9668,11 @@ static void linearize_graph (INSTRUCTION_GRAPH graph,ADDRESS *ad_p)
 		case GEXIT_IF:
 			linearize_exit_if_operator (graph,ad_p);
 			return;
+#ifdef I486
+		case GCLZB:
+			linearize_clzb_operator (graph,ad_p);
+			return;
+#endif
 		case GADD_O:
 			linearize_add_o_operator (graph,ad_p,NULL);
 			return;

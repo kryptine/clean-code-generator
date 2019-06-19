@@ -1387,6 +1387,45 @@ static void w_as_monadic_instruction (struct instruction *instruction,char *opco
 	w_as_newline();
 }
 
+static void w_as_clzb_instruction (struct instruction *instruction)
+{
+	struct parameter *parameter_0_p,*parameter_1_p;
+
+	parameter_0_p=&instruction->instruction_parameters[0];
+	parameter_1_p=&instruction->instruction_parameters[1];
+
+#if 0
+	w_as_opcode (intel_asm ? "lzcnt" : "lzcntl");
+	if (intel_asm)
+		w_as_parameter_comma (parameter_1_p);
+	w_as_parameter (parameter_0_p);
+	if (!intel_asm)
+		w_as_comma_parameter (parameter_1_p);
+	w_as_newline();
+#else
+	w_as_opcode_movl();
+	w_as_immediate_register_newline (63,parameter_1_p->parameter_data.reg.r);
+
+	w_as_opcode (intel_asm ? "bsr" : "bsrl");
+	if (intel_asm)
+		w_as_parameter_comma (parameter_1_p);
+	w_as_parameter (parameter_0_p);
+	if (!intel_asm)
+		w_as_comma_parameter (parameter_1_p);
+	w_as_newline();
+
+	w_as_opcode (intel_asm ? "xor" : "xorl");
+	if (intel_asm){
+		w_as_register_comma (parameter_1_p->parameter_data.reg.r);
+		w_as_immediate (31);
+	} else {
+		w_as_immediate (31);
+		w_as_comma_register (parameter_1_p->parameter_data.reg.r);
+	}
+	w_as_newline();
+#endif
+}
+
 static void w_as_btst_instruction (struct instruction *instruction)
 {
 	if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
@@ -4851,6 +4890,9 @@ static void w_as_instructions (register struct instruction *instruction)
 				break;
 			case INOT:
 				w_as_monadic_instruction (instruction,intel_asm ? "not" : "notl");
+				break;
+			case ICLZB:
+				w_as_clzb_instruction (instruction);
 				break;
 			case IADC:
 				w_as_dyadic_instruction (instruction,intel_asm ? "adc" : "adcl");

@@ -45,6 +45,9 @@ enum {
 #ifdef M68000
 	,GFACOS,	GFASIN,	GFEXP,	GFLN,	GFLOG10
 #endif
+#ifdef I486
+	,GCLZB
+#endif
 };
 
 enum {

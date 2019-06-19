@@ -1282,6 +1282,55 @@ static void calculate_cnot_operator (register INSTRUCTION_GRAPH graph)
 	graph->order_alterable=graph->node_count<=1;
 }
 
+#ifdef I486
+static void calculate_clzb_operator (register INSTRUCTION_GRAPH graph)
+{
+	INSTRUCTION_GRAPH graph_1;
+	
+	graph_1=graph->instruction_parameters[0].p;
+	
+	calculate_graph_register_uses (graph_1);
+	
+	graph->u_aregs=graph_1->u_aregs;
+	graph->u_dregs=graph_1->u_dregs;
+	graph->i_aregs=graph_1->i_aregs;
+	graph->i_dregs=graph_1->i_dregs;
+
+	if (graph_1->order_mode==R_IMMEDIATE){
+		if (graph->instruction_d_min_a_cost<=0){
+			++graph->i_dregs;
+			if (graph->u_dregs<graph->i_dregs+1)
+				graph->u_dregs=graph->i_dregs+1;
+			graph->order_mode=R_DREGISTER;
+		} else {
+			++graph->i_aregs;
+			if (graph->u_aregs<graph->i_aregs+1)
+				graph->u_aregs=graph->i_aregs+1;
+			graph->order_mode=R_AREGISTER;
+		}
+	} else {
+		if (graph->instruction_d_min_a_cost<=0){
+			++graph->i_dregs;
+			if (graph->i_dregs>graph->u_dregs)
+				graph->u_dregs=graph->i_dregs;
+			graph->order_mode=R_DREGISTER;
+		} else {
+			++graph->i_aregs;
+			if (graph->i_aregs>graph->u_aregs)
+				graph->u_aregs=graph->i_aregs;
+			graph->order_mode=R_AREGISTER;
+		}
+
+		if (graph_1->order_mode==R_DREGISTER)
+			graph->i_dregs-=graph_1->order_alterable;
+		else
+			graph->i_aregs-=graph_1->order_alterable;
+	}
+	
+	graph->order_alterable=graph->node_count<=1;
+}
+#endif
+
 static void calculate_load_x_operator (register INSTRUCTION_GRAPH graph)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
@@ -2463,6 +2512,11 @@ void calculate_graph_register_uses (INSTRUCTION_GRAPH graph)
 #endif
 			calculate_cnot_operator (graph);
 			return;
+#ifdef I486
+		case GCLZB:
+			calculate_clzb_operator (graph);
+			return;
+#endif
 		case GMOVEMI:
 			calculate_movemi_operator (graph);
 			return;
@@ -2837,6 +2891,9 @@ void count_graph (INSTRUCTION_GRAPH graph)
 		case GFRESULT1:
 		case GFSINCOS:
 #endif
+#ifdef I486
+		case GCLZB:
+#endif
 			if (++graph->node_count==1)
 				count_graph (graph->instruction_parameters[0].p);
 			break;
@@ -3062,6 +3119,9 @@ void mark_graph_2 (register INSTRUCTION_GRAPH graph)
 		case GFRESULT0:
 		case GFRESULT1:
 		case GFSINCOS:
+#endif
+#ifdef I486
+		case GCLZB:
 #endif
 			if (graph->node_mark<2){
 				graph->node_mark=2;
@@ -3297,6 +3357,9 @@ void mark_graph_1 (register INSTRUCTION_GRAPH graph)
 		case GFRESULT0:
 		case GFRESULT1:
 		case GFSINCOS:
+#endif
+#ifdef I486
+		case GCLZB:
 #endif
 			if (!graph->node_mark){
 				graph->node_mark=1;

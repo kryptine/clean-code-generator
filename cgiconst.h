@@ -107,6 +107,9 @@ enum {
 #ifdef THUMB
 	,IANDI,	IORI
 #endif
+#ifdef I486
+	,ICLZB
+#endif
 };
 
 enum {

@@ -4073,6 +4073,68 @@ static void as_not_instruction (struct instruction *instruction)
 	as_r (0367,0020,instruction->instruction_parameters[0].parameter_data.reg.r);
 }
 
+static void as_clzb_instruction (struct instruction *instruction)
+{
+	if (instruction->instruction_parameters[1].parameter_type==P_REGISTER){
+		int d_reg;
+		struct parameter *parameter_0_p;
+	
+		d_reg=instruction->instruction_parameters[1].parameter_data.reg.r;
+#if 0
+		parameter_0_p=&instruction->instruction_parameters[0];
+		
+		/* the lzcnt instruction is encoded as a bsr instruction with a rep prefix */
+		/* if the processor does not support lzcnt, it ignores the rep prefix and executes bsr */
+		store_c (0xf3); /* rep prefix */
+		store_c (0x0f);
+		switch (parameter_0_p->parameter_type){
+			case P_REGISTER:
+				as_r_r (0xbd,parameter_0_p->parameter_data.reg.r,d_reg);
+				return;
+			case P_INDIRECT:
+				as_id_r (0xbd,parameter_0_p->parameter_offset,parameter_0_p->parameter_data.reg.r,d_reg);
+				return;
+			case P_INDEXED:
+				as_x_r (0xbd,parameter_0_p->parameter_offset,parameter_0_p->parameter_data.ir,d_reg);
+				return;
+		}
+#else
+		/* intel processors before Haswell do not support the lzcnt instruction, emulate it with bsr */
+		as_move_i_r (63,d_reg); /* bsr does not modify the destination register if the argument is 0 */
+
+		parameter_0_p=&instruction->instruction_parameters[0];
+
+		/* bsr */
+		store_c (0x0f);
+		switch (parameter_0_p->parameter_type){
+			case P_REGISTER:
+				as_r_r (0xbd,parameter_0_p->parameter_data.reg.r,d_reg);
+				break;
+			case P_INDIRECT:
+				as_id_r (0xbd,parameter_0_p->parameter_offset,parameter_0_p->parameter_data.reg.r,d_reg);
+				break;
+			case P_INDEXED:
+				as_x_r (0xbd,parameter_0_p->parameter_offset,parameter_0_p->parameter_data.ir,d_reg);
+				break;
+			default:
+				internal_error_in_function ("as_clzb_instruction");
+				return;
+		}
+		
+		/* xor $31,d_reg */
+		if (d_reg==EAX)
+			store_c (065);
+		else
+			as_r (0201,060,d_reg);
+		store_l (31);
+
+		return;
+#endif
+	}
+
+	internal_error_in_function ("as_clzb_instruction");
+}
+
 static void as_rtsi_instruction (struct instruction *instruction)
 {
 	store_c (0xc2);
@@ -5622,6 +5684,9 @@ static void as_instructions (struct instruction *instruction)
 				break;
 			case INOT:
 				as_not_instruction (instruction);
+				break;
+			case ICLZB:
+				as_clzb_instruction (instruction);
 				break;
 			case IADC:
 				as_adc_instruction (instruction);

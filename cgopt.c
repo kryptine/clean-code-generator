@@ -2246,6 +2246,12 @@ IF_G_RISC (case IADDI: case ILSLI:)
 					use_parameter (&instruction->instruction_parameters[0]);
 				break;
 #endif
+#ifdef I486
+			case ICLZB:
+				define_parameter (&instruction->instruction_parameters[1]);
+				use_parameter (&instruction->instruction_parameters[0]);
+				break;
+#endif
 #if 0
 			case IFBEQ:	case IFBGE: case IFBGT:	case IFBLE:	case IFBLT:	case IFBNE:
 				define_scratch_register();
@@ -4701,6 +4707,11 @@ IF_G_RISC (case IADDI: case ILSLI:)
 						(&instruction->instruction_parameters[0].parameter_data.reg,USE,
 						 &instruction->instruction_parameters[1].parameter_data.reg,USE_DEF,
 						 &instruction->instruction_parameters[2].parameter_data.reg,DEF,D_REGISTER);
+				break;
+#endif
+#ifdef I486
+			case ICLZB:
+				instruction_use_2 (instruction,DEF);
 				break;
 #endif
 #if 0

@@ -2343,6 +2343,9 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("centry",			parse_instruction_l_a_s,	code_centry );
 	put_instruction_name ("cmpS",			parse_instruction_n_n,		code_cmpS );
 	put_instruction_name ("ceilingR",		parse_instruction,			code_ceilingR );
+#ifdef I486
+	put_instruction_name ("clzb",			parse_instruction,			code_clzb );
+#endif
 	put_instruction_name ("CtoAC",			parse_instruction,			code_CtoAC );
 	put_instruction_name ("copy_graph",		parse_instruction_n,		code_copy_graph );
 	put_instruction_name ("cosR",			parse_instruction,			code_cosR );

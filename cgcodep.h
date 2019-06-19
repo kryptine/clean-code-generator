@@ -57,6 +57,9 @@ void code_centry (char *c_function_name,char *clean_function_label,char *s,int l
 void code_channelP (int a_offset);
 void code_cmpS (int a_offset_1,int a_offset_2);
 void code_ceilingR (VOID);
+#ifdef I486
+void code_clzb (VOID);
+#endif
 void code_copy_graph (int a_offset);
 void code_CtoAC (VOID);
 void code_currentP (VOID);
