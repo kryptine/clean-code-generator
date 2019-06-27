@@ -24,9 +24,9 @@
 #	define ELF_RELA
 #elif defined (MACH_O64)
 #	define G_MACH_O64
-#	include </usr/include/mach-o/loader.h>
-#	include </usr/include/mach-o/nlist.h>
-#	include </usr/include/mach-o/x86_64/reloc.h>
+#	include <mach-o/loader.h>
+#	include <mach-o/nlist.h>
+#	include <mach-o/x86_64/reloc.h>
 #else
 #endif
 
