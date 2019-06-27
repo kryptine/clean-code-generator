@@ -4220,7 +4220,11 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 #  endif
 # endif
 			if (block_graph->block_graph_jsr_eval_offset & 1)
+#ifdef G_AI64
+				i_sub_i_r (32,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));	/* if profiling */
+#else
 				i_sub_i_r (28,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));	/* if profiling */
+#endif
 			else
 				i_sub_i_r (20,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS)); 
 

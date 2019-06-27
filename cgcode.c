@@ -4741,7 +4741,11 @@ void code_jmp_i (int n_apply_args)
 # endif
 
 	if (profile_function_label!=NULL && profile_flag!=PROFILE_NOT){
+#ifdef G_AI64
+		i_sub_i_r (32,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS)); 
+#else
 		i_sub_i_r (28,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS)); 
+#endif
 		i_jmp_r_profile (a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 	} else {
 		i_sub_i_r (20,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS)); 
