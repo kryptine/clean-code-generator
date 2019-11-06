@@ -1426,7 +1426,11 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 		
 		offset=*b_offset_p-b_offset;
 		if (previous_b_stack_parameter!=NULL && offset!=0 && is_int_instruction (previous_b_stack_parameter_icode)){
-			if (previous_b_stack_parameter->parameter_type==P_INDIRECT && try_adjust_b_stack_pointer){
+			if (previous_b_stack_parameter->parameter_type==P_INDIRECT && try_adjust_b_stack_pointer
+#  if defined (G_A64)
+				&& offset>=-256 && offset<256
+#  endif
+			){
 				if (previous_b_stack_parameter->parameter_offset==0){
 					if (offset==STACK_ELEMENT_SIZE){
 						previous_b_stack_parameter->parameter_type=P_POST_INCREMENT;
@@ -1439,7 +1443,11 @@ void optimize_stack_access (struct basic_block *block,int *a_offset_p,int *b_off
 					previous_b_stack_parameter->parameter_type=P_INDIRECT_WITH_UPDATE;
 					b_offset = *b_offset_p;
 				}
-			} else if (previous_b_stack_parameter->parameter_type==P_POST_INCREMENT){
+			} else if (previous_b_stack_parameter->parameter_type==P_POST_INCREMENT
+#  if defined (G_A64)
+				&& STACK_ELEMENT_SIZE+offset>=-256 && STACK_ELEMENT_SIZE+offset<256
+#  endif
+			){
 				previous_b_stack_parameter->parameter_type=P_INDIRECT_POST_ADD;
 				previous_b_stack_parameter->parameter_offset=STACK_ELEMENT_SIZE+offset;				
 				b_offset = *b_offset_p;
