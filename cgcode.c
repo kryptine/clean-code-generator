@@ -1376,17 +1376,14 @@ static INSTRUCTION_GRAPH int_descriptor_graph (void)
 #if defined (G_AI64) && defined (LINUX)
 		if (rts_got_flag){
 			if (INT_label==NULL)
-				INT_label=enter_label ("dINT_0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
+				INT_label=enter_label ("INT_0",IMPORT_LABEL | DATA_LABEL | USE_GOT_LABEL);
 			graph=g_lea (INT_label);
 		} else
 #endif
 		{
 		if (INT_label==NULL)
-#ifdef G_AI64
-			INT_label=enter_label ("dINT",IMPORT_LABEL | DATA_LABEL);
-#else
 			INT_label=enter_label ("INT",IMPORT_LABEL | DATA_LABEL);
-#endif
+
 		graph=g_load_des_i (INT_label,0);
 		}
 
@@ -2856,12 +2853,6 @@ void code_eq_desc_b (char descriptor_name[],int arity)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2,graph_3;
 	LABEL *descriptor;
-
-#ifdef G_AI64
-	if (descriptor_name[0]=='I' && descriptor_name[1]=='N' &&
-		descriptor_name[2]=='T' && descriptor_name[3]=='\0')
-		descriptor_name="dINT";
-#endif
 
 	descriptor=enter_label (descriptor_name,DATA_LABEL);
 	
@@ -9834,12 +9825,6 @@ void code_descs (char label_name[],char node_entry_label_name[],char *result_des
 {
 	LABEL *string_label,*label;
 	int string_code_label_id;
-
-#ifdef G_AI64
-	if (result_descriptor_name[0]=='I' && result_descriptor_name[1]=='N' &&
-		result_descriptor_name[2]=='T' && result_descriptor_name[3]=='\0')
-		result_descriptor_name="dINT";
-#endif
 
 #if defined (NO_FUNCTION_NAMES)
 	descriptor_name_length=0;
