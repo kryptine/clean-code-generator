@@ -4455,7 +4455,13 @@ void write_assembly (VOID)
 #ifdef GENERATIONAL_GC
 			}
 #endif
-			w_as_number_of_arguments (block->block_n_node_arguments);
+			if (callgraph_profiling && block->block_n_node_arguments>=0){
+				if (block->block_descriptor && block->block_descriptor->label_name!=NULL && !strcmp (block->block_descriptor->label_name,"EMPTY"))
+					w_as_number_of_arguments (0);
+				else
+					w_as_number_of_arguments (block->block_n_node_arguments+257);
+			} else
+				w_as_number_of_arguments (block->block_n_node_arguments);
 		}
 #ifdef NEW_APPLY
 		else if (block->block_n_node_arguments<-100)

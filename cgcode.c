@@ -230,6 +230,8 @@ int no_memory_profiling;
 
 #ifdef PROFILE
 int no_time_profiling;
+int callgraph_profiling;
+static LABEL *profile_current_cost_centre_label;
 #endif
 
 #define g_add(g1,g2) g_instruction_2(GADD,(g1),(g2))
@@ -833,6 +835,10 @@ void code_build (char descriptor_name[],int arity,char *code_name)
 
 	if (strcmp (code_name,"__hnf")==0){
 		code_buildh (descriptor_name,arity);
+#ifdef PROFILE
+	} else if (callgraph_profiling){
+		code_build_u (descriptor_name,arity<0 ? 1 : arity,0,code_name);
+#endif
 	} else {
 		int n_arguments;
 		union instruction_parameter *parameter;
@@ -1146,6 +1152,11 @@ void code_build_u (char descriptor_name[],int a_size,int b_size,char *code_name)
 	int n_arguments;
 	union instruction_parameter *parameter;
 
+#ifdef PROFILE
+	if (callgraph_profiling)
+		++b_size;
+#endif
+
 	code_label=enter_label (code_name,NODE_ENTRY_LABEL);
 	code_label->label_arity=a_size+b_size+(b_size<<8);
 
@@ -1173,6 +1184,24 @@ void code_build_u (char descriptor_name[],int a_size,int b_size,char *code_name)
 		parameter->p=graph_4;
 		++parameter;
 	}
+
+#ifdef PROFILE
+	if (callgraph_profiling){
+		INSTRUCTION_GRAPH graph_5;
+
+		--b_size;
+
+		if (profile_current_cost_centre_label==NULL)
+# ifdef MACH_O64
+			profile_current_cost_centre_label=enter_label ("_profile_current_cost_centre",IMPORT_LABEL | DATA_LABEL);
+# else
+			profile_current_cost_centre_label=enter_label ("profile_current_cost_centre",IMPORT_LABEL | DATA_LABEL);
+# endif
+		graph_4=g_lea (profile_current_cost_centre_label);
+		graph_5=g_load_id (0,graph_4);
+		parameter[b_size].p=graph_5;
+	}
+#endif
 
 	for (n_arguments=b_size; n_arguments>0; --n_arguments){
 		graph_4=s_pop_b();
@@ -2307,6 +2336,11 @@ void code_create (int n_arguments)
 	if (EMPTY_label==NULL)
 		EMPTY_label=enter_label ("EMPTY",IMPORT_LABEL | DATA_LABEL);
 
+#ifdef PROFILE
+	if (callgraph_profiling)
+		n_arguments++;
+#endif
+
 	if (n_arguments<=2){
 #ifndef RESERVE_CODE_REGISTER
 		if (!parallel_flag){
@@ -3036,6 +3070,10 @@ void code_fill (char descriptor_name[],int arity,char *code_name,int a_offset)
 
 	if (strcmp (code_name,"__hnf")==0){
 		code_fillh (descriptor_name,arity,a_offset);
+#ifdef PROFILE
+	} else if (callgraph_profiling){
+		code_fill_u (descriptor_name,arity<0 ? 1 : arity,0,code_name,a_offset);
+#endif
 	} else {
 		int n_arguments;
 		union instruction_parameter *parameter;
@@ -3219,6 +3257,11 @@ void code_fill_u (char descriptor_name[],int a_size,int b_size,char *code_name,i
 
 	graph_1=s_get_a (a_offset);
 
+#ifdef PROFILE
+	if (callgraph_profiling)
+		++b_size;
+#endif
+
 	code_label=enter_label (code_name,NODE_ENTRY_LABEL);
 	code_label->label_arity=a_size+b_size+(b_size<<8);
 
@@ -3249,6 +3292,24 @@ void code_fill_u (char descriptor_name[],int a_size,int b_size,char *code_name,i
 		parameter->p=graph_4;
 		++parameter;
 	}
+
+#ifdef PROFILE
+	if (callgraph_profiling){
+		INSTRUCTION_GRAPH graph_5;
+
+		--b_size;
+
+		if (profile_current_cost_centre_label==NULL)
+# ifdef MACH_O64
+			profile_current_cost_centre_label=enter_label ("_profile_current_cost_centre",IMPORT_LABEL | DATA_LABEL);
+# else
+			profile_current_cost_centre_label=enter_label ("profile_current_cost_centre",IMPORT_LABEL | DATA_LABEL);
+# endif
+		graph_4=g_lea (profile_current_cost_centre_label);
+		graph_5=g_load_id (0,graph_4);
+		parameter[b_size].p=graph_5;
+	}
+#endif
 
 	for (; argument_n<a_size+b_size; ++argument_n){
 		graph_4=s_pop_b();
@@ -9331,6 +9392,7 @@ void code_comp (int version,char *options)
 	no_memory_profiling = system_file && l>3 && options[3]=='1';
 # ifdef PROFILE
 	no_time_profiling   = system_file && l>5 && options[5]=='1';
+	callgraph_profiling = l>13 && options[13]=='1';
 # endif
 #endif
 }
@@ -10277,6 +10339,12 @@ void code_pb (char string[],int string_length)
 		w_as_new_data_module();
 # endif
 
+	if (callgraph_profiling){
+		store_long_word_in_data_section (0);
+		if (assembly_flag)
+			w_as_long_in_data_section (0);
+	}
+
 #if TIME_PROFILE_WITH_MODULE_NAMES
 	if (module_label!=NULL){
 # ifdef GEN_OBJ
@@ -10296,10 +10364,11 @@ void code_pb (char string[],int string_length)
 
 # ifdef GEN_OBJ
 	define_data_label (profile_function_label);
+	if (!callgraph_profiling)
 #  ifdef G_A64
-	store_word64_in_data_section (0);
+		store_word64_in_data_section (0);
 #  else
-	store_long_word_in_data_section (0);
+		store_long_word_in_data_section (0);
 #  endif
 	store_c_string_in_data_section (string,string_length);
 # endif
@@ -10323,10 +10392,11 @@ void code_pb (char string[],int string_length)
 #  endif
 		w_as_define_data_label (profile_function_label->label_number);
 # endif
+		if (!callgraph_profiling)
 # ifdef G_A64
-		w_as_word64_in_data_section ((int_64)0);
+			w_as_word64_in_data_section ((int_64)0);
 # else
-		w_as_long_in_data_section (0);
+			w_as_long_in_data_section (0);
 # endif
 		w_as_c_string_in_data_section (string,string_length);
 	}
@@ -10517,6 +10587,13 @@ void code_module (char label_name[],char string[],int string_length)
 	module_label=code_string_or_module4 (label_name,string,string_length);
 #else
 	module_label=code_string_or_module (label_name,string,string_length);
+#endif
+#ifdef PROFILE
+	if (callgraph_profiling){
+		store_long_word_in_data_section (0);
+		if (assembly_flag)
+			w_as_long_in_data_section (0);
+	}
 #endif
 }
 

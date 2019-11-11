@@ -70,6 +70,7 @@ extern LABEL *profile_ti_label;
 extern INSTRUCTION_GRAPH load_indexed_list;
 
 extern int no_memory_profiling;
+extern int callgraph_profiling;
 
 #define PROFILE_NOT 0
 #define PROFILE_NORMAL 1
