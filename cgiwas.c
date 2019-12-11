@@ -5506,7 +5506,13 @@ static void w_as_node_entry_info (struct basic_block *block)
 	if (block->block_descriptor!=NULL && (block->block_n_node_arguments<0 || parallel_flag || module_info_flag))
 		w_as_label_in_code_section (block->block_descriptor->label_name);
 
-	w_as_number_of_arguments (block->block_n_node_arguments);
+	if (callgraph_profiling && block->block_n_node_arguments>=0){
+		if (block->block_descriptor && block->block_descriptor->label_name!=NULL && !strcmp (block->block_descriptor->label_name,"EMPTY"))
+			w_as_number_of_arguments (0);
+		else
+			w_as_number_of_arguments (block->block_n_node_arguments+257);
+	} else
+		w_as_number_of_arguments (block->block_n_node_arguments);
 }
 
 static void w_as_profile_call (struct basic_block *block)

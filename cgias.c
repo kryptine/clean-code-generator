@@ -6122,7 +6122,13 @@ static void as_node_entry_info (struct basic_block *block)
 		store_l (0);
 	*/
 	
-	store_l (block->block_n_node_arguments);
+	if (callgraph_profiling && block->block_n_node_arguments>=0){
+		if (block->block_descriptor && block->block_descriptor->label_name!=NULL && !strcmp (block->block_descriptor->label_name,"EMPTY"))
+			store_l (0);
+		else
+			store_l (block->block_n_node_arguments+257);
+	} else
+		store_l (block->block_n_node_arguments);
 }
 
 static void write_code (void)

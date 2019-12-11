@@ -1192,7 +1192,7 @@ void code_build_u (char descriptor_name[],int a_size,int b_size,char *code_name)
 		--b_size;
 
 		if (profile_current_cost_centre_label==NULL)
-# ifdef MACH_O64
+# if (defined (I486) && !defined (G_AI64) && !defined (LINUX_ELF)) || defined (MACH_O) || defined (MACH_O64)
 			profile_current_cost_centre_label=enter_label ("_profile_current_cost_centre",IMPORT_LABEL | DATA_LABEL);
 # else
 			profile_current_cost_centre_label=enter_label ("profile_current_cost_centre",IMPORT_LABEL | DATA_LABEL);
@@ -3300,7 +3300,7 @@ void code_fill_u (char descriptor_name[],int a_size,int b_size,char *code_name,i
 		--b_size;
 
 		if (profile_current_cost_centre_label==NULL)
-# ifdef MACH_O64
+# if (defined (I486) && !defined (G_AI64) && !defined (LINUX_ELF)) || defined (MACH_O) || defined (MACH_O64)
 			profile_current_cost_centre_label=enter_label ("_profile_current_cost_centre",IMPORT_LABEL | DATA_LABEL);
 # else
 			profile_current_cost_centre_label=enter_label ("profile_current_cost_centre",IMPORT_LABEL | DATA_LABEL);
