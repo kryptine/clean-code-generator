@@ -4086,6 +4086,31 @@ void code_get_desc_flags_b (void)
 	s_push_b (graph_2);
 }
 
+void code_get_thunk_arity (void)
+{
+	INSTRUCTION_GRAPH graph_1,graph_2;
+
+	graph_1=s_pop_b ();
+#ifdef G_A64
+	graph_2=g_load_sqb_id (-4,graph_1);
+#else
+	graph_2=g_load_id (-4,graph_1);
+#endif
+
+#ifdef PROFILE
+	if (callgraph_profiling){
+		INSTRUCTION_GRAPH graph_3,graph_4;
+
+		graph_3=g_load_i (257);
+		graph_4=g_sub (graph_3,graph_2);
+		s_push_b (graph_4);
+		return;
+	}
+#endif
+
+	s_push_b (graph_2);
+}
+
 void code_get_thunk_desc (void)
 {
 	INSTRUCTION_GRAPH graph_1,graph_2;
