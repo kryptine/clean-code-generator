@@ -932,7 +932,9 @@ INSTRUCTION_GRAPH g_load_s_x (INSTRUCTION_GRAPH graph_1,int offset,int shift,INS
 
 	return instruction;
 }
+#endif
 
+#ifdef G_A64
 INSTRUCTION_GRAPH g_load_sqb_id (int offset,INSTRUCTION_GRAPH graph_1)
 {
 	INSTRUCTION_GRAPH instruction;
