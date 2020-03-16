@@ -719,6 +719,14 @@ void code_ccall (char *c_function_name,char *s,int length)
 			begin_new_basic_block();
 			init_b_stack (2,r_vector);
 			break;
+		case 'S':
+			if (string_to_string_node_label==NULL)
+				string_to_string_node_label=enter_label ("string_to_string_node",IMPORT_LABEL);
+			i_move_r_r (REGISTER_D6,REGISTER_A0);
+			i_jsr_l_idu (string_to_string_node_label,-8);
+			begin_new_basic_block();
+			init_a_stack (1);
+			break;
 		default:
 			error_s (ccall_error_string,c_function_name);
 	}
