@@ -55,7 +55,7 @@ enum {
 
 enum {
 	JSR_BLOCK,			JSR_EVAL_BLOCK,		APPLY_BLOCK
-#ifdef I486
+#if defined (I486) || defined (G_A64)
 	,JSR_I_BLOCK
 #endif
 #ifdef G_POWER

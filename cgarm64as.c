@@ -4825,17 +4825,37 @@ extern LABEL *add_empty_node_labels[];
 
 static void as_apply_update_entry (struct basic_block *block)
 {
+	int n_node_arguments;
+
+	n_node_arguments=block->block_n_node_arguments;
+	if (n_node_arguments<-200){
+		store_l (0x14000000); /* b */
+		as_branch_label (block->block_descriptor,JUMP_RELOCATION);
+
+		if (block->block_ea_label==NULL){
+			if (block->block_profile)
+				as_profile_call (block);
+
+			as_nop();
+			as_nop();
+			return;
+		}
+
+		n_node_arguments+=300;
+	} else
+		n_node_arguments+=200;
+
 	if (block->block_profile)
 		as_profile_call (block);
 
-	if (block->block_n_node_arguments==-200){
+	if (n_node_arguments==0){
 		store_l (0x14000000); /* b */
 		as_branch_label (block->block_ea_label,JUMP_RELOCATION);
 
 		as_nop();
 	} else {
 		store_l (0x94000000); /* bl */
-		as_branch_label (add_empty_node_labels[block->block_n_node_arguments+200],CALL_RELOCATION);
+		as_branch_label (add_empty_node_labels[n_node_arguments],CALL_RELOCATION);
 
 		store_l (0x14000000); /* b */
 		as_branch_label (block->block_ea_label,JUMP_RELOCATION);

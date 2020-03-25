@@ -4781,7 +4781,7 @@ void code_jmp_false (char label_name[])
 #endif
 }
 
-#ifdef I486
+#if defined (I486) || defined (G_A64)
 void code_jmp_i (int n_apply_args)
 {
 	int a_stack_size,b_stack_size,used_n_address_parameter_registers;
@@ -4825,7 +4825,11 @@ void code_jmp_i (int n_apply_args)
 #endif
 		i_jmp_r_profile (a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 	} else {
+#ifndef ARM
 		i_sub_i_r (20,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS)); 
+#else
+		i_sub_i_r (12,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+#endif
 		i_jmp_r (a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 	}
 
@@ -4969,7 +4973,7 @@ static void code_jsr_ap_ (int n_apply_args)
 	}
 }
 
-#ifdef I486
+#if defined (I486) || defined (G_A64)
 void code_jsr_i (int n_apply_args)
 {
 	INSTRUCTION_GRAPH graph;
@@ -5669,7 +5673,7 @@ void code_ai (int n_apply_args,char *ea_label_name,char *instance_member_code_na
 	LABEL *label;
 	char add_empty_node_label_name[32];
 
-#ifdef I486
+#if defined (I486) || defined (G_A64)
 	last_block->block_n_node_arguments=-300+n_apply_args;
 	if (ea_label_name[0]=='_' && ea_label_name[1]=='_' && ea_label_name[2]=='\0')
 		last_block->block_ea_label=NULL;

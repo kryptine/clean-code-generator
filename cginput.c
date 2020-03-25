@@ -2442,7 +2442,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("jmp",			parse_instruction_a,		code_jmp );
 	put_instruction_name ("jmp_ap",			parse_instruction_n,		code_jmp_ap );
 	put_instruction_name ("jmp_ap_upd",		parse_instruction_n,		code_jmp_ap_upd );
-#ifdef I486
+#if defined (I486) || defined G_A64
 	put_instruction_name ("jmp_i",			parse_instruction_n,		code_jmp_i );
 #endif
 	put_instruction_name ("jmp_upd",		parse_instruction_a,		code_jmp_upd );
@@ -2455,7 +2455,7 @@ static void put_instructions_in_table (void)
 	put_instruction_name ("jsr",			parse_instruction_a,		code_jsr );
 	put_instruction_name ("jsr_ap",			parse_instruction_n,		code_jsr_ap );
 	put_instruction_name ("jsr_eval",		parse_instruction_n,		code_jsr_eval );
-#ifdef I486
+#if defined (I486) || defined G_A64
 	put_instruction_name ("jsr_i",			parse_instruction_n,		code_jsr_i );
 #endif
 	put_instruction_name ("lnR",			parse_instruction,			code_lnR );

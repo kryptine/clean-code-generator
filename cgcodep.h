@@ -150,7 +150,7 @@ void code_ItoR (VOID);
 void code_jmp (char label_name[]);
 void code_jmp_ap (int n_args);
 void code_jmp_ap_upd (int n_args);
-#ifdef I486
+#if defined (I486) || defined (G_A64)
 void code_jmp_i (int n_args);
 #endif
 void code_jmp_not_eqZ (char *integer_string,int integer_string_length,char label_name[]);
@@ -163,7 +163,7 @@ void code_jrsr (char label_name[]);
 void code_jsr (char label_name[]);
 void code_jsr_ap (int n_args);
 void code_jsr_eval (int a_offset);
-#ifdef I486
+#if defined (I486) || defined (G_A64)
 void code_jsr_i (int n_args);
 #endif
 void code_lnR (VOID);

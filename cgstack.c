@@ -3922,7 +3922,7 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 	
 	end_b_stack_size=block_graph->block_graph_end_b_stack_size;
 	if (block_graph->block_graph_kind==JSR_BLOCK
-#ifdef I486
+#if defined (I486) || defined (G_A64)
 		|| block_graph->block_graph_kind==JSR_I_BLOCK
 #endif
 #ifdef G_POWER
@@ -4185,13 +4185,17 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 #endif
 			break;
 		}
-#ifdef I486
+#if defined (I486) || defined (G_A64)
 		case JSR_I_BLOCK:
 		{
 			int b_offset,n_a_registers;
 			
 			b_offset=local_register_allocation_and_adjust_a_stack_pointer
-				(end_b_stack_size==global_block.block_graph_b_stack_end_displacement ? STACK_ELEMENT_SIZE : 0);
+				(end_b_stack_size==global_block.block_graph_b_stack_end_displacement ? STACK_ELEMENT_SIZE : 0
+# ifdef ARM
+				,1
+# endif
+				);
 
 			if (b_offset!=0)
 				if (b_offset<0)
@@ -4226,12 +4230,20 @@ static void generate_code_for_basic_block (struct block_graph *next_block_graph)
 				i_sub_i_r (28,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));	/* if profiling */
 #endif
 			else
-				i_sub_i_r (20,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS)); 
+#ifndef ARM
+				i_sub_i_r (20,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+#else
+				i_sub_i_r (12,a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+#endif
 
 			if (end_b_stack_size!=global_block.block_graph_b_stack_end_displacement)
 				i_jmp_r (a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
 			else
+#ifndef ARM
 				i_jsr_r (a_reg_num (N_ADDRESS_PARAMETER_REGISTERS));
+#else
+				i_jsr_r_idu (a_reg_num (N_ADDRESS_PARAMETER_REGISTERS),-STACK_ELEMENT_SIZE);
+#endif
 
 			if (block_check){
 # ifdef SEPARATE_A_AND_B_STACK_OVERFLOW_CHECKS
@@ -4742,7 +4754,7 @@ void insert_basic_block_with_extra_parameters_on_stack (int block_graph_kind,int
 	last_block_graph->block_graph_used_b_stack_elements+=extra_b_stack_size;
 }
 
-#ifdef I486
+#if defined (I486) || defined (G_A64)
 void insert_basic_JSR_I_block (int a_stack_size,int b_stack_size,ULONG *vector_p,int offset)
 {
 	insert_basic_block (JSR_I_BLOCK,a_stack_size,b_stack_size,vector_p,NULL);
