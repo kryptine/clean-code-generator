@@ -4807,7 +4807,7 @@ int do_register_allocation
 #ifdef F_REG_15
 	if (highest_a_register<=N_REAL_A_REGISTERS && highest_d_register<=8 && highest_f_register<=15)
 #else
-	if (highest_a_register<=8 && highest_d_register<=8 && highest_f_register<=8)
+	if (highest_a_register<=N_REAL_A_REGISTERS && highest_d_register<=8 && highest_f_register<=8)
 #endif
 		return 0;
 
