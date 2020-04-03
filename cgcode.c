@@ -333,7 +333,7 @@ static LABEL	*halt_label,*cmp_string_label,*eqD_label,
 				*print_char_label,*print_int_label,*print_real_label;
 
 #ifdef G_AI64
-static LABEL	*create_arrayI32_label,*create_arrayR32_label;
+static LABEL	*create_arrayI32_label,*create_arrayR32_label,*create_arrayI32__label,*create_arrayR32__label;
 #endif
 
 LABEL			*new_int_reducer_label,*channelP_label,*stop_reducer_label,*send_request_label,
@@ -2065,30 +2065,45 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 			}
 			break;		
 		case 'I':
-			if (element_descriptor[1]=='N' && element_descriptor[2]=='T' && element_descriptor[3]=='\0'){
-				INSTRUCTION_GRAPH graph_1;
-				
-				graph_1=s_get_b (0);
+			if (element_descriptor[1]=='N' && element_descriptor[2]=='T'){
+				if (element_descriptor[3]=='\0'){
+					INSTRUCTION_GRAPH graph_1;
+					
+					graph_1=s_get_b (0);
 
-				if (graph_1->instruction_code==GLOAD_I && LESS_UNSIGNED (graph_1->instruction_parameters[0].i,33)){
-					INSTRUCTION_GRAPH graph_2;
-					
-					s_pop_b();
-					
-					graph_2 = g_create_unboxed_int_array (graph_1->instruction_parameters[0].i);
-					
-					s_push_a (graph_2);
-				} else {
-					if (create_arrayI__label==NULL)
-						create_arrayI__label=enter_rts_label ("_create_arrayI");
-		
-					s_push_b (graph_1);
-					s_put_b (1,NULL);
-					insert_basic_block (JSR_BLOCK,0,1+1,i_vector,create_arrayI__label);
-		
-					init_a_stack (1);
+					if (graph_1->instruction_code==GLOAD_I && LESS_UNSIGNED (graph_1->instruction_parameters[0].i,33)){
+						INSTRUCTION_GRAPH graph_2;
+
+						s_pop_b();
+
+						graph_2 = g_create_unboxed_int_array (graph_1->instruction_parameters[0].i);
+
+						s_push_a (graph_2);
+					} else {
+						if (create_arrayI__label==NULL)
+							create_arrayI__label=enter_rts_label ("_create_arrayI");
+
+						s_push_b (graph_1);
+						s_put_b (1,NULL);
+						insert_basic_block (JSR_BLOCK,0,1+1,i_vector,create_arrayI__label);
+
+						init_a_stack (1);
+					}
+					return;
 				}
-				return;
+#ifdef G_AI64
+				if (element_descriptor[3]=='3' && element_descriptor[4]=='2' && element_descriptor[5]=='\0'){
+					if (create_arrayI32__label==NULL)
+						create_arrayI32__label=enter_rts_label ("_create_arrayI32");
+
+					s_push_b (s_get_b (0));
+					s_put_b (1,NULL);
+					insert_basic_block (JSR_BLOCK,0,1+1,i_vector,create_arrayI32__label);
+
+					init_a_stack (1);
+					return;
+				}
+#endif
 			}
 			break;
 		case 'P':
@@ -2105,18 +2120,31 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 			}
 			break;
 		case 'R':
-			if (element_descriptor[1]=='E' && element_descriptor[2]=='A' && element_descriptor[3]=='L' &&
-				element_descriptor[4]=='\0')
-			{
-				if (create_arrayR__label==NULL)
-					create_arrayR__label=enter_rts_label ("_create_arrayR");
-	
-				s_push_b (s_get_b (0));
-				s_put_b (1,NULL);
-				insert_basic_block (JSR_BLOCK,0,1+1,i_vector,create_arrayR__label);
-	
-				init_a_stack (1);
-				return;	
+			if (element_descriptor[1]=='E' && element_descriptor[2]=='A' && element_descriptor[3]=='L'){
+				if (element_descriptor[4]=='\0'){
+					if (create_arrayR__label==NULL)
+						create_arrayR__label=enter_rts_label ("_create_arrayR");
+
+					s_push_b (s_get_b (0));
+					s_put_b (1,NULL);
+					insert_basic_block (JSR_BLOCK,0,1+1,i_vector,create_arrayR__label);
+
+					init_a_stack (1);
+					return;
+				}
+#ifdef G_AI64
+				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
+					if (create_arrayR32__label==NULL)
+						create_arrayR32__label=enter_rts_label ("_create_arrayR32");
+
+					s_push_b (s_get_b (0));
+					s_put_b (1,NULL);
+					insert_basic_block (JSR_BLOCK,0,1+1,i_vector,create_arrayR32__label);
+
+					init_a_stack (1);
+					return;
+				}
+#endif
 			}
 			break;
 		case 'A':
@@ -10893,7 +10921,7 @@ void initialize_coding (VOID)
 	push_a_r_args_label=index_error_label=NULL;
 
 #ifdef G_AI64
-	create_arrayI32_label=create_arrayR32_label=NULL;
+	create_arrayI32_label=create_arrayR32_label=create_arrayI32__label=create_arrayR32__label=NULL;
 #endif
 
 	small_integers_label=static_characters_label=NULL;
