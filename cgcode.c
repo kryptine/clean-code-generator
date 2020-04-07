@@ -332,7 +332,7 @@ static LABEL	*halt_label,*cmp_string_label,*eqD_label,
 				*create_arrayB__label,*create_arrayC__label,*create_arrayI__label,*create_arrayR__label,*create_r_array__label,
 				*print_char_label,*print_int_label,*print_real_label;
 
-#ifdef G_AI64
+#ifdef I486
 static LABEL	*create_arrayI32_label,*create_arrayR32_label,*create_arrayI32__label,*create_arrayR32__label;
 #endif
 
@@ -1763,7 +1763,7 @@ static void code_create_arrayI (VOID)
 	}
 }
 
-#ifdef G_AI64
+#ifdef I486
 static void code_create_arrayI32 (VOID)
 {
 	if (create_arrayI32_label==NULL)
@@ -1827,7 +1827,7 @@ static void code_create_arrayR (VOID)
 	init_a_stack (1);
 }
 
-#ifdef G_AI64
+#ifdef I486
 static void code_create_arrayR32 (VOID)
 {
 	if (create_arrayR32_label==NULL)
@@ -1835,8 +1835,14 @@ static void code_create_arrayR32 (VOID)
 
 	s_push_b (s_get_b (0));
 	s_put_b (1,s_get_b (2));
+# ifdef G_A64
 	s_put_b (2,NULL);
 	insert_basic_block (JSR_BLOCK,0,2+1,i_r_vector,create_arrayR32_label);
+# else
+	s_put_b (2,s_get_b (3));
+	s_put_b (3,NULL);
+	insert_basic_block (JSR_BLOCK,0,3+1,i_r_vector,create_arrayR32_label);
+# endif
 	
 	init_a_stack (1);
 }
@@ -1947,7 +1953,7 @@ void code_create_array (char element_descriptor[],int a_size,int b_size)
 					code_create_arrayI();
 					return;
 				}
-#ifdef G_AI64
+#ifdef I486
 				if (element_descriptor[3]=='3' && element_descriptor[4]=='2' && element_descriptor[5]=='\0'){
 					code_create_arrayI32();
 					return;
@@ -1967,7 +1973,7 @@ void code_create_array (char element_descriptor[],int a_size,int b_size)
 					code_create_arrayR();
 					return;
 				}
-#ifdef G_AI64
+#ifdef I486
 				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
 					code_create_arrayR32();
 					return;
@@ -2091,7 +2097,7 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 					}
 					return;
 				}
-#ifdef G_AI64
+#ifdef I486
 				if (element_descriptor[3]=='3' && element_descriptor[4]=='2' && element_descriptor[5]=='\0'){
 					if (create_arrayI32__label==NULL)
 						create_arrayI32__label=enter_rts_label ("_create_arrayI32");
@@ -2132,7 +2138,7 @@ void code_create_array_ (char element_descriptor[],int a_size,int b_size)
 					init_a_stack (1);
 					return;
 				}
-#ifdef G_AI64
+#ifdef I486
 				if (element_descriptor[4]=='3' && element_descriptor[5]=='2' && element_descriptor[6]=='\0'){
 					if (create_arrayR32__label==NULL)
 						create_arrayR32__label=enter_rts_label ("_create_arrayR32");
@@ -7606,9 +7612,13 @@ void code_replace (char element_descriptor[],int a_size,int b_size)
 					code_replaceI();
 					return;
 				}
-#ifdef G_AI64
+#ifdef I486
 				if (element_descriptor[3]=='3' && element_descriptor[4]=='2' && element_descriptor[5]=='\0'){
+# ifdef G_A64
 					code_replaceI32();
+# else
+					code_replaceI();
+# endif
 					return;
 				}
 #endif
@@ -8395,9 +8405,13 @@ void code_select (char element_descriptor[],int a_size,int b_size)
 					code_selectI();
 					return;	
 				}
-#ifdef G_AI64
+#ifdef I486
 				if (element_descriptor[3]=='3' && element_descriptor[4]=='2' && element_descriptor[5]=='\0'){
+# ifdef G_A64
 					code_selectI32();
+# else
+					code_selectI();
+# endif
 					return;	
 				}				
 #endif
@@ -9285,9 +9299,13 @@ void code_update (char element_descriptor[],int a_size,int b_size)
 					code_updateI();
 					return;
 				}
-#ifdef G_AI64
+#ifdef I486
 				if (element_descriptor[3]=='3' && element_descriptor[4]=='2' && element_descriptor[5]=='\0'){
+# ifdef G_A64
 					code_updateI32();
+# else
+					code_updateI();
+# endif
 					return;	
 				}
 #endif
@@ -10920,7 +10938,7 @@ void initialize_coding (VOID)
 	create_arrayB__label=create_arrayC__label=create_arrayI__label=create_arrayR__label=create_r_array__label=NULL;
 	push_a_r_args_label=index_error_label=NULL;
 
-#ifdef G_AI64
+#ifdef I486
 	create_arrayI32_label=create_arrayR32_label=create_arrayI32__label=create_arrayR32__label=NULL;
 #endif
 
